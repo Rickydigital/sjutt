@@ -1,0 +1,66 @@
+<?php
+
+use App\Http\Controllers\Admin\NewsController;
+use App\Http\Controllers\Admin\EventController;
+use App\Http\Controllers\Admin\QueryController;
+use App\Http\Controllers\Admin\CalendarController;
+use App\Http\Controllers\TimetableController;
+use App\Http\Controllers\ExaminationTimetableController;
+use App\Http\Controllers\Admin\FAQController;
+use App\Http\Controllers\Admin\GalleryController;
+use App\Http\Controllers\Admin\AboutController;
+use App\Http\Controllers\Admin\FeeStructureController;
+use App\Http\Controllers\Admin\CourseController;
+use App\Http\Controllers\ProfileController;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\UserController;
+
+Route::get('/', function () {
+    return view('welcome');
+});
+
+Route::get('/dashboard', function () {
+    return view('dashboard');
+})->middleware(['auth', 'verified'])->name('dashboard');
+
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/queries', [QueryController::class, 'index'])->name('admin.queries.index');
+    Route::post('/queries/{query}/progress', [QueryController::class, 'addProgress'])->name('admin.queries.addProgress');
+    Route::get('/calendars', [CalendarController::class, 'index'])->name('admin.calendars.index');
+    Route::get('/calendars/create', [CalendarController::class, 'create'])->name('admin.calendars.create');
+    Route::post('/calendars', [CalendarController::class, 'store'])->name('admin.calendars.store');
+    Route::get('/calendars/{id}/edit', [CalendarController::class, 'edit'])->name('admin.calendars.edit');
+    Route::put('/calendars/{id}', [CalendarController::class, 'update'])->name('admin.calendars.update');
+    Route::delete('/calendars/{id}', [CalendarController::class, 'destroy'])->name('admin.calendars.destroy');
+    Route::post('/calendars/import', [CalendarController::class, 'import'])->name('admin.calendars.import');
+    Route::get('/timetables/export-all-pdf', [ExaminationTimetableController::class, 'exportAllPdf'])->name('timetables.export.all.pdf');
+    Route::resource('timetables', ExaminationTimetableController::class);
+    Route::get('timetables/import', [ExaminationTimetableController::class, 'importView'])->name('timetables.import.view');
+    Route::post('timetables/import', [ExaminationTimetableController::class, 'import'])->name('timetables.import');
+    Route::get('/timetable', [TimetableController::class, 'index'])->name('timetable.index');
+    Route::get('/timetable/{id}/edit', [TimetableController::class, 'edit'])->name('timetable.edit');
+    Route::put('/timetable/{id}', [TimetableController::class, 'update'])->name('timetable.update');
+    Route::delete('/timetable/{id}', [TimetableController::class, 'destroy'])->name('timetable.destroy');
+    Route::post('/timetable/import', [TimetableController::class, 'import'])->name('timetable.import');
+    Route::resource('faqs', FAQController::class);
+    Route::resource('gallery', GalleryController::class);
+    Route::resource('about', AboutController::class);
+    Route::resource('fee_structures', FeeStructureController::class);
+    Route::resource('courses', CourseController::class);
+    Route::resource('users', UserController::class);
+    Route::put('users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
+    Route::put('users/{user}/activate', [UserController::class, 'activate'])->name('users.activate');
+   
+    
+
+});
+
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
+    Route::resource('news', NewsController::class);
+    Route::resource('events', EventController::class);
+});
+
+require __DIR__.'/auth.php';
