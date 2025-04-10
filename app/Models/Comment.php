@@ -9,15 +9,16 @@ class Comment extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['news_id', 'user_id', 'comment'];
+    protected $fillable = ['commentable_id', 'commentable_type', 'news_id', 'comment'];
+
+    public function commentable()
+    {
+        return $this->morphTo();
+    }
 
     public function news()
     {
         return $this->belongsTo(News::class);
     }
-
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
 }
+

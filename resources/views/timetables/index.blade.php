@@ -42,14 +42,16 @@
             @endif
 
             <!-- Timetable Tables Grouped by Program -->
+
+               
             @php
                 $timeSlots = [
-                    'Morning' => '08:00:00-10:00:00',
-                    'Noon' => '12:00:00-14:00:00',
-                    'Evening' => '16:00:00-18:00:00'
+                    'Morning' => '08:00:00-11:00:00',
+                    'Noon' => '12:30:00-15:30:00',
+                    'Evening' => '17:00:00-20:00:00'
                 ];
                 $allDays = $timetables->pluck('exam_date')->unique()->sort()->take(40); // Take 10 days
-                $yearsList = [1, 2, 3, 4];
+                $yearsList = \App\Models\Year::whereIn('id', [1, 2, 3, 4])->orderBy('year')->get();
                 $week1Days = $allDays->slice(0, 5); // Mon-Fri (Feb 10-14)
                 $week2Days = $allDays->slice(5, 5); // Mon-Fri (Feb 17-21)
             @endphp
@@ -77,7 +79,7 @@
                                     <tr>
                                         @foreach ($week1Days as $day)
                                             @foreach ($data['faculties'] as $faculty)
-                                                <th class="sub-header">{{ $faculty }}</th>
+                                                <th class="sub-header">{{ $faculty->name }}</th>
                                             @endforeach
                                         @endforeach
                                     </tr>
@@ -94,21 +96,21 @@
                                                         {{ substr($startTime, 0, 5) }}-{{ substr($endTime, 0, 5) }} ({{ $slotName }})
                                                     </td>
                                                 @endif
-                                                <td>{{ $year }}</td>
+                                                <td>{{ $year->year }}</td>
                                                 @foreach ($week1Days as $day)
                                                     @foreach ($data['faculties'] as $faculty)
-                                                        @php
-                                                            $entry = $data['timetables']->firstWhere(function ($item) use ($day, $faculty, $year, $startTime, $endTime) {
-                                                                return $item->exam_date == $day &&
-                                                                       $item->faculty == $faculty &&
-                                                                       $item->year == $year &&
-                                                                       $item->start_time == $startTime &&
-                                                                       $item->end_time == $endTime;
-                                                            });
-                                                        @endphp
+                                                    @php
+                                                        $entry = $data['timetables']->firstWhere(function ($item) use ($day, $faculty, $year, $startTime, $endTime) {
+                                                            return $item->exam_date == $day &&
+                                                                $item->faculty_id == $faculty->id &&  // Changed from faculty to faculty_id
+                                                                $item->year_id == $year->id &&       // Changed from year to year_id
+                                                                $item->start_time == $startTime &&
+                                                                $item->end_time == $endTime;
+                                                        });
+                                                    @endphp
                                                         <td>
                                                             @if ($entry)
-                                                                {{ $entry->course_code }} <br><hr> {{ $entry->venue }}
+                                                                {{ $entry->course_code }} <br><hr> {{ $entry->venue->name }}
                                                                 <div class="action-buttons">
                                                                     <a href="{{ route('timetables.edit', $entry->id) }}" class="btn btn-sm btn-warning" title="Edit">
                                                                         <i class="fa fa-edit"></i>
@@ -152,7 +154,7 @@
                                         <tr>
                                             @foreach ($week2Days as $day)
                                                 @foreach ($data['faculties'] as $faculty)
-                                                    <th class="sub-header">{{ $faculty }}</th>
+                                                    <th class="sub-header">{{ $faculty->name }}</th>
                                                 @endforeach
                                             @endforeach
                                         </tr>
@@ -169,21 +171,21 @@
                                                             {{ substr($startTime, 0, 5) }}-{{ substr($endTime, 0, 5) }} ({{ $slotName }})
                                                         </td>
                                                     @endif
-                                                    <td>{{ $year }}</td>
+                                                    <td>{{ $year->year }}</td>
                                                     @foreach ($week2Days as $day)
                                                         @foreach ($data['faculties'] as $faculty)
-                                                            @php
-                                                                $entry = $data['timetables']->firstWhere(function ($item) use ($day, $faculty, $year, $startTime, $endTime) {
-                                                                    return $item->exam_date == $day &&
-                                                                           $item->faculty == $faculty &&
-                                                                           $item->year == $year &&
-                                                                           $item->start_time == $startTime &&
-                                                                           $item->end_time == $endTime;
-                                                                });
-                                                            @endphp
+                                                        @php
+                                                            $entry = $data['timetables']->firstWhere(function ($item) use ($day, $faculty, $year, $startTime, $endTime) {
+                                                                return $item->exam_date == $day &&
+                                                                    $item->faculty_id == $faculty->id &&  // Changed from faculty to faculty_id
+                                                                    $item->year_id == $year->id &&       // Changed from year to year_id
+                                                                    $item->start_time == $startTime &&
+                                                                    $item->end_time == $endTime;
+                                                            });
+                                                        @endphp
                                                             <td>
                                                                 @if ($entry)
-                                                                    {{ $entry->course_code }} <br><hr> {{ $entry->venue }}
+                                                                    {{ $entry->course_code }} <br><hr> {{ $entry->venue->name }}
                                                                     <div class="action-buttons">
                                                                         <a href="{{ route('timetables.edit', $entry->id) }}" class="btn btn-sm btn-warning" title="Edit">
                                                                             <i class="fa fa-edit"></i>

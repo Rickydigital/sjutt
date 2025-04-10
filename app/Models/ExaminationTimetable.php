@@ -10,7 +10,21 @@ class ExaminationTimetable extends Model {
 
     protected $fillable = [
         'timetable_type', 'program', 'semester', 'course_code',
-        'faculty', 'year', 'exam_date',
-        'start_time', 'end_time', 'venue'
+        'faculty_id', 'year_id', 'exam_date',
+        'start_time', 'end_time', 'venue_id'
     ];
+
+    protected $dates = ['exam_date'];
+
+    public function faculty() {
+        return $this->belongsTo(Faculty::class);
+    }
+
+    public function year() {
+        return $this->belongsTo(Year::class);
+    }
+
+    public function venue() {
+        return $this->belongsTo(Venue::class);
+    }
 }

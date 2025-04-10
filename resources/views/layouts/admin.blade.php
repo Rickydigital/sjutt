@@ -47,6 +47,17 @@
 
         <!-- Content -->
         <div class="content">
+            @if ($errors->any())
+            <div class="alert alert-danger">
+                <strong><i class="fa fa-exclamation-circle mr-2"></i> Whoops! Something went wrong.</strong>
+                <ul class="mb-0 mt-2">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+    
             @yield('content')
         </div>
         <!-- /.content -->

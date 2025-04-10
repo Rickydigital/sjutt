@@ -9,15 +9,15 @@ class Reaction extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['news_id', 'user_id', 'type'];
+    protected $fillable = ['reactable_id', 'reactable_type', 'news_id', 'type'];
+
+    public function reactable()
+    {
+        return $this->morphTo();
+    }
 
     public function news()
     {
         return $this->belongsTo(News::class);
-    }
-
-    public function user()
-    {
-        return $this->belongsTo(User::class);
     }
 }
