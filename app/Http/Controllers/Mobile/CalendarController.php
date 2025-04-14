@@ -1,7 +1,10 @@
 <?php
 
-// app/Http/Controllers/Mobile/CalendarController.php
+
+// app/Http/Controllers/CalendarController.php
 namespace App\Http\Controllers\Mobile;
+
+
 
 use App\Http\Controllers\Controller;
 use App\Models\Calendar;
@@ -9,27 +12,30 @@ use Illuminate\Http\Request;
 
 class CalendarController extends Controller
 {
-    public function fetch(Request $request)
+    public function index()
     {
-        $month = $request->query('month');
-        $program_category = $request->query('program_category');
-
-        $query = Calendar::with('weekNumbers');
-
-        if ($month) {
-            $query->where('month', $month);
-        }
-        if ($program_category) {
-            $query->whereHas('weekNumbers', function ($q) use ($program_category) {
-                $q->where('program_category', $program_category);
-            });
-        }
-
-        $calendars = $query->get();
-
+        $calendars = Calendar::with('weekNumbers')->get();
+        
+        $formattedCalendars = $calendars->map(function ($calendar) {
+            $weekNumbers = [];
+            foreach ($calendar->weekNumbers as $weekNumber) {
+                $weekNumbers[$weekNumber->program_category] = $weekNumber->week_number;
+            }
+            
+            return [
+                'id' => $calendar->id,
+                'month' => $calendar->month,
+                'dates' => $calendar->dates,
+                'academic_calendar' => $calendar->academic_calendar,
+                'meeting_activities_calendar' => $calendar->meeting_activities_calendar,
+                'academic_year' => $calendar->academic_year,
+                'week_numbers' => $weekNumbers,
+            ];
+        });
+        
         return response()->json([
-            'status' => 'success',
-            'data' => $calendars
+            'success' => true,
+            'data' => $formattedCalendars,
         ]);
     }
 }

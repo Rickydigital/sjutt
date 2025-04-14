@@ -82,6 +82,24 @@ class ExaminationTimetableController extends Controller
             'venue_id' => 'required|exists:venues,id',
         ]);
 
+                // Conflict check
+        $hasConflict = ExaminationTimetable::where('exam_date', $request->exam_date)
+        ->where(function ($query) use ($request) {
+            $query->where('venue_id', $request->venue_id)
+                ->orWhere(function ($q) use ($request) {
+                    $q->where('faculty_id', $request->faculty_id)
+                        ->where('year_id', $request->year_id);
+                });
+        })
+        ->where('start_time', '<', $request->end_time)
+        ->where('end_time', '>', $request->start_time)
+        ->exists();
+
+        if ($hasConflict) {
+        return back()->withErrors(['conflict' => 'Schedule conflict detected.']);
+        }
+
+
         ExaminationTimetable::create($request->all());
 
         return redirect()->route('timetables.index')->with('success', 'Timetable created successfully!');
@@ -112,6 +130,25 @@ class ExaminationTimetableController extends Controller
             'venue_id' => 'required|exists:venues,id',
         ]);
 
+                // Conflict check
+        $hasConflict = ExaminationTimetable::where('exam_date', $request->exam_date)
+        ->where(function ($query) use ($request) {
+            $query->where('venue_id', $request->venue_id)
+                ->orWhere(function ($q) use ($request) {
+                    $q->where('faculty_id', $request->faculty_id)
+                        ->where('year_id', $request->year_id);
+                });
+        })
+        ->where('start_time', '<', $request->end_time)
+        ->where('end_time', '>', $request->start_time)
+        ->when($id ?? null, fn($q) => $q->where('id', '!=', $id)) // Exclude self on update
+        ->exists();
+
+        if ($hasConflict) {
+        return back()->withErrors(['conflict' => 'Schedule conflict detected.']);
+        }
+
+
         $timetable = ExaminationTimetable::findOrFail($id);
         $timetable->update($request->all());
 
@@ -126,24 +163,36 @@ class ExaminationTimetableController extends Controller
         return redirect()->route('timetables.index')->with('success', 'Timetable deleted successfully!');
     }
 
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:csv,xlsx',
+        ]);
+    
+        $importer = new ExaminationTimetableImport();
+    
+        try {
+            Excel::import($importer, $request->file('file'));
+    
+            if (!empty($importer->errors)) {
+                return redirect()->route('timetables.index')
+                    ->with('import_errors', $importer->errors);
+            }
+    
+            return redirect()->route('timetables.index')->with('success', 'Timetable imported successfully!');
+        } catch (\Exception $e) {
+            return redirect()->route('timetables.index')
+                ->with('error', 'Import failed: ' . $e->getMessage());
+        }
+    }
+    
+
     public function importView()
     {
         return view('timetables.imports');
     }
 
-    public function import(Request $request)
-    {
-        $request->validate([
-            'file' => 'required|mimes:csv,xlsx', 
-        ]);
-
-        try {
-            Excel::import(new ExaminationTimetableImport, $request->file('file'));
-            return redirect()->route('timetables.index')->with('success', 'Timetable imported successfully!');
-        } catch (\Exception $e) {
-            return redirect()->route('timetables.index')->with('error', 'Error importing timetable: ' . $e->getMessage());
-        }
-    }
+     
 
     public function exportAllPdf(Request $request)
     {

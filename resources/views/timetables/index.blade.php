@@ -4,6 +4,17 @@
     <div class="content">
         <div class="animated fadeIn">
             <!-- Page Header and Filters (unchanged) -->
+
+            @if(session('import_errors'))
+                <div class="alert alert-danger">
+                    <strong>Import completed with errors:</strong>
+                    <ul>
+                        @foreach(session('import_errors') as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
             <div class="row mb-4">
                 <div class="col-md-12">
                     <div class="d-flex align-items-center justify-content-between">
@@ -14,13 +25,11 @@
                             <a href="{{ route('timetables.create') }}" class="btn btn-lg" style="background-color: #4B2E83; color: white; border-radius: 25px;">
                                 <i class="fa fa-plus mr-1"></i> Add New
                             </a>
-                            <form action="{{ route('timetables.import') }}" method="POST" enctype="multipart/form-data" class="d-inline" id="importForm">
-                                @csrf
-                                <input type="file" name="file" accept=".csv, .xlsx" required style="display: none;" id="fileInput">
-                                <label for="fileInput" class="btn btn-lg" style="background-color: #4B2E83; color: white; border-radius: 25px; cursor: pointer;">
-                                    <i class="fa fa-upload mr-1"></i> Import
-                                </label>
-                            </form>
+
+                            <a href="{{ route('timetables.import.view') }}" class="btn btn-lg" style="background-color: #4B2E83; color: white; border-radius: 25px;">
+                                <i class="fa fa-upload mr-1"></i> Import
+                            </a>
+                          
                             <a href="{{ route('timetables.export.all.pdf') }}" class="btn btn-lg" style="background-color: #4B2E83; color: white; border-radius: 25px;">
                                 <i class="fa fa-file-pdf-o mr-1"></i> Export All to PDF
                             </a>

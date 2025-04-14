@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\NewsController;
 use App\Http\Controllers\Admin\EventController;
 use App\Http\Controllers\Admin\QueryController;
 use App\Http\Controllers\Admin\CalendarController;
+use App\Http\Controllers\AdminSuggestionController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ExaminationTimetableController;
 use App\Http\Controllers\Admin\FaqController;
@@ -64,6 +65,9 @@ Route::middleware('auth')->group(function () {
     Route::resource('venues', VenueController::class);
     Route::put('users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
     Route::put('users/{user}/activate', [UserController::class, 'activate'])->name('users.activate');
+    Route::get('/suggestions', [AdminSuggestionController::class, 'index'])->name('admin.suggestions.index');
+    Route::get('/suggestions/{suggestion}', [AdminSuggestionController::class, 'show'])->name('admin.suggestions.show');
+    Route::put('/suggestions/{suggestion}/status', [AdminSuggestionController::class, 'updateStatus'])->name('admin.suggestions.updateStatus');
    
     
 

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use App\Models\Student;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 
 class NewsController extends Controller
@@ -231,71 +232,88 @@ class NewsController extends Controller
     }
 
 
-    public function storeToken(Request $request)
-{
-    $request->validate([
-        'token' => 'required|string',
-    ]);
+        public function storeToken(Request $request)
+    {
+        $request->validate([
+            'token' => 'required|string',
+        ]);
 
-    $student = Auth::guard('sanctum')->user();
-    if (!$student) {
-        return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        $student = Auth::guard('sanctum')->user();
+        if (!$student) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $student->fcm_token = $request->token;
+        $student->save();
+
+        return response()->json(['success' => true, 'message' => 'FCM token stored successfully'], 200);
     }
 
-    $student->fcm_token = $request->token;
-    $student->save();
+    public function updateOnlineStatus(Request $request)
+    {
+        $user = $request->user();
+        $student = Student::find($user->id);
 
-    return response()->json(['success' => true, 'message' => 'FCM token stored successfully'], 200);
-}
+        if (!$student) {
+            return response()->json(['success' => false, 'message' => 'Student not found'], 404);
+        }
 
-public function logout(Request $request) {
-    $request->user()->currentAccessToken()->delete();
-    return response()->json(['success' => true, 'message' => 'Logged out successfully'], 200);
-}
+        $student->is_online = $request->input('is_online', false);
+        $student->save();
 
-public function profile(Request $request) {
-    return response()->json(['success' => true, 'data' => $request->user()], 200);
-}
+        Log::info("Student {$student->id} online status updated to {$student->is_online}");
 
-public function editProfile(Request $request) {
-    $request->validate([
-        'name' => 'required|string|max:255',
-        'reg_no' => 'required|string|unique:students,reg_no,' . $request->user()->id,
-        'year_of_study' => 'required|integer|between:1,4',
-        'email' => 'required|email|unique:students,email,' . $request->user()->id,
-        'gender' => 'required|in:male,female,other',
-    ]);
-
-    $student = $request->user();
-    $student->update($request->only('name', 'reg_no', 'year_of_study', 'email', 'gender'));
-    return response()->json(['success' => true, 'message' => 'Profile updated', 'data' => $student], 200);
-}
-
-public function changePassword(Request $request) {
-    $request->validate([
-        'current_password' => 'required|string',
-        'new_password' => 'required|string|min:6|confirmed',
-    ]);
-
-    $student = $request->user();
-    if (!Hash::check($request->current_password, $student->password)) {
-        return response()->json(['success' => false, 'message' => 'Current password incorrect'], 401);
+        return response()->json(['success' => true]);
     }
 
-    $student->password = bcrypt($request->new_password);
-    $student->save();
-    return response()->json(['success' => true, 'message' => 'Password changed'], 200);
-}
-
-public function forgotPassword(Request $request) {
-    $request->validate(['email' => 'required|email']);
-    $student = Student::where('email', $request->email)->first();
-    if (!$student) {
-        return response()->json(['success' => false, 'message' => 'Email not found'], 404);
+    public function logout(Request $request) {
+        $request->user()->currentAccessToken()->delete();
+        return response()->json(['success' => true, 'message' => 'Logged out successfully'], 200);
     }
 
-    // Simulate sending reset email (implement actual email logic with Laravel Mail)
-    return response()->json(['success' => true, 'message' => 'Reset email sent'], 200);
-}
+    public function profile(Request $request) {
+        return response()->json(['success' => true, 'data' => $request->user()], 200);
+    }
+
+    public function editProfile(Request $request) {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'reg_no' => 'required|string|unique:students,reg_no,' . $request->user()->id,
+            'year_of_study' => 'required|integer|between:1,4',
+            'email' => 'required|email|unique:students,email,' . $request->user()->id,
+            'gender' => 'required|in:male,female,other',
+        ]);
+
+        $student = $request->user();
+        $student->update($request->only('name', 'reg_no', 'year_of_study', 'email', 'gender'));
+        return response()->json(['success' => true, 'message' => 'Profile updated', 'data' => $student], 200);
+    }
+
+    public function changePassword(Request $request) {
+        $request->validate([
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:6|confirmed',
+        ]);
+
+        $student = $request->user();
+        if (!Hash::check($request->current_password, $student->password)) {
+            return response()->json(['success' => false, 'message' => 'Current password incorrect'], 401);
+        }
+
+        $student->password = bcrypt($request->new_password);
+        $student->save();
+        return response()->json(['success' => true, 'message' => 'Password changed'], 200);
+    }
+
+    public function forgotPassword(Request $request) {
+        $request->validate(['email' => 'required|email']);
+        $student = Student::where('email', $request->email)->first();
+        if (!$student) {
+            return response()->json(['success' => false, 'message' => 'Email not found'], 404);
+        }
+
+        // Simulate sending reset email (implement actual email logic with Laravel Mail)
+        return response()->json(['success' => true, 'message' => 'Reset email sent'], 200);
+    }
     
 }

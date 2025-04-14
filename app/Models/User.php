@@ -50,4 +50,14 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function suggestions()
+    {
+        return $this->hasMany(Suggestion::class);
+    }
+
+    public function routeNotificationForMail()
+    {
+        return $this->email;
+    }
 }

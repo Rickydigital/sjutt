@@ -19,6 +19,8 @@ class Student extends Authenticatable
         'password',
         'gender',
         'faculty_id',
+        'is_online',
+        'fcm_token',
     ];
 
     public function faculty() {
@@ -47,4 +49,10 @@ class Student extends Authenticatable
     {
         return $this->hasMany(Comment::class, 'user_id');
     }
+
+    public function suggestions()
+    {
+        return $this->hasMany(Suggestion::class);
+    }
+
 }
