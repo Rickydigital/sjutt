@@ -22,6 +22,33 @@ Googel Fonts  */
 .bg-flat-color-1 {
   background: #00c292; }
 
+/* Make lecturer_ids Select2 wider */
+#lecturer_ids+.select2-container {
+  width: 100% !important;
+  min-width: 400px;
+}
+
+/* Style for course checkboxes */
+.course-checkbox {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.course-checkbox input[type="checkbox"] {
+  margin-right: 10px;
+}
+
+.course-checkbox label {
+  flex-grow: 1;
+}
+
+.course-checkbox .remove-course {
+  color: #dc3545;
+  cursor: pointer;
+  margin-left: 10px;
+}
+
 .bg-flat-color-2 {
   background: #ab8ce4; }
 

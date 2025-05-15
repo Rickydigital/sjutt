@@ -21,6 +21,8 @@ class Student extends Authenticatable
         'faculty_id',
         'is_online',
         'fcm_token',
+        'can_upload',
+        'last_chat_access_at',
     ];
 
     public function faculty() {
@@ -36,6 +38,7 @@ class Student extends Authenticatable
     {
         return [
             'password' => 'hashed',
+            'can_upload' => 'boolean',
         ];
     }
 

@@ -15,5 +15,5 @@ class Faq extends Model
         'rating'
     ];
 
-    // Optionally, define relationships here (e.g., if needed in the future)
+    
 }

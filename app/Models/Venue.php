@@ -4,12 +4,21 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Venue extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'lat', 'lng'];
+    protected $fillable = [
+        'name',
+        'lat',
+        'lng',
+        'building_id',
+        'capacity',
+        'type',
+        'longform'
+    ];
 
     public function timetables()
     {
@@ -19,5 +28,10 @@ class Venue extends Model
     public function examinationTimetables()
     {
         return $this->hasMany(ExaminationTimetable::class);
+    }
+
+    public function building(): BelongsTo
+    {
+        return $this->belongsTo(Building::class);
     }
 }

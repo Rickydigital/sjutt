@@ -14,6 +14,10 @@ class Gallery extends Model
         'media'
     ];
 
+    protected $casts = [
+        'media' => 'array', 
+    ];
+
     public function likes()
     {
         return $this->hasMany(GalleryLike::class);

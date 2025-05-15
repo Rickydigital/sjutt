@@ -5,19 +5,28 @@ namespace App\Http\Controllers\Mobile;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class EventController extends Controller
 {
     public function index()
     {
         try {
-            $events = Event::with('user')->latest()->get();
+            $events = Event::latest()->get();
+            $events = $events->map(function ($item) {
+                if ($item->media) {
+                    $item->media = asset('storage/' . ltrim($item->media, '/')); // Full URL
+                }
+                return $item;
+            });
             return response()->json([
                 'success' => true,
                 'message' => 'Events fetched successfully',
                 'data' => $events
             ], 200);
         } catch (\Exception $e) {
+            Log::error("Failed to fetch events: {$e->getMessage()}");
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch events',
@@ -26,27 +35,34 @@ class EventController extends Controller
         }
     }
 
-    public function show($id)
+    public function latest()
     {
         try {
-            $event = Event::with('user')->findOrFail($id);
+            $now = Carbon::now('UTC'); // Use UTC to match database timezone
+            $events = Event::where('event_time', '>=', $now)
+                ->latest()
+                ->take(5)
+                ->get();
+            $events = $events->map(function ($item) {
+                if ($item->media) {
+                    $item->media = asset('storage/' . ltrim($item->media, '/')); // Full URL
+                }
+                return $item;
+            });
             return response()->json([
                 'success' => true,
-                'message' => 'Event retrieved successfully',
-                'data' => $event
+                'message' => 'Latest events fetched successfully',
+                'data' => $events
             ], 200);
-        } catch (ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Event not found'
-            ], 404);
         } catch (\Exception $e) {
+            Log::error("Failed to fetch latest events: {$e->getMessage()}");
             return response()->json([
                 'success' => false,
-                'message' => 'An error occurred',
+                'message' => 'Failed to fetch latest events',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
-}
 
+    
+}

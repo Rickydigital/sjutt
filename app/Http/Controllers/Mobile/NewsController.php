@@ -21,13 +21,28 @@ class NewsController extends Controller
     public function index()
     {
         try {
-            $news = News::with(['user', 'reactions.reactable', 'comments.commentable'])->latest()->get();
+            $news = News::with(['user', 'reactions', 'comments.commentable'])->latest()->get();
+            $news = $news->map(function ($item) {
+                $item->reactions = $item->reactions->map(function ($reaction) {
+                    $mapped = [
+                        'id' => $reaction->id,
+                        'type' => $reaction->type,
+                        'user_id' => (int) $reaction->reactable_id, // Cast to ensure integer
+                        'news_id' => $reaction->news_id
+                    ];
+                    Log::info("Mapped reaction for news {$reaction->news_id}: " . json_encode($mapped));
+                    return $mapped;
+                });
+                return $item;
+            });
+    
             return response()->json([
                 'success' => true,
                 'message' => 'News fetched successfully',
                 'data' => $news
             ], 200);
         } catch (\Exception $e) {
+            Log::error("Failed to fetch news: {$e->getMessage()}");
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch news',
@@ -36,21 +51,74 @@ class NewsController extends Controller
         }
     }
 
+    public function latest()
+    {
+        try {
+            $news = News::with(['user', 'reactions', 'comments.commentable'])
+                ->latest()
+                ->take(5)
+                ->get();
+            $news = $news->map(function ($item) {
+                $item->reactions = $item->reactions->map(function ($reaction) {
+                    $mapped = [
+                        'id' => $reaction->id,
+                        'type' => $reaction->type,
+                        'user_id' => (int) $reaction->reactable_id,
+                        'news_id' => $reaction->news_id
+                    ];
+                    Log::info("Mapped reaction for news {$reaction->news_id}: " . json_encode($mapped));
+                    return $mapped;
+                });
+                // Convert relative image path to full URL
+                if ($item->image) {
+                    $item->image = asset('storage/' . ltrim($item->image, '/')); // e.g., http://192.168.137.15:8000/storage/news_images/...
+                }
+                return $item;
+            });
+    
+            return response()->json([
+                'success' => true,
+                'message' => 'Latest news fetched successfully',
+                'data' => $news
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error("Failed to fetch latest news: {$e->getMessage()}");
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch latest news',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    
     public function show($id)
     {
         try {
-            $news = News::with(['user', 'reactions.reactable', 'comments.commentable'])->findOrFail($id);
+            $news = News::with(['user', 'reactions', 'comments.commentable'])->findOrFail($id);
+            $news->reactions = $news->reactions->map(function ($reaction) {
+                $mapped = [
+                    'id' => $reaction->id,
+                    'type' => $reaction->type,
+                    'user_id' => (int) $reaction->reactable_id, // Cast to ensure integer
+                    'news_id' => $reaction->news_id
+                ];
+                Log::info("Mapped reaction for news {$reaction->news_id}: " . json_encode($mapped));
+                return $mapped;
+            });
+    
             return response()->json([
                 'success' => true,
                 'message' => 'News retrieved successfully',
                 'data' => $news
             ], 200);
         } catch (ModelNotFoundException $e) {
+            Log::error("News {$id} not found");
             return response()->json([
                 'success' => false,
                 'message' => 'News not found'
             ], 404);
         } catch (\Exception $e) {
+            Log::error("Failed to retrieve news {$id}: {$e->getMessage()}");
             return response()->json([
                 'success' => false,
                 'message' => 'An error occurred',
@@ -83,64 +151,135 @@ class NewsController extends Controller
       }
 
     public function react(Request $request, $id)
-    {
-        try {
-            $request->validate([
-                'type' => 'required|in:like,dislike',
-            ]);
+      {
+          try {
+              $request->validate([
+                  'type' => 'required|in:like,dislike',
+              ]);
+      
+              $news = News::findOrFail($id);
+              $user = Auth::guard('sanctum')->user(); // Use sanctum guard for API
+      
+              if (!$user) {
+                  return response()->json([
+                      'success' => false,
+                      'message' => 'Unauthorized'
+                  ], 401);
+              }
+      
+              $existingReaction = Reaction::where('news_id', $news->id)
+                                          ->where('reactable_id', $user->id)
+                                          ->where('reactable_type', get_class($user))
+                                          ->where('type', $request->type)
+                                          ->first();
+      
+              if ($existingReaction) {
+                  // Same reaction type exists, no need to keep it (client expects toggle)
+                  $existingReaction->delete();
+                  Log::info("Reaction {$request->type} removed for news {$news->id} by user {$user->id}");
+                  return response()->json([
+                      'success' => true,
+                      'message' => 'Reaction removed successfully',
+                      'data' => null
+                  ], 200);
+              }
+      
+              // Remove opposite reaction if it exists (e.g., dislike if liking)
+              Reaction::where('news_id', $news->id)
+                      ->where('reactable_id', $user->id)
+                      ->where('reactable_type', get_class($user))
+                      ->where('type', $request->type === 'like' ? 'dislike' : 'like')
+                      ->delete();
+      
+              // Create new reaction
+              $reaction = Reaction::create([
+                  'reactable_id' => $user->id,
+                  'reactable_type' => get_class($user),
+                  'news_id' => $news->id,
+                  'type' => $request->type,
+              ]);
+      
+              Log::info("Reaction {$request->type} added for news {$news->id} by user {$user->id}");
+      
+              return response()->json([
+                  'success' => true,
+                  'message' => 'Reaction added successfully',
+                  'data' => [
+                      'id' => $reaction->id,
+                      'type' => $reaction->type,
+                      'user_id' => $reaction->reactable_id, // Map to user_id for client
+                      'news_id' => $reaction->news_id
+                  ]
+              ], 201);
+          } catch (ModelNotFoundException $e) {
+              Log::error("News {$id} not found");
+              return response()->json([
+                  'success' => false,
+                  'message' => 'News not found'
+              ], 404);
+          } catch (\Exception $e) {
+              Log::error("Failed to add reaction: {$e->getMessage()}");
+              return response()->json([
+                  'success' => false,
+                  'message' => 'Failed to add reaction',
+                  'error' => $e->getMessage()
+              ], 500);
+          }
+      }
 
-            $news = News::findOrFail($id);
-            $user = Auth::user(); // Could be User or Student
-
-            $existingReaction = Reaction::where('news_id', $news->id)
-                                        ->where('reactable_id', $user->id)
-                                        ->where('reactable_type', get_class($user))
-                                        ->first();
-
-            if ($existingReaction) {
-                if ($existingReaction->type === $request->type) {
-                    $existingReaction->delete();
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Reaction removed successfully',
-                        'data' => null
-                    ], 200);
-                } else {
-                    $existingReaction->update(['type' => $request->type]);
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Reaction updated successfully',
-                        'data' => $existingReaction
-                    ], 200);
-                }
-            } else {
-                $reaction = Reaction::create([
-                    'reactable_id' => $user->id,
-                    'reactable_type' => get_class($user),
-                    'news_id' => $news->id,
-                    'type' => $request->type,
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Reaction added successfully',
-                    'data' => $reaction
-                ], 201);
-            }
-        } catch (ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'News not found'
-            ], 404);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to add reaction',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
+      public function removeReaction(Request $request, $id)
+      {
+          try {
+              $request->validate([
+                  'type' => 'required|in:like,dislike',
+              ]);
+      
+              $news = News::findOrFail($id);
+              $user = Auth::guard('sanctum')->user();
+      
+              if (!$user) {
+                  return response()->json([
+                      'success' => false,
+                      'message' => 'Unauthorized'
+                  ], 401);
+              }
+      
+              $deleted = Reaction::where('news_id', $news->id)
+                                 ->where('reactable_id', $user->id)
+                                 ->where('reactable_type', get_class($user))
+                                 ->where('type', $request->type)
+                                 ->delete();
+      
+              if ($deleted) {
+                  Log::info("Reaction {$request->type} removed for news {$news->id} by user {$user->id}");
+                  return response()->json([
+                      'success' => true,
+                      'message' => 'Reaction removed successfully',
+                      'data' => null
+                  ], 200);
+              }
+      
+              Log::warning("No {$request->type} reaction found for news {$news->id} by user {$user->id}");
+              return response()->json([
+                  'success' => true,
+                  'message' => 'No reaction to remove',
+                  'data' => null
+              ], 200);
+          } catch (ModelNotFoundException $e) {
+              Log::error("News {$id} not found");
+              return response()->json([
+                  'success' => false,
+                  'message' => 'News not found'
+              ], 404);
+          } catch (\Exception $e) {
+              Log::error("Failed to remove reaction: {$e->getMessage()}");
+              return response()->json([
+                  'success' => false,
+                  'message' => 'Failed to remove reaction',
+                  'error' => $e->getMessage()
+              ], 500);
+          }
+      }
     public function getFaculties()
     {
         try {

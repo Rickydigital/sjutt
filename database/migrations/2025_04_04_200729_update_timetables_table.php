@@ -7,13 +7,10 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up() {
         Schema::table('timetables', function (Blueprint $table) {
-            // $table->dropColumn('faculty');
-            // $table->dropColumn('year');
-            // $table->dropColumn('venue');
-
-           // $table->foreignId('faculty_id')->constrained('faculties')->onDelete('cascade');
-           // $table->foreignId('year_id')->constrained('years')->onDelete('cascade');
-          //  $table->foreignId('venue_id')->constrained('venues')->onDelete('cascade');
+            
+            $table->foreignId('faculty_id')->constrained('faculties')->onDelete('cascade');
+            $table->foreignId('year_id')->constrained('years')->onDelete('cascade');
+          $table->foreignId('venue_id')->constrained('venues')->onDelete('cascade');
         });
     }
 
@@ -23,9 +20,7 @@ return new class extends Migration {
             $table->dropForeign(['year_id']);
             $table->dropForeign(['venue_id']);
 
-            $table->string('faculty');
-            $table->integer('year');
-            $table->string('venue');
+          
         });
     }
 };

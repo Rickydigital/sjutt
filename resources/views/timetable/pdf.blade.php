@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Lecture Timetable</title>
@@ -11,7 +11,8 @@
         th, td { border: 2px solid #4B2E83; padding: 5px; text-align: center; vertical-align: middle; }
         th { background-color: #4B2E83; color: white; }
         .header-container { background-color: #f8f9fa; border-bottom: 2px solid #4B2E83; padding: 10px; margin-bottom: 20px; }
-        .page-break { page-break-after: always; }
+        .page { page-break-after: always; }
+        .no-break { page-break-after: auto; }
         p { text-align: center; }
     </style>
 </head>
@@ -19,21 +20,18 @@
     <h1>ST JOHN'S UNIVERSITY OF TANZANIA</h1>
     <h2>Lectures Timetable for ACADEMIC Year 2024/2025 Semester II FIRST DRAFT</h2>
 
-    @if ($groupedTimetables->isEmpty())
+    @if ($faculties->isEmpty())
         <p>No timetable data available.</p>
     @else
-        @foreach ($groupedTimetables as $facultyId => $years)
-            @foreach ($years as $yearId => $timetables)
-                @php
-                    $faculty = \App\Models\Faculty::find($facultyId);
-                    $year = \App\Models\Year::find($yearId);
-                    $activitiesByDay = $timetables->groupBy('day');
-                    $occupiedUntil = array_fill_keys($days, -1);
-                @endphp
-
-                @if ($faculty && $year) <!-- Null check -->
+        @foreach ($faculties->chunk(2) as $chunk)
+            <div class="page">
+                @foreach ($chunk as $faculty)
+                    @php
+                        $activitiesByDay = $faculty->timetables->groupBy('day');
+                        $occupiedUntil = array_fill_keys($days, -1);
+                    @endphp
                     <div class="header-container">
-                        <h3>{{ $faculty->name }} - Year {{ $year->year }}</h3>
+                        <h3>{{ $faculty->name }}</h3>
                     </div>
                     <table>
                         <thead>
@@ -68,12 +66,13 @@
                                                     $occupiedUntil[$day] = $i + $span - 1;
                                                 @endphp
                                                 <td rowspan="{{ $span }}">
-                                                    {{ $activity->course_code }} <br>
+                                                   <strong>{{ $activity->course_code }} </strong> <br>
+                                                   {{ $activity->group_selection }} <br>
                                                     {{ $activity->activity }} <br>
                                                     {{ $activity->venue->name }}
                                                 </td>
                                             @else
-                                                <td>-</td>
+                                                <td> </td>
                                             @endif
                                         @endif
                                     @endforeach
@@ -82,11 +81,8 @@
                         </tbody>
                     </table>
                     <p>For any changes Consult Faculty/School Administrators</p>
-                    @if (!$loop->last)
-                        <div class="page-break"></div>
-                    @endif
-                @endif
-            @endforeach
+                @endforeach
+            </div>
         @endforeach
     @endif
 </body>

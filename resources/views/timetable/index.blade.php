@@ -5,287 +5,462 @@
         <div class="animated fadeIn">
             <!-- Page Header -->
             <div class="row mb-4">
+                <div class="col-md-12 d-flex justify-content-between align-items-center">
+                    <h1 class="font-weight-bold" style="color: #4B2E83;">
+                        <i class="fa fa-clock mr-2"></i> Timetable
+                    </h1>
+                    <div>
+                        <a href="#" class="btn btn-primary mr-2" data-toggle="modal" data-target="#importTimetableModal">
+                            <i class="fa fa-upload mr-1"></i> Import
+                        </a>
+                        <a href="{{ route('timetable.export') }}" class="btn btn-success">
+                            <i class="fa fa-download mr-1"></i> Export
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Faculty Filter -->
+            <div class="row mb-4">
                 <div class="col-md-12">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <h1 class="font-weight-bold" style="color: #4B2E83;">
-                            <i class="fa fa-clock mr-2"></i> Timetable
-                        </h1>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Search Bar, Import Form, and Filters -->
-            <div class="row mb-4">
-                <div class="col-md-6 mb-3">
                     <form method="GET" action="{{ route('timetable.index') }}">
-                        <div class="input-group">
-                            <input type="text" name="search" class="form-control" placeholder="Search timetable..." 
-                                value="{{ request('search') }}" style="border-radius: 20px 0 0 20px; border-color: #4B2E83;">
-                            <div class="input-group-append">
-                                <button type="submit" class="btn" style="background-color: #4B2E83; color: white; border-radius: 0 20px 20px 0;">
-                                    <i class="fa fa-search"></i>
-                                </button>
-                            </div>
+                        <div class="form-group">
+                            <label for="faculty">Select Faculty</label>
+                            <select name="faculty" id="faculty" class="form-control select2" onchange="this.form.submit()">
+                                <option value="">Select a Faculty</option>
+                                @foreach ($faculties as $id => $name)
+                                    <option value="{{ $id }}" {{ $facultyId == $id ? 'selected' : '' }}>{{ $name }}</option>
+                                @endforeach
+                            </select>
                         </div>
                     </form>
                 </div>
-            
-                <div class="col-md-6 mb-3">
-                    <div class="import-container">
-                        <form action="{{ route('timetable.import') }}" method="POST" enctype="multipart/form-data">
-                            @csrf
-                            <div class="input-group">
-                                <input type="file" name="file" class="form-control" required style="border-radius: 20px 0 0 20px; border-color: #4B2E83;">
-                                <div class="input-group-append">
-                                    <button type="submit" class="btn" style="background-color: #4B2E83; color: white; border-radius: 0 20px 20px 0;">
-                                        <i class="fa fa-upload mr-1"></i> Import
-                                    </button>
-                                </div>
-                            </div>
-                            @error('file')
-                                <div class="text-danger mt-2">{{ $message }}</div>
-                            @enderror
-                        </form>
-                        <div id="filePreview" class="card mt-3" style="display: none; border-color: #4B2E83;">
-                            <div class="card-header" style="background-color: #f8f9fa; border-bottom: 2px solid #4B2E83;">
-                                <strong style="color: #4B2E83;">File Preview</strong>
-                                <button type="button" class="close" id="clearPreview" style="float: right;">
-                                    <span>×</span>
-                                </button>
-                            </div>
-                            <div class="card-body p-2">
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-bordered mb-0" id="previewTable">
-                                        <thead style="background-color: #4B2E83; color: white;"></thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
-                                <div class="text-muted small mt-2" id="previewInfo"></div>
+            </div>
+
+            <!-- Timetable Table -->
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card shadow-sm">
+                        <div class="card-header" style="background-color: #f8f9fa; border-bottom: 2px solid #4B2E83;">
+                            <strong class="card-title" style="color: #4B2E83;">
+                                {{ $facultyId ? $faculties[$facultyId] : 'Timetable Overview' }}
+                            </strong>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover mb-0">
+                                    <thead style="background-color: #4B2E83; color: white;">
+                                        <tr>
+                                            <th>Time</th>
+                                            @foreach ($days as $day)
+                                                <th>{{ $day }}</th>
+                                            @endforeach
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @php
+                                            $activitiesByDay = $timetables->groupBy('day')->map(function ($group) {
+                                                return $group->sortBy('time_start');
+                                            });
+                                            $occupiedUntil = array_fill_keys($days, -1);
+                                        @endphp
+                                        @foreach ($timeSlots as $i => $slotStart)
+                                            <tr>
+                                                <td>{{ $slotStart }}-{{ date('H:i', strtotime($slotStart) + 3600) }}</td>
+                                                @foreach ($days as $day)
+                                                    @if ($i > $occupiedUntil[$day])
+                                                        @php
+                                                            $activitiesForDay = $activitiesByDay->get($day, collect());
+                                                            $activity = $activitiesForDay->first(function ($act) use ($slotStart) {
+                                                                return substr($act->time_start, 0, 5) == $slotStart;
+                                                            });
+                                                        @endphp
+                                                        @if ($activity)
+                                                            @php
+                                                                $startTime = strtotime($activity->time_start);
+                                                                $endTime = strtotime($activity->time_end);
+                                                                $duration = ($endTime - $startTime) / 3600;
+                                                                $rowspan = ceil($duration);
+                                                                $occupiedUntil[$day] = $i + $rowspan - 1;
+                                                            @endphp
+                                                            <td rowspan="{{ $rowspan }}">
+                                                                <strong>{{ $activity->course_code }} </strong> <br>
+                                                                {{ $activity->activity }} <br>
+                                                                {{ $activity->group_selection }} <br>
+                                                                {{ $activity->venue->name }} <br>
+                                                                <a href="#" class="btn btn-sm btn-info action-btn show-timetable" data-id="{{ $activity->id }}" title="Show Details">
+                                                                    <i class="fa fa-eye"></i>
+                                                                </a>
+                                                                <a href="{{ route('timetable.edit', $activity->id) }}" class="btn btn-sm btn-warning action-btn" title="Edit">
+                                                                    <i class="fa fa-edit"></i>
+                                                                </a>
+                                                                <form action="{{ route('timetable.destroy', $activity->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this timetable?');">
+                                                                    @csrf
+                                                                    @method('DELETE')
+                                                                    <button type="submit" class="btn btn-sm btn-danger action-btn" title="Delete">
+                                                                        <i class="fa fa-trash"></i>
+                                                                    </button>
+                                                                </form>
+                                                            </td>
+                                                        @else
+                                                            <td>
+                                                                <a href="#" class="add-timetable" data-day="{{ $day }}" data-time="{{ $slotStart }}" data-faculty="{{ $facultyId }}">+</a>
+                                                            </td>
+                                                        @endif
+                                                    @endif
+                                                @endforeach
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            <div class="row mb-4">
-                <div class="col-12">
-                    <form method="GET" action="{{ route('timetable.index') }}" class="row">
-                        <div class="col-md-4 mb-3">
-                            <select name="day" class="form-control" style="border-color: #4B2E83;" onchange="this.form.submit()">
-                                <option value="">All Days</option>
-                                @foreach ($days as $dayOption)
-                                    <option value="{{ $dayOption }}" {{ $dayFilter == $dayOption ? 'selected' : '' }}>
-                                        {{ $dayOption }}
-                                    </option>
-                                @endforeach
-                            </select>
+
+            <!-- Add Timetable Modal -->
+            <div class="modal fade" id="addTimetableModal" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background-color: #4B2E83; color: white;">
+                            <h5 class="modal-title">Add New Timetable Entry</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">×</span>
+                            </button>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <select name="faculty" class="form-control" style="border-color: #4B2E83;" onchange="this.form.submit()">
-                                <option value="">All Faculties</option>
-                                @foreach ($faculties as $id => $name)
-                                    <option value="{{ $id }}" {{ $facultyFilter == $id ? 'selected' : '' }}>
-                                        {{ $name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <select name="year" class="form-control" style="border-color: #4B2E83;" onchange="this.form.submit()">
-                                <option value="">All Years</option>
-                                @foreach ($years as $id => $year)
-                                    <option value="{{ $id }}" {{ $yearFilter == $id ? 'selected' : '' }}>
-                                        {{ $year }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <input type="hidden" name="search" value="{{ request('search') }}">
-                    </form>
-                </div>
-            </div>
-            <div class="row mb-4">
-                <div class="col-md-6 col-12">
-                    <a href="{{ route('timetable.pdf', request()->query()) }}" class="btn btn-primary">Export to PDF</a>
-                </div>
-                <div class="col-md-6 col-12">
-                    <a href="{{ route('timetable.create') }}" class="btn btn-primary">Add New</a>
-                </div>
-            </div>
-
-            @if (session('success'))
-                <div class="alert alert-success m-3">{{ session('success') }}</div>
-            @endif
-
-            <!-- Timetable -->
-            @php
-                $timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
-                $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-                $groupedTimetables = $timetables->groupBy('faculty_id')
-                    ->map(function ($facultyGroup) {
-                        return $facultyGroup->groupBy('year_id');
-                    });
-            @endphp
-
-            @if ($groupedTimetables->isEmpty())
-                <div class="alert alert-info m-3">No timetable data available for the selected filters.</div>
-            @else
-                @foreach ($groupedTimetables as $facultyId => $years)
-                    @foreach ($years as $yearId => $timetables)
-                        @php
-                            $faculty = \App\Models\Faculty::find($facultyId);
-                            $year = \App\Models\Year::find($yearId);
-                            $activitiesByDay = $timetables->groupBy('day');
-                            $occupiedUntil = array_fill_keys($days, -1);
-                        @endphp
-
-                        @if ($faculty && $year) <!-- Check if $faculty and $year exist -->
-                            <div class="card shadow-sm mb-4">
-                                <div class="card-header" style="background-color: #f8f9fa; border-bottom: 2px solid #4B2E83;">
-                                    <strong class="card-title" style="color: #4B2E83;">{{ $faculty->name }} - Year {{ $year->year }}</strong>
-                                </div>
-                                <div class="card-body p-0">
-                                    <div class="table-responsive">
-                                        <table class="table table-bordered table-hover mb-0">
-                                            <thead style="background-color: #4B2E83; color: white;">
-                                                <tr>
-                                                    <th>Time</th>
-                                                    @foreach ($days as $day)
-                                                        <th>{{ $day }}</th>
-                                                    @endforeach
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach ($timeSlots as $i => $slotStart)
-                                                    <tr>
-                                                        <td>{{ $slotStart }}-{{ date('H:i', strtotime($slotStart) + 3600) }}</td>
-                                                        @foreach ($days as $day)
-                                                            @if ($i > $occupiedUntil[$day])
-                                                                @php
-                                                                    $activity = null;
-                                                                    $slotEnd = date('H:i', strtotime($slotStart) + 3600);
-                                                                    foreach ($activitiesByDay[$day] ?? [] as $act) {
-                                                                        if ($act->time_start < $slotEnd && $act->time_end > $slotStart) {
-                                                                            $activity = $act;
-                                                                            break;
-                                                                        }
-                                                                    }
-                                                                @endphp
-                                                                @if ($activity)
-                                                                    @php
-                                                                        $startTime = strtotime($activity->time_start);
-                                                                        $endTime = strtotime($activity->time_end);
-                                                                        $span = ceil(($endTime - $startTime) / 3600);
-                                                                        $occupiedUntil[$day] = $i + $span - 1;
-                                                                    @endphp
-                                                                    <td rowspan="{{ $span }}">
-                                                                        {{ $activity->course_code }} <br>
-                                                                        {{ $activity->activity }} <br>
-                                                                        {{ $activity->venue->name }} <br>
-                                                                        <a href="#" class="btn btn-sm btn-info action-btn" data-toggle="modal" 
-                                                                            data-target="#viewModal-{{ $activity->id }}" title="View">
-                                                                            <i class="fa fa-eye"></i>
-                                                                        </a>
-                                                                        <a href="{{ route('timetable.edit', $activity->id) }}" 
-                                                                            class="btn btn-sm btn-warning action-btn" title="Edit">
-                                                                            <i class="fa fa-edit"></i>
-                                                                        </a>
-                                                                        <form action="{{ route('timetable.destroy', $activity->id) }}" method="POST" 
-                                                                            style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this timetable?');">
-                                                                            @csrf
-                                                                            @method('DELETE')
-                                                                            <button type="submit" class="btn btn-sm btn-danger action-btn" title="Delete">
-                                                                                <i class="fa fa-trash"></i>
-                                                                            </button>
-                                                                        </form>
-                                                                    </td>
-                                                                @else
-                                                                    <td>-</td>
-                                                                @endif
-                                                            @endif
-                                                        @endforeach
-                                                    </tr>
-                                                @endforeach
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        @endif
-                    @endforeach
-                @endforeach
-            @endif
-
-            <!-- View Modal -->
-            @foreach ($timetables as $timetable)
-                <div class="modal fade" id="viewModal-{{ $timetable->id }}" tabindex="-1" role="dialog" aria-hidden="true">
-                    <div class="modal-dialog" role="document">
-                        <div class="modal-content">
-                            <div class="modal-header" style="background-color: #4B2E83; color: white;">
-                                <h5 class="modal-title">Timetable Details</h5>
-                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                    <span aria-hidden="true">×</span>
-                                </button>
-                            </div>
+                        <form id="addTimetableForm" method="POST" action="{{ route('timetable.store') }}">
+                            @csrf
                             <div class="modal-body">
-                                <div class="row">
-                                    <div class="col-md-4"><strong>Day:</strong></div>
-                                    <div class="col-md-8">{{ $timetable->day }}</div>
+                                <input type="hidden" name="faculty_id" id="modal_faculty_id">
+                                <div class="form-group">
+                                    <label for="modal_day">Day</label>
+                                    <input type="text" name="day" id="modal_day" class="form-control" readonly>
                                 </div>
-                                <div class="row">
-                                    <div class="col-md-4"><strong>Faculty:</strong></div>
-                                    <div class="col-md-8">{{ $timetable->faculty->name ?? 'N/A' }}</div>
+                                <div class="form-group">
+                                    <label for="modal_time_start">Start Time</label>
+                                    <input type="text" name="time_start" id="modal_time_start" class="form-control" readonly>
                                 </div>
-                                <div class="row">
-                                    <div class="col-md-4"><strong>Year:</strong></div>
-                                    <div class="col-md-8">{{ $timetable->year->year ?? 'N/A' }}</div>
+                                <div class="form-group">
+                                    <label for="modal_time_end">End Time <span class="text-danger">*</span></label>
+                                    <select name="time_end" id="modal_time_end" class="form-control" required>
+                                        <!-- Populated dynamically via JS -->
+                                    </select>
+                                    @error('time_end')
+                                        <span class="text-danger">{{ $message }}</span>
+                                    @enderror
                                 </div>
-                                <div class="row">
-                                    <div class="col-md-4"><strong>Start Time:</strong></div>
-                                    <div class="col-md-8">{{ $timetable->time_start }}</div>
+                                <div class="form-group">
+                                    <label for="modal_course_code">Course Code <span class="text-danger">*</span></label>
+                                    <select name="course_code" id="modal_course_code" class="form-control select2" required>
+                                        <option value="">Select Course Code</option>
+                                        <!-- Populated via AJAX -->
+                                    </select>
+                                    @error('course_code')
+                                        <span class="text-danger">{{ $message }}</span>
+                                    @enderror
                                 </div>
-                                <div class="row">
-                                    <div class="col-md-4"><strong>End Time:</strong></div>
-                                    <div class="col-md-8">{{ $timetable->time_end }}</div>
+                                <div class="form-group">
+                                    <label for="modal_lecturer_id">Lecturer <span class="text-danger">*</span></label>
+                                    <select name="lecturer_id" id="modal_lecturer_id" class="form-control select2" required>
+                                        <option value="">Select Lecturer</option>
+                                        <!-- Populated via AJAX -->
+                                    </select>
+                                    @error('lecturer_id')
+                                        <span class="text-danger">{{ $message }}</span>
+                                    @enderror
                                 </div>
-                                <div class="row">
-                                    <div class="col-md-4"><strong>Course Code:</strong></div>
-                                    <div class="col-md-8">{{ $timetable->course_code }}</div>
+                                <div class="form-group">
+                                    <label for="modal_activity">Activity <span class="text-danger">*</span></label>
+                                    <input type="text" name="activity" id="modal_activity" class="form-control" value="Lecture" required>
+                                    @error('activity')
+                                        <span class="text-danger">{{ $message }}</span>
+                                    @enderror
                                 </div>
-                                <div class="row">
-                                    <div class="col-md-4"><strong>Activity:</strong></div>
-                                    <div class="col-md-8">{{ $timetable->activity }}</div>
+                                <div class="form-group">
+                                    <label for="modal_venue_id">Venue <span class="text-danger">*</span></label>
+                                    <select name="venue_id" id="modal_venue_id" class="form-control select2" required>
+                                        @foreach ($venues as $venue)
+                                            <option value="{{ $venue->id }}" data-capacity="{{ $venue->capacity }}">{{ $venue->name }} (Capacity: {{ $venue->capacity }})</option>
+                                        @endforeach
+                                    </select>
+                                    @error('venue_id')
+                                        <span class="text-danger">{{ $message }}</span>
+                                    @enderror
                                 </div>
-                                <div class="row">
-                                    <div class="col-md-4"><strong>Venue:</strong></div>
-                                    <div class="col-md-8">{{ $timetable->venue->name ?? 'N/A' }}</div>
+                                <div class="form-group">
+                                    <label for="modal_group_selection">Group Selection <span class="text-danger">*</span></label>
+                                    <select name="group_selection[]" id="modal_group_selection" class="form-control select2" multiple required>
+                                        <!-- Populated via AJAX -->
+                                    </select>
+                                    @error('group_selection')
+                                        <span class="text-danger">{{ $message }}</span>
+                                    @enderror
                                 </div>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                <button type="submit" class="btn btn-primary">Save</button>
                             </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Show Timetable Modal -->
+            <div class="modal fade" id="showTimetableModal" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background-color: #4B2E83; color: white;">
+                            <h5 class="modal-title">Timetable Details</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <p><strong>Course Code:</strong> <span id="show_course_code"></span></p>
+                            <p><strong>Course Name:</strong> <span id="show_course_name"></span></p>
+                            <p><strong>Activity:</strong> <span id="show_activity"></span></p>
+                            <p><strong>Day:</strong> <span id="show_day"></span></p>
+                            <p><strong>Time:</strong> <span id="show_time_start"></span> - <span id="show_time_end"></span></p>
+                            <p><strong>Venue:</strong> <span id="show_venue"></span> (Capacity: <span id="show_venue_capacity"></span>)</p>
+                            <p><strong>Groups:</strong> <span id="show_group_details"></span></p>
+                            <p><strong>Lecturer:</strong> <span id="show_lecturer"></span></p>
+                            <p><strong>Faculty:</strong> <span id="show_faculty"></span></p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
                         </div>
                     </div>
                 </div>
-            @endforeach
+            </div>
+
+            <!-- Import Timetable Modal -->
+            <div class="modal fade" id="importTimetableModal" tabindex="-1" role="dialog" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header" style="background-color: #4B2E83; color: white;">
+                            <h5 class="modal-title">Import Timetable</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">×</span>
+                            </button>
+                        </div>
+                        <form id="importTimetableForm" method="POST" action="{{ route('timetable.import') }}" enctype="multipart/form-data">
+                            @csrf
+                            <div class="modal-body">
+                                <div class="form-group">
+                                    <label for="import_file">Upload Excel File <span class="text-danger">*</span></label>
+                                    <input type="file" name="file" id="import_file" class="form-control-file" accept=".xlsx,.xls,.csv" required>
+                                    @error('file')
+                                        <span class="text-danger">{{ $message }}</span>
+                                    @enderror
+                                </div>
+                                
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                <button type="submit" class="btn btn-primary">Import</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 @endsection
 
+@section('styles')
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+    <style>
+        .table-bordered th, .table-bordered td { border: 2px solid #4B2E83 !important; }
+        .table-hover tbody tr:hover { background-color: #f1eef9; }
+        .btn:hover { opacity: 0.85; transform: translateY(-1px); transition: all 0.2s ease; }
+        .card { border: none; border-radius: 10px; overflow: hidden; }
+        .action-btn { min-width: 36px; padding: 6px; margin: 0 4px; }
+        .form-control:focus { border-color: #4B2E83; box-shadow: 0 0 5px rgba(75, 46, 131, 0.5); }
+        .add-timetable { font-size: 1.5rem; text-decoration: none; color: #4B2E83; }
+        .add-timetable:hover { color: #6b4db5; }
+        #addTimetableModal, #showTimetableModal, #importTimetableModal { z-index: 1050; }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice {
+            background-color: #4B2E83;
+            color: white;
+        }
+    </style>
+@endsection
+
 @section('scripts')
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
     <script>
         $(document).ready(function() {
-            $('[title]').tooltip({ placement: 'top', trigger: 'hover' });
+            // Initialize Select2
+            $('.select2').select2({
+                placeholder: 'Select an option',
+                allowClear: true,
+                width: '100%'
+            });
+
+            // Handle "+" click to open add modal
+            $(document).on('click', '.add-timetable', function(e) {
+                e.preventDefault();
+                console.log('Add timetable clicked');
+                var facultyId = $(this).data('faculty');
+                console.log('Faculty ID:', facultyId);
+                if (!facultyId) {
+                    alert('Please select a faculty first.');
+                    return;
+                }
+                var day = $(this).data('day');
+                var timeStart = $(this).data('time');
+                console.log('Day:', day, 'Time Start:', timeStart);
+
+                // Populate modal fields
+                $('#modal_faculty_id').val(facultyId);
+                $('#modal_day').val(day);
+                $('#modal_time_start').val(timeStart);
+
+                // Populate end time options
+                var timeSlots = @json($timeSlots);
+                var startIndex = timeSlots.indexOf(timeStart);
+                var endOptions = timeSlots.slice(startIndex + 1);
+                $('#modal_time_end').empty().append('<option value="">Select End Time</option>');
+                endOptions.forEach(function(time) {
+                    $('#modal_time_end').append(new Option(time, time));
+                });
+
+                // Fetch courses
+                $.ajax({
+                    url: '{{ route("timetables.getCourses") }}',
+                    method: 'GET',
+                    data: { faculty_id: facultyId },
+                    success: function(response) {
+                        $('#modal_course_code').empty().append('<option value="">Select Course Code</option>');
+                        response.course_codes.forEach(function(course) {
+                            $('#modal_course_code').append(new Option(course.course_code, course.course_code));
+                        });
+                        $('#modal_course_code').trigger('change');
+                    },
+                    error: function(xhr) {
+                        console.error('Error fetching courses:', xhr.responseText);
+                    }
+                });
+
+                // Fetch groups
+                $.ajax({
+                    url: '{{ route("timetables.getGroups") }}',
+                    method: 'GET',
+                    data: { faculty_id: facultyId },
+                    success: function(response) {
+                        $('#modal_group_selection').empty();
+                        response.groups.forEach(function(group) {
+                            $('#modal_group_selection').append(new Option(group.group_name, group.group_name));
+                        });
+                        $('#modal_group_selection').trigger('change');
+                    },
+                    error: function(xhr) {
+                        console.error('Error fetching groups:', xhr.responseText);
+                    }
+                });
+
+                // Clear lecturer field
+                $('#modal_lecturer_id').empty().append('<option value="">Select Lecturer</option>').trigger('change');
+
+                // Show the modal
+                $('#addTimetableModal').modal('show');
+            });
+
+            // Handle course code change to fetch lecturers
+            $('#modal_course_code').on('change', function() {
+                var courseCode = $(this).val();
+                var $lecturerSelect = $('#modal_lecturer_id');
+                $lecturerSelect.empty().append('<option value="">Select Lecturer</option>').trigger('change');
+
+                if (!courseCode) {
+                    $lecturerSelect.prop('disabled', true);
+                    return;
+                }
+
+                $.ajax({
+                    url: '{{ route("timetables.getLecturers") }}',
+                    method: 'GET',
+                    data: { course_code: courseCode },
+                    success: function(response) {
+                        $lecturerSelect.empty().append('<option value="">Select Lecturer</option>');
+                        response.lecturers.forEach(function(lecturer) {
+                            $lecturerSelect.append(new Option(lecturer.name, lecturer.id));
+                        });
+                        $lecturerSelect.prop('disabled', response.lecturers.length === 0);
+                    },
+                    error: function(xhr) {
+                        console.error('Error fetching lecturers:', xhr.responseText);
+                    }
+                });
+            });
+
+            // Validate venue capacity on form submission
+            $('#addTimetableForm').on('submit', function(e) {
+                var venueId = $('#modal_venue_id').val();
+                var venueCapacity = parseInt($('#modal_venue_id option:selected').data('capacity')) || 0;
+                var groups = $('#modal_group_selection').val();
+                if (groups.length === 0) {
+                    e.preventDefault();
+                    alert('Please select at least one group.');
+                    return false;
+                }
+
+                $.ajax({
+                    url: '{{ route("timetables.getStudentCount") }}',
+                    method: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        faculty_id: $('#modal_faculty_id').val(),
+                        groups: groups
+                    },
+                    async: false,
+                    success: function(response) {
+                        var studentCount = response.student_count;
+                        if (studentCount > venueCapacity) {
+                            e.preventDefault();
+                            alert(`Venue capacity (${venueCapacity}) is insufficient for selected groups (${studentCount} students).`);
+                        }
+                    },
+                    error: function(xhr) {
+                        e.preventDefault();
+                        console.error('Error fetching student count:', xhr.responseText);
+                        alert('Error validating capacity. Please try again.');
+                    }
+                });
+            });
+
+            // Handle show timetable click
+               $(document).on('click', '.show-timetable', function(e) {
+                e.preventDefault();
+                var timetableId = $(this).data('id');
+                $.ajax({
+                    url: '{{ route("timetable.show", ":id") }}'.replace(':id', timetableId),
+                    method: 'GET',
+                    success: function(data) {
+                        $('#show_course_code').text(data.course_code);
+                        $('#show_course_name').text(data.course_name || 'N/A');
+                        $('#show_activity').text(data.activity);
+                        $('#show_day').text(data.day);
+                        $('#show_time_start').text(data.time_start);
+                        $('#show_time_end').text(data.time_end);
+                        $('#show_venue').text(data.venue?.name || 'N/A');
+                        $('#show_venue_capacity').text(data.venue?.capacity || 'N/A');
+                        $('#show_group_details').text(data.group_details || 'N/A');
+                        $('#show_lecturer').text(data.lecturer?.name || 'N/A');
+                        $('#show_faculty').text(data.faculty?.name || 'N/A');
+                        $('#showTimetableModal').modal('show');
+                    },
+                    error: function(xhr) {
+                        console.error('Error fetching timetable:', xhr.responseText);
+                        alert('Failed to load timetable details.');
+                    }
+                });
+            });
         });
     </script>
 @endsection
-
-<style>
-    .table-bordered th, .table-bordered td { border: 2px solid #4B2E83 !important; }
-    .table-hover tbody tr:hover { background-color: #f1eef9; transition: background-color 0.3s ease; }
-    .btn:hover { opacity: 0.85; transform: translateY(-1px); transition: all 0.2s ease; }
-    .card { border: none; border-radius: 10px; overflow: hidden; }
-    .action-btn { min-width: 36px; padding: 6px; margin: 0 4px; }
-    .table th, .table td { vertical-align: middle; }
-    .form-control:focus { border-color: #4B2E83; box-shadow: 0 0 5px rgba(75, 46, 131, 0.5); }
-</style>

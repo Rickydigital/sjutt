@@ -13,14 +13,11 @@ return new class extends Migration
     {
         Schema::create('timetables', function (Blueprint $table) {
             $table->id();
-            $table->string('faculty');
-            $table->string('year');
             $table->enum('day', ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);
             $table->time('time_start');
             $table->time('time_end');
             $table->string('course_code');
             $table->string('activity');
-            $table->string('venue');
             $table->timestamps();
         });
     }

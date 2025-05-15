@@ -6,20 +6,22 @@ use Illuminate\Database\Eloquent\Model;
 
 class Suggestion extends Model
 {
-    protected $fillable = ['student_id', 'message', 'is_anonymous', 'status'];
+    protected $fillable = [
+        'student_id', 'user_id', 'sender_type', 'message', 'is_anonymous', 'status', 'deleted_for'
+    ];
 
-    public function student()
-    {
-        return $this->belongsTo(Student::class)->withDefault([
-            'name' => 'Anonymous',
-            'reg_no' => 'N/A',
-        ]);
-    }
+    protected $casts = [
+        'is_anonymous' => 'boolean',
+    ];
 
     public function user()
     {
-        return $this->belongsTo(User::class)->withDefault([
-            'name' => 'Admin',
-        ]);
+        return $this->belongsTo(User::class);
+    }
+
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
     }
 }
+

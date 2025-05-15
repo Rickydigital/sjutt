@@ -11,9 +11,11 @@ use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\GalleryController;
 use App\Http\Controllers\Admin\AboutController;
 use App\Http\Controllers\Admin\FeeStructureController;
-use App\Http\Controllers\Admin\CourseController;
+use App\Http\Controllers\BuildingController;
+use App\Http\Controllers\CourseController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\FacultyController;
+use App\Http\Controllers\ProgramController;
 use App\Http\Controllers\YearController;
 use App\Http\Controllers\VenueController;
 use Illuminate\Support\Facades\Route;
@@ -28,7 +30,10 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/fee_structures/download-template', [FeeStructureController::class, 'downloadTemplate'])->name('fee_structures.download_template');
+    Route::post('/fee_structures/import', [FeeStructureController::class, 'import'])->name('fee_structures.import');
     Route::get('/timetable/pdf', [TimetableController::class, 'pdf'])->name('timetable.pdf');
+    Route::get('timetable/pdf', [TimetableController::class, 'export'])->name('timetable.pdf');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -41,17 +46,28 @@ Route::middleware('auth')->group(function () {
     Route::put('/calendars/{id}', [CalendarController::class, 'update'])->name('admin.calendars.update');
     Route::delete('/calendars/{id}', [CalendarController::class, 'destroy'])->name('admin.calendars.destroy');
     Route::post('/calendars/import', [CalendarController::class, 'import'])->name('admin.calendars.import');
+    Route::post('/timetable/import', [TimetableController::class, 'import'])->name('timetable.import');
+    Route::get('/timetable/export', [TimetableController::class, 'export'])->name('timetable.export');
     Route::get('/timetables/export-all-pdf', [ExaminationTimetableController::class, 'exportAllPdf'])->name('timetables.export.all.pdf');
+    Route::get('/timetables/faculties', [TimetableController::class, 'getAllFaculties'])->name('timetables.getAllFaculties');
+    Route::get('/timetables/faculties-by-program', [TimetableController::class, 'getFacultiesByProgram'])->name('timetables.getFacultiesByProgram');
+    Route::get('/timetables/courses', [TimetableController::class, 'getFacultyCourses'])->name('timetables.getCourses');
+    Route::get('/timetables/groups', [TimetableController::class, 'getFacultyGroups'])->name('timetables.getGroups');
+    Route::get('/timetables/lecturers', [TimetableController::class, 'getCourseLecturers'])->name('timetables.getLecturers');
     Route::get('timetables/import', [ExaminationTimetableController::class, 'importView'])->name('timetables.import.view');
     Route::post('timetables/import', [ExaminationTimetableController::class, 'import'])->name('timetables.import');
+    Route::post('/timetables/student-count', [TimetableController::class, 'getStudentCount'])->name('timetables.getStudentCount');
     Route::resource('timetables', ExaminationTimetableController::class);
     Route::get('/timetable', [TimetableController::class, 'index'])->name('timetable.index');
     Route::get('/timetable/create', [TimetableController::class, 'create'])->name('timetable.create');
     Route::post('/timetable', [TimetableController::class, 'store'])->name('timetable.store');
+    Route::get('/timetable/{timetable}', [TimetableController::class, 'show'])->name('timetable.show');
     Route::get('/timetable/{id}/edit', [TimetableController::class, 'edit'])->name('timetable.edit');
     Route::put('/timetable/{id}', [TimetableController::class, 'update'])->name('timetable.update');
     Route::delete('/timetable/{id}', [TimetableController::class, 'destroy'])->name('timetable.destroy');
     Route::post('/timetable/import', [TimetableController::class, 'import'])->name('timetable.import');
+    Route::post('faculties/store-course', [FacultyController::class, 'storeCourse'])->name('faculties.storeCourse');
+    Route::get('faculties/names', [FacultyController::class, 'getFacultyNames'])->name('faculties.getFacultyNames');
     Route::resource('faqs', FaqController::class);
     Route::resource('gallery', GalleryController::class);
     Route::resource('about', AboutController::class);
@@ -62,12 +78,14 @@ Route::middleware('auth')->group(function () {
     Route::resource('events', EventController::class);
     Route::resource('faculties', FacultyController::class);
     Route::resource('years', YearController::class);
+    Route::resource('buildings', BuildingController::class);
+     Route::resource('programs', ProgramController::class);
     Route::resource('venues', VenueController::class);
     Route::put('users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
     Route::put('users/{user}/activate', [UserController::class, 'activate'])->name('users.activate');
     Route::get('/suggestions', [AdminSuggestionController::class, 'index'])->name('admin.suggestions.index');
-    Route::get('/suggestions/{suggestion}', [AdminSuggestionController::class, 'show'])->name('admin.suggestions.show');
-    Route::put('/suggestions/{suggestion}/status', [AdminSuggestionController::class, 'updateStatus'])->name('admin.suggestions.updateStatus');
+    Route::get('/suggestions/conversation/{student_id}', [AdminSuggestionController::class, 'conversation'])->name('admin.suggestions.conversation');
+    Route::post('/suggestions/reply/{student_id}', [AdminSuggestionController::class, 'replyToStudent'])->name('admin.suggestions.reply');
    
     
 
