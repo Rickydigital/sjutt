@@ -44,6 +44,26 @@
             </div>
         </div>
     </div>
+
+    <!-- SweetAlert for Errors -->
+    @if ($errors->any())
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                var errors = @json($errors->all());
+                if (errors.length > 0) {
+                    var errorList = errors.map(function (error) {
+                        return '<li>' + error + '</li>';
+                    }).join('');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Whoops! Something went wrong.',
+                        html: '<ul>' + errorList + '</ul>',
+                    });
+                }
+            });
+        </script>
+    @endif
     <script src="{{ asset('assets/libs/jquery/dist/jquery.min.js') }}"></script>
     <script src="{{ asset('assets/js/sidebarmenu.js') }}"></script>
     <script src="{{ asset('assets/js/app.min.js') }}"></script>

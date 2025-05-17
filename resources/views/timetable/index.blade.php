@@ -1,4 +1,4 @@
-{{-- @extends('layouts.admin')  --}}
+
 @extends('components.app-main-layout')
 
 @section('content')
