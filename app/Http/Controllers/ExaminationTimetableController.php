@@ -3,235 +3,277 @@
 namespace App\Http\Controllers;
 
 use App\Models\ExaminationTimetable;
+use App\Models\ExamSetup;
 use App\Models\Faculty;
-use App\Models\Year;
 use App\Models\Venue;
+use App\Models\Course;
+use App\Models\Program;
+use App\Models\FacultyGroup;
 use Illuminate\Http\Request;
-use Barryvdh\DomPDF\Facade\Pdf;
-use Maatwebsite\Excel\Facades\Excel;
-use App\Imports\ExaminationTimetableImport;
+use Carbon\Carbon;
 
 class ExaminationTimetableController extends Controller
 {
     public function index(Request $request)
     {
-        $query = ExaminationTimetable::with(['faculty', 'year', 'venue']); // Eager load relationships
-    
-        // Your existing filters...
-        if ($request->has('search') && $request->search) {
-            $query->where(function ($q) use ($request) {
-                $q->where('course_code', 'like', '%' . $request->search . '%')
-                  ->orWhereHas('faculty', function($q) use ($request) {
-                      $q->where('name', 'like', '%' . $request->search . '%');
-                  })
-                  ->orWhereHas('year', function($q) use ($request) {
-                      $q->where('year', 'like', '%' . $request->search . '%');
-                  });
-            });
+        $setups = ExamSetup::all();
+        $allPrograms = Program::all();
+        $venues = Venue::all();
+        $selectedType = $request->query('exam_type');
+        $setup = null;
+        $days = [];
+        $timeSlots = [];
+        $programs = [];
+        $timetables = [];
+
+        // Generate academic years for the setup form (2010/2011 to 2025/2026)
+        $academicYears = [];
+        for ($year = 2010; $year <= 2025; $year++) {
+            $academicYears[] = "$year/" . ($year + 1);
         }
-    
-        // Other filters remain the same...
-    
-        $timetables = $query->get();
-        $faculties = Faculty::orderBy('name')->get();
-        $programs = ExaminationTimetable::distinct()->pluck('program');
-        $years = Year::orderBy('year')->get();
-    
-        $groupedTimetables = $timetables->groupBy('program')->map(function ($programTimetables) {
-            // Get faculty objects
-            $facultyIds = $programTimetables->pluck('faculty_id')->unique();
-            $faculties = Faculty::whereIn('id', $facultyIds)->orderBy('name')->get();
-            
-            // Get year objects
-            $yearIds = $programTimetables->pluck('year_id')->unique();
-            $years = Year::whereIn('id', $yearIds)->orderBy('year')->get()->keyBy('id');
-            
-            return [
-                'timetables' => $programTimetables,
-                'faculties' => $faculties,
-                'years' => $years // Add years collection keyed by ID
-            ];
-        });
-    
-        // Define your yearsList as actual Year objects
-        $yearsList = Year::whereIn('id', [1, 2, 3, 4])->orderBy('year')->get();
-    
-        return view('timetables.index', compact('timetables', 'faculties', 'programs', 'years', 'groupedTimetables', 'yearsList'));
+
+        // Available semesters
+        $semesters = ['1', '2', 'Final'];
+
+        // If a type is selected, find the setup that includes that type
+        if ($selectedType && $setups->isNotEmpty()) {
+            $setup = $setups->firstWhere(function ($s) use ($selectedType) {
+                return in_array($selectedType, $s->type);
+            });
+        } elseif ($setups->isNotEmpty()) {
+            $setup = $setups->first();
+            $selectedType = $setup->type[0] ?? null;
+        }
+
+        if ($setup) {
+            $startDate = Carbon::parse($setup->start_date);
+            $endDate = Carbon::parse($setup->end_date);
+            $includeWeekends = $setup->include_weekends;
+            $days = $this->getValidDates($setup);
+            $timeSlots = $setup->time_slots;
+            $programs = Program::whereIn('id', $setup->programs)->get();
+            $timetables = ExaminationTimetable::with(['faculty', 'venue', 'lecturers'])
+                ->whereIn('exam_date', $days)
+                ->whereIn('faculty_id', Faculty::whereIn('program_id', $setup->programs)->pluck('id'))
+                ->get();
+        }
+
+        // Get all available exam types from setups
+        $examTypes = $setups->flatMap(function ($s) {
+            return $s->type;
+        })->unique()->values();
+
+        return view('timetables.index', compact(
+            'setups',
+            'setup',
+            'days',
+            'timeSlots',
+            'programs',
+            'timetables',
+            'allPrograms',
+            'venues',
+            'selectedType',
+            'examTypes',
+            'academicYears',
+            'semesters'
+        ));
     }
-    public function create()
+
+    public function storeSetup(Request $request)
     {
-        $faculties = Faculty::orderBy('name')->get();
-        $years = Year::orderBy('year')->get();
-        $venues = Venue::orderBy('name')->get();
-        
-        return view('admin.exams.create', compact('faculties', 'years', 'venues'));
+        $validated = $request->validate([
+            'type' => 'required|array|min:1',
+            'type.*' => 'in:Degree,Non Degree,Masters',
+            'academic_year' => 'required|string|regex:/^\d{4}\/\d{4}$/',
+            'semester' => 'required|in:1,2,Final',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'include_weekends' => 'nullable|boolean',
+            'time_slots' => 'required|array|min:1',
+            'time_slots.*.name' => 'required|string|max:255',
+            'time_slots.*.start_time' => 'required|date_format:H:i',
+            'time_slots.*.end_time' => 'required|date_format:H:i|after:time_slots.*.start_time',
+            'programs' => 'required|array|min:1',
+            'programs.*' => 'exists:programs,id',
+        ]);
+
+        $validated['include_weekends'] = $request->has('include_weekends');
+        ExamSetup::create($validated);
+
+        return redirect()->route('timetables.index')->with('success', 'Setup created successfully.');
+    }
+
+    public function updateSetup(Request $request, ExamSetup $setup)
+    {
+        $validated = $request->validate([
+            'type' => 'required|array|min:1',
+            'type.*' => 'in:Degree,Non Degree,Masters',
+            'academic_year' => 'required|string|regex:/^\d{4}\/\d{4}$/',
+            'semester' => 'required|in:1,2,Final',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'include_weekends' => 'nullable|boolean',
+            'time_slots' => 'required|array|min:1',
+            'time_slots.*.name' => 'required|string|max:255',
+            'time_slots.*.start_time' => 'required|date_format:H:i',
+            'time_slots.*.end_time' => 'required|date_format:H:i|after:time_slots.*.start_time',
+            'programs' => 'required|array|min:1',
+            'programs.*' => 'exists:programs,id',
+        ]);
+
+        $validated['include_weekends'] = $request->has('include_weekends');
+        $setup->update($validated);
+        return redirect()->route('timetables.index')->with('success', 'Setup updated successfully.');
     }
 
     public function store(Request $request)
     {
-        $request->validate([
-            'timetable_type' => 'required|string|max:255',
-            'program' => 'required|string|max:255',
-            'semester' => 'required|string|max:255',
-            'course_code' => 'required|string|max:255',
+        $setup = ExamSetup::first();
+        if (!$setup) {
+            return back()->with('error', 'No setup found.');
+        }
+
+        $timeSlot = json_decode($request->input('time_slot'), true);
+        $validated = $request->validate([
             'faculty_id' => 'required|exists:faculties,id',
-            'year_id' => 'required|exists:years,id',
-            'exam_date' => 'required|date',
+            'course_code' => 'required|exists:courses,course_code',
+            'exam_date' => 'required|date|in:' . implode(',', $this->getValidDates($setup)),
             'start_time' => 'required|date_format:H:i',
             'end_time' => 'required|date_format:H:i|after:start_time',
             'venue_id' => 'required|exists:venues,id',
+            'group_selection' => 'required|array|min:1',
+            'group_selection.*' => 'string',
+            'lecturer_ids' => 'required|array|min:1',
+            'lecturer_ids.*' => 'exists:users,id',
         ]);
 
-                // Conflict check
-        $hasConflict = ExaminationTimetable::where('exam_date', $request->exam_date)
-        ->where(function ($query) use ($request) {
-            $query->where('venue_id', $request->venue_id)
-                ->orWhere(function ($q) use ($request) {
-                    $q->where('faculty_id', $request->faculty_id)
-                        ->where('year_id', $request->year_id);
-                });
-        })
-        ->where('start_time', '<', $request->end_time)
-        ->where('end_time', '>', $request->start_time)
-        ->exists();
-
-        if ($hasConflict) {
-        return back()->withErrors(['conflict' => 'Schedule conflict detected.']);
+        // Extract start_time and end_time from time_slot if not directly provided
+        if ($timeSlot && isset($timeSlot['start_time']) && isset($timeSlot['end_time'])) {
+            $validated['start_time'] = $timeSlot['start_time'];
+            $validated['end_time'] = $timeSlot['end_time'];
         }
 
+        $validated['group_selection'] = implode(',', $validated['group_selection']);
+        $timetable = ExaminationTimetable::create($validated);
+        $timetable->lecturers()->sync($validated['lecturer_ids']);
 
-        ExaminationTimetable::create($request->all());
-
-        return redirect()->route('timetables.index')->with('success', 'Timetable created successfully!');
+        return redirect()->route('timetables.index')->with('success', 'Exam timetable created successfully.');
     }
 
-    public function edit(ExaminationTimetable $timetable)
+    public function update(Request $request, ExaminationTimetable $timetable)
     {
-        $faculties = Faculty::orderBy('name')->get();
-        $years = Year::orderBy('year')->get();
-        $venues = Venue::orderBy('name')->get();
-        
-        return view('admin.exams.edit', 
-            compact('timetable', 'faculties', 'years', 'venues'));
-    }
-
-    public function update(Request $request, $id)
-    {
-        $request->validate([
-            'timetable_type' => 'required|string|max:255',
-            'program' => 'required|string|max:255',
-            'semester' => 'required|string|max:255',
-            'course_code' => 'required|string|max:255',
+        // Validate the incoming request data
+        $validated = $request->validate([
             'faculty_id' => 'required|exists:faculties,id',
-            'year_id' => 'required|exists:years,id',
+            'course_code' => 'required|exists:courses,course_code',
             'exam_date' => 'required|date',
             'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
+            'end_time' => 'required|date_format:H:i',
             'venue_id' => 'required|exists:venues,id',
+            'group_selection' => 'required|array|min:1',
+            'group_selection.*' => 'string',
+            'lecturer_ids' => 'required|array|min:1',
+            'lecturer_ids.*' => 'exists:users,id',
         ]);
 
-                // Conflict check
-        $hasConflict = ExaminationTimetable::where('exam_date', $request->exam_date)
-        ->where(function ($query) use ($request) {
-            $query->where('venue_id', $request->venue_id)
-                ->orWhere(function ($q) use ($request) {
-                    $q->where('faculty_id', $request->faculty_id)
-                        ->where('year_id', $request->year_id);
-                });
-        })
-        ->where('start_time', '<', $request->end_time)
-        ->where('end_time', '>', $request->start_time)
-        ->when($id ?? null, fn($q) => $q->where('id', '!=', $id)) // Exclude self on update
-        ->exists();
+        // Update the timetable with validated data
+        $validated['group_selection'] = implode(',', $validated['group_selection']);
+        $timetable->update($validated);
+        $timetable->lecturers()->sync($validated['lecturer_ids']);
 
-        if ($hasConflict) {
-        return back()->withErrors(['conflict' => 'Schedule conflict detected.']);
-        }
-
-
-        $timetable = ExaminationTimetable::findOrFail($id);
-        $timetable->update($request->all());
-
-        return redirect()->route('timetables.index')->with('success', 'Timetable updated successfully!');
+        // Redirect back to the index with a success message
+        return redirect()->route('timetables.index')->with('success', 'Exam timetable updated successfully.');
     }
 
-    public function destroy($id)
+    public function destroy(ExaminationTimetable $timetable)
     {
-        $timetable = ExaminationTimetable::findOrFail($id);
         $timetable->delete();
-
-        return redirect()->route('timetables.index')->with('success', 'Timetable deleted successfully!');
+        return redirect()->route('timetables.index')->with('success', 'Exam timetable deleted successfully.');
     }
 
-    public function import(Request $request)
+    public function show($id)
     {
-        $request->validate([
-            'file' => 'required|mimes:csv,xlsx',
+        $timetable = ExaminationTimetable::with(['faculty', 'venue', 'lecturers', 'course'])->findOrFail($id);
+        $course = $timetable->course;
+        return response()->json([
+            'course_code' => $timetable->course_code,
+            'course_name' => $course ? $course->name : 'N/A',
+            'exam_date' => $timetable->exam_date,
+            'start_time' => $timetable->start_time,
+            'end_time' => $timetable->end_time,
+            'time_slot_name' => $timetable->time_slot_name ?? 'N/A',
+            'venue_name' => $timetable->venue->name ?? 'N/A',
+            'venue_capacity' => $timetable->venue->capacity ?? 'N/A',
+            'group_selection' => $timetable->group_selection,
+            'lecturers' => $timetable->lecturers->pluck('name')->toArray(),
+            'faculty_name' => $timetable->faculty->name ?? 'N/A',
         ]);
-    
-        $importer = new ExaminationTimetableImport();
-    
-        try {
-            Excel::import($importer, $request->file('file'));
-    
-            if (!empty($importer->errors)) {
-                return redirect()->route('timetables.index')
-                    ->with('import_errors', $importer->errors);
-            }
-    
-            return redirect()->route('timetables.index')->with('success', 'Timetable imported successfully!');
-        } catch (\Exception $e) {
-            return redirect()->route('timetables.index')
-                ->with('error', 'Import failed: ' . $e->getMessage());
+    }
+
+    public function getFacultyByProgramYear($programId, $yearNum)
+    {
+        $faculty = Faculty::where('program_id', $programId)
+            ->where('name', 'LIKE', "% {$yearNum}")
+            ->first();
+
+        if (!$faculty) {
+            return response()->json(['id' => null, 'name' => 'Invalid year']);
         }
+
+        return response()->json([
+            'id' => $faculty->id,
+            'name' => $faculty->name,
+        ]);
     }
-    
 
-    public function importView()
+    public function getFacultyCourses(Request $request)
     {
-        return view('timetables.imports');
+        $facultyId = $request->query('faculty_id');
+        $courses = Course::whereHas('faculties', fn($q) => $q->where('faculties.id', $facultyId))
+            ->select('course_code', 'name')
+            ->get()
+            ->map(function ($course) {
+                return ['course_code' => $course->course_code, 'name' => $course->name];
+            })
+            ->toArray();
+        return response()->json(['course_codes' => $courses]);
     }
 
-     
-
-    public function exportAllPdf(Request $request)
+    public function getFacultyGroups(Request $request)
     {
-        $timetables = ExaminationTimetable::with(['faculty', 'year', 'venue'])
-            ->when($request->search, fn($query) => $query->where('course_code', 'like', "%{$request->search}%"))
-            ->when($request->day, fn($query) => $query->where('exam_date', $request->day))
-            ->when($request->faculty_id, fn($query) => $query->where('faculty_id', $request->faculty_id))
-            ->when($request->program, fn($query) => $query->where('program', $request->program))
-            ->when($request->year_id, fn($query) => $query->where('year_id', $request->year_id))
-            ->get();
-    
-        $groupedTimetables = $timetables->groupBy('program')->map(function ($group) {
-            $facultyIds = $group->pluck('faculty_id')->unique();
-            $faculties = Faculty::whereIn('id', $facultyIds)->orderBy('name')->get();
-            
-            return [
-                'timetables' => $group,
-                'faculties' => $faculties,
-                'timetable_type' => $group->first()->timetable_type,
-                'semester' => $group->first()->semester,
-                'date_range' => \Carbon\Carbon::parse($group->min('exam_date'))->format('M d') . ' - ' . 
-                               \Carbon\Carbon::parse($group->max('exam_date'))->format('M d, Y'),
-            ];
-        });
-    
-        $allDays = $timetables->pluck('exam_date')->unique()->sort()->take(10);
-        $week1Days = $allDays->slice(0, 5);
-        $week2Days = $allDays->slice(5, 5);
-        $timeSlots = [
-            'Morning' => '08:00:00-10:00:00',
-            'Noon' => '12:00:00-14:00:00',
-            'Evening' => '16:00:00-18:00:00'
-        ];
-        $yearsList = Year::all();
-    
-        $pdf = Pdf::loadView('timetables.pdf_all', compact(
-            'groupedTimetables', 'week1Days', 'week2Days', 'timeSlots', 'yearsList'
-        ))->setPaper('A4', 'landscape');
-    
-        return $pdf->download('all_timetables.pdf');
+        $facultyId = $request->query('faculty_id');
+        $groups = FacultyGroup::where('faculty_id', $facultyId)
+            ->select('group_name', 'student_count')
+            ->get()
+            ->toArray();
+        return response()->json(['groups' => $groups]);
+    }
+
+    public function getCourseLecturers(Request $request)
+    {
+        $courseCode = $request->query('course_code');
+        $course = Course::where('course_code', $courseCode)->first();
+        if (!$course) {
+            return response()->json(['lecturers' => []]);
+        }
+        $lecturers = $course->lecturers()->select('users.id', 'users.name')->get()->toArray();
+        return response()->json(['lecturers' => $lecturers]);
+    }
+
+    private function getValidDates(ExamSetup $setup): array
+    {
+        $startDate = Carbon::parse($setup->start_date);
+        $endDate = Carbon::parse($setup->end_date);
+        $includeWeekends = $setup->include_weekends;
+        $dates = [];
+        $currentDate = $startDate->copy();
+
+        while ($currentDate <= $endDate) {
+            if ($includeWeekends || !in_array($currentDate->dayOfWeek, [Carbon::SATURDAY, Carbon::SUNDAY])) {
+                $dates[] = $currentDate->toDateString();
+            }
+            $currentDate->addDay();
+        }
+        return $dates;
     }
 }

@@ -33,6 +33,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/fee_structures/download-template', [FeeStructureController::class, 'downloadTemplate'])->name('fee_structures.download_template');
     Route::post('/fee_structures/import', [FeeStructureController::class, 'import'])->name('fee_structures.import');
     Route::get('/timetable/pdf', [TimetableController::class, 'pdf'])->name('timetable.pdf');
+    Route::get('/timetables/faculty/{program_id}/{year_num}', [ExaminationTimetableController::class, 'getFacultyByProgramYear'])->name('timetables.getFacultyByProgramYear');
+    Route::get('/timetables/faculty-courses', [ExaminationTimetableController::class, 'getFacultyCourses'])->name('timetables.getFacultyCourses');
+    Route::get('/timetables/faculty-groups', [ExaminationTimetableController::class, 'getFacultyGroups'])->name('timetables.getFacultyGroups');
+    Route::get('/timetables/course-lecturers', [ExaminationTimetableController::class, 'getCourseLecturers'])->name('timetables.getCourseLecturers');
+    Route::post('/timetables/setup', [ExaminationTimetableController::class, 'storeSetup'])->name('timetables.storeSetup');
     Route::get('timetable/pdf', [TimetableController::class, 'export'])->name('timetable.pdf');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -56,6 +61,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/timetables/lecturers', [TimetableController::class, 'getCourseLecturers'])->name('timetables.getLecturers');
     Route::get('timetables/import', [ExaminationTimetableController::class, 'importView'])->name('timetables.import.view');
     Route::post('timetables/import', [ExaminationTimetableController::class, 'import'])->name('timetables.import');
+    Route::put('/timetables/setup/{setup}', [ExaminationTimetableController::class, 'updateSetup'])->name('timetables.updateSetup');
+    Route::get('/timetables/create', [ExaminationTimetableController::class, 'export'])->name('timetables.export');
     Route::post('/timetables/student-count', [TimetableController::class, 'getStudentCount'])->name('timetables.getStudentCount');
     Route::resource('timetables', ExaminationTimetableController::class);
     Route::get('/timetable', [TimetableController::class, 'index'])->name('timetable.index');

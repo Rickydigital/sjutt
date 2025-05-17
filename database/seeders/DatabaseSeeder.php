@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         
 
-        $this->call(VenueSeeder::class);
-       // $this->call(RoleSeeder::class);
+       // $this->call(VenueSeeder::class);
+       $this->call(RoleSeeder::class);
     }
 }

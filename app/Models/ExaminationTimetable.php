@@ -2,29 +2,37 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class ExaminationTimetable extends Model {
-    use HasFactory;
-
+class ExaminationTimetable extends Model
+{
     protected $fillable = [
-        'timetable_type', 'program', 'semester', 'course_code',
-        'faculty_id', 'year_id', 'exam_date',
-        'start_time', 'end_time', 'venue_id'
+        'faculty_id',
+        'course_code',
+        'exam_date',
+        'start_time',
+        'end_time',
+        'venue_id',
+        'group_selection',
     ];
 
-    protected $dates = ['exam_date'];
-
-    public function faculty() {
+    public function faculty()
+    {
         return $this->belongsTo(Faculty::class);
     }
 
-    public function year() {
-        return $this->belongsTo(Year::class);
+    public function venue()
+    {
+        return $this->belongsTo(Venue::class);
     }
 
-    public function venue() {
-        return $this->belongsTo(Venue::class);
+    public function lecturers()
+    {
+        return $this->belongsToMany(User::class, 'examination_timetable_lecturer');
+    }
+
+    public function course()
+    {
+        return $this->belongsTo(Course::class, 'course_code', 'course_code');
     }
 }
