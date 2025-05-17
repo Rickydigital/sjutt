@@ -16,8 +16,8 @@ class RoleSeeder extends Seeder
             'Administrator',
             'Dean Of Students',
             'Director',
-            'Lecturer',
-            'Timetable Officer'
+            'Timetable Officer',
+            'Lecturer'
         ];
 
         // Create roles if they do not exist

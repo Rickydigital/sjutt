@@ -88,7 +88,7 @@
                                                 <option value="{{ old('phone', $user->phone) }}">{{ $user->gender }}</option>
                                                 <option value="Male" {{ $user->gender === 'Male' ? 'selected' : '' }}>Male</option>
                                                 <option value="Female" {{ $user->gender === 'Female' ? 'selected' : '' }}>Female</option>
-                                                <option value="Other" {{ $user->gender === 'Other' ? 'selected' : '' }}>Other</option>
+                                                {{-- <option value="Other" {{ $user->gender === 'Other' ? 'selected' : '' }}>Other</option> --}}
                                             </select>
                                             @error('gender')
                                                 <div class="invalid-feedback">{{ $message }}</div>

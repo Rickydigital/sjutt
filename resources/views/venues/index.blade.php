@@ -1,65 +1,66 @@
-@extends('layouts.admin')
+@extends('components.app-main-layout')
 
 @section('content')
-    <div class="content">
-        <div class="animated fadeIn">
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="card shadow-sm">
-                        <div class="card-header" style="background-color: #4B2E83; color: white;">
-                            <strong class="card-title">Venues</strong>
-                            <a href="{{ route('venues.create') }}" class="btn btn-sm float-right" style="background-color: white; color: #4B2E83;">
-                                <i class="fa fa-plus mr-1"></i> Add Venue
-                            </a>
-                        </div>
-                        <div class="card-body">
-                            @if ($venues->isEmpty())
-                                <p class="text-center">No venues found.</p>
-                            @else
-                                <table class="table table-striped table-bordered">
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>Code</th>
-                                            <th>Building</th>
-                                            <th>Capacity</th>
-                                            <th>Type</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach ($venues as $venue)
-                                            <tr>
-                                                <td>{{ $venue->longform }}</td>
-                                                <td>{{ $venue->name }}</td>
-                                                <td>{{ $venue->building ? $venue->building->name : 'N/A' }}</td>
-                                                <td>{{ $venue->capacity }}</td>
-                                                <td>{{ ucwords(str_replace('_', ' ', $venue->type)) }}</td>
-                                                <td>
-                                                    <a href="{{ route('venues.show', $venue) }}" class="btn btn-sm btn-info">
-                                                        <i class="fa fa-eye"></i>
-                                                    </a>
-                                                    <a href="{{ route('venues.edit', $venue) }}" class="btn btn-sm btn-warning">
-                                                        <i class="fa fa-edit"></i>
-                                                    </a>
-                                                    <form action="{{ route('venues.destroy', $venue) }}" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this venue?');">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit" class="btn btn-sm btn-danger">
-                                                            <i class="fa fa-trash"></i>
-                                                        </button>
-                                                    </form>
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                                {{ $venues->links() }}
-                            @endif
-                        </div>
-                    </div>
+    <div class="card">
+        <div class="card-header">
+            <div class=" d-flex flex-row justify-content-between">
+                <div class="col-md-4">
+                    <strong class="card-title">Venues</strong>
                 </div>
+
+                <a href="{{ route('venues.create') }}" class="btn btn-primary"> New Venue </a>
+
             </div>
+        </div>
+        <div class="card-body">
+            @if ($venues->isEmpty())
+                <p class="text-center">No venues found.</p>
+            @else
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Code</th>
+                            <th>Building</th>
+                            <th>Capacity</th>
+                            <th>Type</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($venues as $venue)
+                            <tr>
+                                <td>{{ $venue->longform }}</td>
+                                <td>{{ $venue->name }}</td>
+                                <td>{{ $venue->building ? $venue->building->name : 'N/A' }}</td>
+                                <td>{{ $venue->capacity }}</td>
+                                <td>{{ ucwords(str_replace('_', ' ', $venue->type)) }}</td>
+                                <td>
+                                    <a href="{{ route('venues.show', $venue) }}" class="action-icon text-primary"
+                                        data-bs-toggle="tooltip" data-bs-placement="top" title="View">
+                                        <i class="bi bi-eye-fill"></i>
+                                    </a>
+                                    <a href="{{ route('venues.edit', $venue) }}" class="action-icon text-primary"
+                                        data-bs-toggle="tooltip" data-bs-placement="top" title="Edit">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </a>
+                                    <form action="{{ route('venues.destroy', $venue) }}" method="POST"
+                                        style="display: inline;"
+                                        onsubmit="return confirm('Are you sure you want to delete this venue?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="action-icon text-danger" data-bs-toggle="tooltip"
+                                            data-bs-placement="top" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+                {{ $venues->links() }}
+            @endif
         </div>
     </div>
 @endsection

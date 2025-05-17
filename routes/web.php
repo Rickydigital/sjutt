@@ -86,15 +86,13 @@ Route::middleware('auth')->group(function () {
     Route::resource('faculties', FacultyController::class);
     Route::resource('years', YearController::class);
     Route::resource('buildings', BuildingController::class);
-     Route::resource('programs', ProgramController::class);
+    Route::resource('programs', ProgramController::class);
     Route::resource('venues', VenueController::class);
     Route::put('users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
     Route::put('users/{user}/activate', [UserController::class, 'activate'])->name('users.activate');
     Route::get('/suggestions', [AdminSuggestionController::class, 'index'])->name('admin.suggestions.index');
     Route::get('/suggestions/conversation/{student_id}', [AdminSuggestionController::class, 'conversation'])->name('admin.suggestions.conversation');
     Route::post('/suggestions/reply/{student_id}', [AdminSuggestionController::class, 'replyToStudent'])->name('admin.suggestions.reply');
-   
-    
 
 });
 
