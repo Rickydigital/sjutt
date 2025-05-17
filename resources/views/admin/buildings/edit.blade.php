@@ -1,40 +1,36 @@
-@extends('layouts.admin')
-
+@extends('components.app-main-layout')
 @section('content')
-    <div class="content">
-        <div class="animated fadeIn">
-            <div class="row">
-                <div class="col-md-8 offset-md-2">
-                    <div class="card shadow-sm">
-                        <div class="card-header" style="background-color: #4B2E83; color: white;">
-                            <strong class="card-title">Edit Building</strong>
-                        </div>
-                        <div class="card-body">
-                            <form action="{{ route('buildings.update', $building) }}" method="POST">
-                                @csrf
-                                @method('PUT')
-                                <div class="form-group">
-                                    <label for="name">Name <span class="text-danger">*</span></label>
-                                    <input type="text" name="name" id="name" class="form-control" value="{{ old('name', $building->name) }}" required>
-                                    @error('name')
-                                        <small class="text-danger">{{ $message }}</small>
-                                    @enderror
-                                </div>
-                                <div class="form-group">
-                                    <label for="description">Description</label>
-                                    <textarea name="description" id="description" class="form-control" rows="5">{{ old('description', $building->description) }}</textarea>
-                                    @error('description')
-                                        <small class="text-danger">{{ $message }}</small>
-                                    @enderror
-                                </div>
-                                <div class="form-group text-right">
-                                    <a href="{{ route('buildings.index') }}" class="btn btn-secondary">Cancel</a>
-                                    <button type="submit" class="btn" style="background-color: #4B2E83; color: white;">Update Building</button>
-                                </div>
-                            </form>
-                        </div>
+    <div class=" d-flex flex-column align-items-center">
+
+        <div class="card col-md-8">
+            <div class="card-header">
+                <strong class="card-title">Edit Building</strong>
+            </div>
+            <div class="card-body">
+                <form action="{{ route('buildings.update', $building) }}" method="POST">
+                    @csrf
+                    @method('PUT')
+                    <div class="form-group">
+                        <label for="name">Name <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="name" class="form-control"
+                            value="{{ old('name', $building->name) }}" required>
+                        @error('name')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
                     </div>
-                </div>
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <textarea name="description" id="description" class="form-control" rows="5">{{ old('description', $building->description) }}</textarea>
+                        @error('description')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                    <div class=" d-flex flex-row justify-content-end">
+                        <a href="{{ route('buildings.index') }}" class="btn btn-outline-danger  mx-3">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Update
+                            Building</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

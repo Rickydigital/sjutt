@@ -13,10 +13,11 @@ class RoleSeeder extends Seeder
         $roles = [
             'User',
             'Admin',
-            'ViceChancellor',
+            'Administrator',
             'Dean Of Students',
             'Director',
-            'Timetable Officer'
+            'Timetable Officer',
+            'Lecturer'
         ];
 
         // Create roles if they do not exist
