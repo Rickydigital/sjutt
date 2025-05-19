@@ -2,62 +2,59 @@
     use Carbon\Carbon;
 @endphp
 
-@extends('layouts.admin')
+@extends('components.app-main-layout')
+
+@section('styles')
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+    <style>
+        .time-slot-header {
+            font-weight: bold;
+            background-color: #f8f9fa;
+            position: sticky;
+            left: 0;
+            z-index: 2;
+        }
+        .year-header {
+            background-color: #e9ecef;
+            position: sticky;
+            left: 150px;
+            z-index: 2;
+        }
+        caption {
+            caption-side: top;
+            font-size: 1.25rem;
+            font-weight: bold;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+        }
+        th, td {
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .table th, .table td {
+            min-width: 150px;
+        }
+        .table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            background-color: #fff;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .table thead th:first-child, .table thead th:nth-child(2) {
+            z-index: 4;
+        }
+    </style>
+@endsection
 
 @section('content')
-<style>
-    .time-slot-header {
-        font-weight: bold;
-        background-color: #f8f9fa;
-        position: sticky;
-        left: 0;
-        z-index: 2;
-    }
-    .year-header {
-        background-color: #e9ecef;
-        position: sticky;
-        left: 150px;
-        z-index: 2;
-    }
-    caption {
-        caption-side: top;
-        font-size: 1.25rem;
-        font-weight: bold;
-        padding: 10px;
-        background-color: #007bff;
-        color: white;
-    }
-    th, td {
-        vertical-align: middle;
-        white-space: nowrap;
-    }
-    .table-responsive {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-    .table th, .table td {
-        min-width: 150px;
-    }
-    .table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 3;
-        background-color: #fff;
-        border-bottom: 2px solid #dee2e6;
-    }
-    .table thead th:first-child, .table thead th:nth-child(2) {
-        z-index: 4;
-    }
-</style>
 <div class="container">
     <h1>Examination Timetables</h1>
-
-    @if (session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
-    @endif
-    @if (session('error'))
-        <div class="alert alert-danger">{{ session('error') }}</div>
-    @endif
 
     <div class="mb-3 d-flex justify-content-between align-items-center">
         <div>
@@ -77,9 +74,10 @@
         </div>
         <div>
             @if ($setup)
-                <button class="btn btn-primary" data-toggle="modal" data-target="#editSetupModal">Edit Setup</button>
+                <a href="{{ route('timetables.pdf', ['exam_type' => $selectedType]) }}" class="btn btn-success">Download PDF</a>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editSetupModal">Edit Setup</button>
             @else
-                <button class="btn btn-primary" data-toggle="modal" data-target="#setupModal">Create Setup</button>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#setupModal">Create Setup</button>
             @endif
         </div>
     </div>
@@ -101,7 +99,7 @@
                                     <th rowspan="2" class="year-header">Year</th>
                                     @foreach ($dateChunk as $date)
                                         @php
-                                            $carbonDate = \Carbon\Carbon::parse($date);
+                                            $carbonDate = Carbon::parse($date);
                                             $formattedDate = $carbonDate->format('d-m') . ' (' . $carbonDate->format('l') . ')';
                                         @endphp
                                         <th colspan="{{ $programs->count() }}">{{ $formattedDate }}</th>
@@ -138,13 +136,13 @@
                                                 <td>
                                                     @if ($timetable)
                                                         <span class="badge badge-info p-2">{{ $timetable->course_code }} ({{ optional($timetable->venue)->name ?? 'N/A' }})</span>
-                                                        <div class="mt-1">
+                                                        <div class="mt-1 d-flex flex-nowrap">
                                                             <button class="btn btn-sm btn-info show-exam mr-1"
                                                                     data-id="{{ $timetable->id }}"
                                                                     data-faculty-id="{{ $faculty ? $faculty->id : '' }}"
                                                                     data-course-code="{{ $timetable->course_code }}"
                                                                     data-exam-date="{{ $timetable->exam_date }}"
-                                                                    data-time-slot="{{ json_encode(['start_time' => $timetable->start_time, 'end_time' => $timetable->end_time, 'name' => $slot['name']]) }}"
+                                                                    data-time-slot="{{ json_encode(['start_time' => Carbon::createFromFormat('H:i:s', $timetable->start_time)->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i:s', $timetable->end_time)->format('H:i'), 'name' => $slot['name']]) }}"
                                                                     data-venue-id="{{ $timetable->venue_id }}"
                                                                     data-group-selection="{{ $timetable->group_selection }}"
                                                                     data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}"
@@ -156,11 +154,18 @@
                                                                     data-faculty-id="{{ $faculty ? $faculty->id : '' }}"
                                                                     data-course-code="{{ $timetable->course_code }}"
                                                                     data-exam-date="{{ $timetable->exam_date }}"
-                                                                    data-time-slot="{{ json_encode(['start_time' => $timetable->start_time, 'end_time' => $timetable->end_time, 'name' => $slot['name']]) }}"
+                                                                    data-time-slot="{{ json_encode(['start_time' => Carbon::createFromFormat('H:i:s', $timetable->start_time)->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i:s', $timetable->end_time)->format('H:i'), 'name' => $slot['name']]) }}"
                                                                     data-venue-id="{{ $timetable->venue_id }}"
                                                                     data-group-selection="{{ $timetable->group_selection }}"
-                                                                    data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}">Edit</button>
-                                                            <button class="btn btn-sm btn-danger delete-exam" data-id="{{ $timetable->id }}">Delete</button>
+                                                                    data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}"
+                                                                    title="Edit Exam">
+                                                                <i class="fa fa-edit"></i>
+                                                            </button>
+                                                            <button class="btn btn-sm btn-danger delete-exam"
+                                                                    data-id="{{ $timetable->id }}"
+                                                                    title="Delete Exam">
+                                                                <i class="fa fa-trash"></i>
+                                                            </button>
                                                         </div>
                                                     @else
                                                         @if (1 <= $program->total_years)
@@ -203,7 +208,7 @@
                                                                     data-faculty-id="{{ $faculty ? $faculty->id : '' }}"
                                                                     data-course-code="{{ $timetable->course_code }}"
                                                                     data-exam-date="{{ $timetable->exam_date }}"
-                                                                    data-time-slot="{{ json_encode(['start_time' => $timetable->start_time, 'end_time' => $timetable->end_time, 'name' => $slot['name']]) }}"
+                                                                    data-time-slot="{{ json_encode(['start_time' => Carbon::createFromFormat('H:i:s', $timetable->start_time)->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i:s', $timetable->end_time)->format('H:i'), 'name' => $slot['name']]) }}"
                                                                     data-venue-id="{{ $timetable->venue_id }}"
                                                                     data-group-selection="{{ $timetable->group_selection }}"
                                                                     data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}"
@@ -215,11 +220,18 @@
                                                                     data-faculty-id="{{ $faculty ? $faculty->id : '' }}"
                                                                     data-course-code="{{ $timetable->course_code }}"
                                                                     data-exam-date="{{ $timetable->exam_date }}"
-                                                                    data-time-slot="{{ json_encode(['start_time' => $timetable->start_time, 'end_time' => $timetable->end_time, 'name' => $slot['name']]) }}"
+                                                                    data-time-slot="{{ json_encode(['start_time' => Carbon::createFromFormat('H:i:s', $timetable->start_time)->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i:s', $timetable->end_time)->format('H:i'), 'name' => $slot['name']]) }}"
                                                                     data-venue-id="{{ $timetable->venue_id }}"
                                                                     data-group-selection="{{ $timetable->group_selection }}"
-                                                                    data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}">Edit</button>
-                                                            <button class="btn btn-sm btn-danger delete-exam" data-id="{{ $timetable->id }}">Delete</button>
+                                                                    data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}"
+                                                                    title="Edit Exam">
+                                                                <i class="fa fa-edit"></i>
+                                                            </button>
+                                                            <button class="btn btn-sm btn-danger delete-exam"
+                                                                    data-id="{{ $timetable->id }}"
+                                                                    title="Delete Exam">
+                                                                <i class="fa fa-trash"></i>
+                                                            </button>
                                                         </div>
                                                     @else
                                                         @if (2 <= $program->total_years)
@@ -262,7 +274,7 @@
                                                                     data-faculty-id="{{ $faculty ? $faculty->id : '' }}"
                                                                     data-course-code="{{ $timetable->course_code }}"
                                                                     data-exam-date="{{ $timetable->exam_date }}"
-                                                                    data-time-slot="{{ json_encode(['start_time' => $timetable->start_time, 'end_time' => $timetable->end_time, 'name' => $slot['name']]) }}"
+                                                                    data-time-slot="{{ json_encode(['start_time' => Carbon::createFromFormat('H:i:s', $timetable->start_time)->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i:s', $timetable->end_time)->format('H:i'), 'name' => $slot['name']]) }}"
                                                                     data-venue-id="{{ $timetable->venue_id }}"
                                                                     data-group-selection="{{ $timetable->group_selection }}"
                                                                     data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}"
@@ -274,11 +286,18 @@
                                                                     data-faculty-id="{{ $faculty ? $faculty->id : '' }}"
                                                                     data-course-code="{{ $timetable->course_code }}"
                                                                     data-exam-date="{{ $timetable->exam_date }}"
-                                                                    data-time-slot="{{ json_encode(['start_time' => $timetable->start_time, 'end_time' => $timetable->end_time, 'name' => $slot['name']]) }}"
+                                                                    data-time-slot="{{ json_encode(['start_time' => Carbon::createFromFormat('H:i:s', $timetable->start_time)->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i:s', $timetable->end_time)->format('H:i'), 'name' => $slot['name']]) }}"
                                                                     data-venue-id="{{ $timetable->venue_id }}"
                                                                     data-group-selection="{{ $timetable->group_selection }}"
-                                                                    data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}">Edit</button>
-                                                            <button class="btn btn-sm btn-danger delete-exam" data-id="{{ $timetable->id }}">Delete</button>
+                                                                    data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}"
+                                                                    title="Edit Exam">
+                                                                <i class="fa fa-edit"></i>
+                                                            </button>
+                                                            <button class="btn btn-sm btn-danger delete-exam"
+                                                                    data-id="{{ $timetable->id }}"
+                                                                    title="Delete Exam">
+                                                                <i class="fa fa-trash"></i>
+                                                            </button>
                                                         </div>
                                                     @else
                                                         @if (3 <= $program->total_years)
@@ -321,7 +340,7 @@
                                                                     data-faculty-id="{{ $faculty ? $faculty->id : '' }}"
                                                                     data-course-code="{{ $timetable->course_code }}"
                                                                     data-exam-date="{{ $timetable->exam_date }}"
-                                                                    data-time-slot="{{ json_encode(['start_time' => $timetable->start_time, 'end_time' => $timetable->end_time, 'name' => $slot['name']]) }}"
+                                                                    data-time-slot="{{ json_encode(['start_time' => Carbon::createFromFormat('H:i:s', $timetable->start_time)->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i:s', $timetable->end_time)->format('H:i'), 'name' => $slot['name']]) }}"
                                                                     data-venue-id="{{ $timetable->venue_id }}"
                                                                     data-group-selection="{{ $timetable->group_selection }}"
                                                                     data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}"
@@ -333,11 +352,18 @@
                                                                     data-faculty-id="{{ $faculty ? $faculty->id : '' }}"
                                                                     data-course-code="{{ $timetable->course_code }}"
                                                                     data-exam-date="{{ $timetable->exam_date }}"
-                                                                    data-time-slot="{{ json_encode(['start_time' => $timetable->start_time, 'end_time' => $timetable->end_time, 'name' => $slot['name']]) }}"
+                                                                    data-time-slot="{{ json_encode(['start_time' => Carbon::createFromFormat('H:i:s', $timetable->start_time)->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i:s', $timetable->end_time)->format('H:i'), 'name' => $slot['name']]) }}"
                                                                     data-venue-id="{{ $timetable->venue_id }}"
                                                                     data-group-selection="{{ $timetable->group_selection }}"
-                                                                    data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}">Edit</button>
-                                                            <button class="btn btn-sm btn-danger delete-exam" data-id="{{ $timetable->id }}">Delete</button>
+                                                                    data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}"
+                                                                    title="Edit Exam">
+                                                                <i class="fa fa-edit"></i>
+                                                            </button>
+                                                            <button class="btn btn-sm btn-danger delete-exam"
+                                                                    data-id="{{ $timetable->id }}"
+                                                                    title="Delete Exam">
+                                                                <i class="fa fa-trash"></i>
+                                                            </button>
                                                         </div>
                                                     @else
                                                         @if (4 <= $program->total_years)
@@ -373,9 +399,7 @@
                     @csrf
                     <div class="modal-header">
                         <h5 class="modal-title" id="setupModalLabel">Examination Setup</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">×</span>
-                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <div class="form-group">
@@ -435,7 +459,7 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         <button type="submit" class="btn btn-primary">Save Setup</button>
                     </div>
                 </form>
@@ -453,9 +477,7 @@
                         @method('PUT')
                         <div class="modal-header">
                             <h5 class="modal-title" id="editSetupModalLabel">Edit Examination Setup</h5>
-                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                <span aria-hidden="true">×</span>
-                            </button>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
                             <div class="form-group">
@@ -517,7 +539,7 @@
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                             <button type="submit" class="btn btn-primary">Update Setup</button>
                         </div>
                     </form>
@@ -535,9 +557,7 @@
                     <input type="hidden" id="examId" name="exam_id">
                     <div class="modal-header">
                         <h5 class="modal-title" id="examModalLabel">Create Exam</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">×</span>
-                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <input type="hidden" name="faculty_id" id="faculty_id">
@@ -547,7 +567,7 @@
                                 <select class="form-control" id="exam_date" name="exam_date" required>
                                     @foreach ($days as $day)
                                         @php
-                                            $carbonDay = \Carbon\Carbon::parse($day);
+                                            $carbonDay = Carbon::parse($day);
                                             $displayDay = $carbonDay->format('d-m') . ' (' . $carbonDay->format('l') . ')';
                                         @endphp
                                         <option value="{{ $day }}">{{ $displayDay }}</option>
@@ -558,7 +578,9 @@
                                 <label for="time_slot" class="form-label">Time Slot</label>
                                 <select class="form-control" id="time_slot" name="time_slot" required>
                                     @foreach ($timeSlots as $slot)
-                                        <option value="{{ json_encode($slot) }}">{{ $slot['name'] }} ({{ $slot['start_time'] }} - {{ $slot['end_time'] }})</option>
+                                        <option value="{{ json_encode(['name' => $slot['name'], 'start_time' => Carbon::createFromFormat('H:i', $slot['start_time'])->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i', $slot['end_time'])->format('H:i')]) }}">
+                                            {{ $slot['name'] }} ({{ $slot['start_time'] }} - {{ $slot['end_time'] }})
+                                        </option>
                                     @endforeach
                                 </select>
                             </div>
@@ -592,7 +614,7 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         @if ($setup)
                             <button type="submit" class="btn btn-primary">Save Exam</button>
                         @endif
@@ -611,15 +633,13 @@
                     @method('DELETE')
                     <div class="modal-header">
                         <h5 class="modal-title" id="deleteModalLabel">Confirm Deletion</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">×</span>
-                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         Are you sure you want to delete this exam timetable entry?
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-danger">Delete</button>
                     </div>
                 </form>
@@ -633,9 +653,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="showExamModalLabel">Exam Details</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">×</span>
-                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <p><strong>Course Code:</strong> <span id="show_exam_course_code"></span></p>
@@ -648,7 +666,7 @@
                     <p><strong>Faculty:</strong> <span id="show_exam_faculty"></span></p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
@@ -657,210 +675,301 @@
 @endsection
 
 @section('scripts')
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script>
+        var $j = jQuery.noConflict();
+        const showUrlTemplate = '{{ route('timetables.show', ['timetable' => 'ID']) }}';
 
-<script>
-    // Initialize Select2 for multiple select fields
-    $j(document).ready(function() {
-        $j('.select2').select2({
-            placeholder: "Select options",
-            allowClear: true,
-            width: '100%'
-        });
+        $j(document).ready(function() {
+            $j('.select2').select2({
+                placeholder: "Select options",
+                allowClear: true,
+                width: '100%'
+            });
 
-        // Create Exam
-        $j('.create-exam').click(function() {
-            @if (!$setup)
-                alert('Please create an examination setup first.');
-                return;
-            @endif
+            $j('.create-exam').click(function() {
+                @if (!$setup)
+                    alert('Please create an examination setup first.');
+                    return;
+                @endif
 
-            const programId = $j(this).data('program-id');
-            const yearNum = $j(this).data('year-num');
-            const date = $j(this).data('date');
-            const timeSlot = $j(this).data('time-slot');
+                const programId = $j(this).data('program-id');
+                const yearNum = $j(this).data('year-num');
+                const date = $j(this).data('date');
+                const timeSlot = $j(this).data('time-slot');
 
-            $j.get(`{{ route('timetables.getFacultyByProgramYear', ['program_id' => ':programId', 'year_num' => ':yearNum']) }}`
-                .replace(':programId', programId)
-                .replace(':yearNum', yearNum), function(faculty) {
-                    if (!faculty || !faculty.id) {
-                        alert('Invalid year for this program.');
-                        return;
-                    }
+                console.log('Create exam clicked:', { programId, yearNum, date, timeSlot });
 
-                    $j('#examModalLabel').text('Create Exam');
-                    $j('#examForm').attr('action', '{{ route('timetables.store') }}').find('[name="_method"]').remove();
-                    $j('#examId').val('');
-                    $j('#faculty_id').val(faculty.id);
-                    $j('#exam_date').val(date);
-                    const slotData = typeof timeSlot === 'string' ? JSON.parse(timeSlot) : timeSlot;
-                    $j('#time_slot').val(JSON.stringify(slotData));
-                    $j('<input>').attr({
-                        type: 'hidden',
-                        name: 'start_time',
-                        value: slotData.start_time
-                    }).appendTo('#examForm');
-                    $j('<input>').attr({
-                        type: 'hidden',
-                        name: 'end_time',
-                        value: slotData.end_time
-                    }).appendTo('#examForm');
-
-                    // Populate courses
-                    $j.get(`{{ route('timetables.getFacultyCourses') }}?faculty_id=${faculty.id}`, function(data) {
-                        $j('#course_code').empty().append('<option value="">Select Course</option>');
-                        data.course_codes.forEach(course => {
-                            $j('#course_code').append(`<option value="${course.course_code}">${course.name}</option>`);
-                        });
-                    });
-
-                    // Populate groups
-                    $j.get(`{{ route('timetables.getFacultyGroups') }}?faculty_id=${faculty.id}`, function(data) {
-                        $j('#group_selection').empty().append('<option value="All Groups">All Groups</option>');
-                        data.groups.forEach(group => {
-                            $j('#group_selection').append(`<option value="${group.group_name}">${group.group_name}</option>`);
-                        });
-                        $j('#group_selection').trigger('change');
-                    });
-
-                    // Populate lecturers
-                    $j('#course_code').off('change').on('change', function() {
-                        const courseCode = $j(this).val();
-                        if (courseCode) {
-                            $j.get(`{{ route('timetables.getCourseLecturers') }}?course_code=${courseCode}`, function(data) {
-                                $j('#lecturer_ids').empty();
-                                data.lecturers.forEach(lecturer => {
-                                    $j('#lecturer_ids').append(`<option value="${lecturer.id}">${lecturer.name}</option>`);
-                                });
-                                $j('#lecturer_ids').trigger('change');
-                            });
-                        } else {
-                            $j('#lecturer_ids').empty().trigger('change');
+                $j.get(`{{ route('timetables.getFacultyByProgramYear', ['program_id' => ':programId', 'year_num' => ':yearNum']) }}`
+                    .replace(':programId', programId)
+                    .replace(':yearNum', yearNum), function(faculty) {
+                        if (!faculty || !faculty.id) {
+                            alert('Invalid year for this program.');
+                            return;
                         }
-                    });
 
-                    $j('#examModal').modal('show');
-                });
-        });
+                        $j('#examModalLabel').text('Create Exam');
+                        $j('#examForm').attr('action', '{{ route('timetables.store') }}').find('[name="_method"]').remove();
+                        $j('#examId').val('');
+                        $j('#faculty_id').val(faculty.id);
+                        $j('#exam_date').val(date);
+                        const slotData = typeof timeSlot === 'string' ? JSON.parse(timeSlot) : timeSlot;
+                        $j('#time_slot').val(JSON.stringify(slotData));
+                        $j('#examForm').find('[name="start_time"], [name="end_time"]').remove();
+                        $j('<input>').attr({
+                            type: 'hidden',
+                            name: 'start_time',
+                            value: slotData.start_time + ':00' // Ensure H:i:s
+                        }).appendTo('#examForm');
+                        $j('<input>').attr({
+                            type: 'hidden',
+                            name: 'end_time',
+                            value: slotData.end_time + ':00' // Ensure H:i:s
+                        }).appendTo('#examForm');
 
-        // Edit Exam
-        $j('.edit-exam').click(function() {
-            const id = $j(this).data('id');
-            const facultyId = $j(this).data('faculty-id');
-            const courseCode = $j(this).data('course-code');
-            const examDate = $j(this).data('exam-date');
-            const timeSlot = $j(this).data('time-slot');
-            const venueId = $j(this).data('venue-id');
-            const groupSelection = $j(this).data('group-selection');
-            const lecturerIds = $j(this).data('lecturer-ids');
-
-            $j('#examModalLabel').text('Edit Exam');
-            $j('#examForm').attr('action', `{{ url('timetables') }}/${id}`).find('[name="_method"]').remove()
-                .end().append('<input type="hidden" name="_method" value="PUT">');
-            $j('#examId').val(id);
-            $j('#faculty_id').val(facultyId);
-            $j('#exam_date').val(examDate);
-            $j('#time_slot').val(timeSlot);
-            $j('#venue_id').val(venueId);
-            $j('#group_selection').val(groupSelection.split(','));
-
-            // Populate courses
-            $j.get(`{{ route('timetables.getFacultyCourses') }}?faculty_id=${facultyId}`, function(data) {
-                $j('#course_code').empty().append('<option value="">Select Course</option>');
-                data.course_codes.forEach(course => {
-                    $j('#course_code').append(`<option value="${course.course_code}" ${course.course_code === courseCode ? 'selected' : ''}>${course.name}</option>`);
-                });
-            });
-
-            // Populate groups
-            $j.get(`{{ route('timetables.getFacultyGroups') }}?faculty_id=${facultyId}`, function(data) {
-                $j('#group_selection').empty().append(`<option value="All Groups" ${groupSelection.includes("All Groups") ? "selected" : ""}>All Groups</option>`);
-                data.groups.forEach(group => {
-                    $j('#group_selection').append(`<option value="${group.group_name}" ${groupSelection.includes(group.group_name) ? 'selected' : ''}>${group.group_name}</option>`);
-                });
-                $j('#group_selection').trigger('change');
-            });
-
-            // Populate lecturers
-            $j.get(`{{ route('timetables.getCourseLecturers') }}?course_code=${courseCode}`, function(data) {
-                $j('#lecturer_ids').empty();
-                data.lecturers.forEach(lecturer => {
-                    $j('#lecturer_ids').append(`<option value="${lecturer.id}" ${lecturerIds.includes(lecturer.id) ? 'selected' : ''}>${lecturer.name}</option>`);
-                });
-                $j('#lecturer_ids').trigger('change');
-            });
-
-            $j('#course_code').off('change').on('change', function() {
-                const courseCode = $j(this).val();
-                if (courseCode) {
-                    $j.get(`{{ route('timetables.getCourseLecturers') }}?course_code=${courseCode}`, function(data) {
-                        $j('#lecturer_ids').empty();
-                        data.lecturers.forEach(lecturer => {
-                            $j('#lecturer_ids').append(`<option value="${lecturer.id}">${lecturer.name}</option>`);
+                        $j.get(`{{ route('timetables.getFacultyCourses') }}?faculty_id=${faculty.id}`, function(data) {
+                            console.log('Courses fetched:', data);
+                            $j('#course_code').empty().append('<option value="">Select Course</option>');
+                            data.course_codes.forEach(course => {
+                                $j('#course_code').append(`<option value="${course.course_code}">${course.name}</option>`);
+                            });
+                        }).fail(function(xhr) {
+                            console.error('Error fetching courses:', xhr.responseText);
+                            alert('Failed to load courses.');
                         });
-                        $j('#lecturer_ids').trigger('change');
+
+                        $j.get(`{{ route('timetables.getFacultyGroups') }}?faculty_id=${faculty.id}`, function(data) {
+                            console.log('Groups fetched:', data);
+                            $j('#group_selection').empty().append('<option value="All Groups">All Groups</option>');
+                            data.groups.forEach(group => {
+                                $j('#group_selection').append(`<option value="${group.group_name}">${group.group_name}</option>`);
+                            });
+                            $j('#group_selection').trigger('change');
+                        }).fail(function(xhr) {
+                            console.error('Error fetching groups:', xhr.responseText);
+                            alert('Failed to load groups.');
+                        });
+
+                        $j('#course_code').off('change').on('change', function() {
+                            const courseCode = $j(this).val();
+                            console.log('Course selected:', courseCode);
+                            if (courseCode) {
+                                $j.get(`{{ route('timetables.getCourseLecturers') }}?course_code=${courseCode}`, function(data) {
+                                    console.log('Lecturers fetched:', data);
+                                    $j('#lecturer_ids').empty();
+                                    data.lecturers.forEach(lecturer => {
+                                        $j('#lecturer_ids').append(`<option value="${lecturer.id}">${lecturer.name}</option>`);
+                                    });
+                                    $j('#lecturer_ids').trigger('change');
+                                }).fail(function(xhr) {
+                                    console.error('Error fetching lecturers:', xhr.responseText);
+                                    alert('Failed to load lecturers.');
+                                });
+                            } else {
+                                $j('#lecturer_ids').empty().trigger('change');
+                            }
+                        });
+
+                        $j('#examModal').modal('show');
+                    }).fail(function(xhr) {
+                        console.error('Error fetching faculty:', xhr.responseText);
+                        alert('Failed to load faculty data.');
                     });
-                } else {
-                    $j('#lecturer_ids').empty().trigger('change');
-                }
             });
 
-            $j('#examModal').modal('show');
-        });
+            $j('.edit-exam').click(function() {
+                const id = $j(this).data('id');
+                const facultyId = $j(this).data('faculty-id');
+                const courseCode = $j(this).data('course-code');
+                const examDate = $j(this).data('exam-date');
+                const timeSlot = $j(this).data('time-slot');
+                const venueId = $j(this).data('venue-id');
+                const groupSelection = $j(this).data('group-selection');
+                const lecturerIds = typeof $j(this).data('lecturer-ids') === 'string' ? JSON.parse($j(this).data('lecturer-ids')) : $j(this).data('lecturer-ids');
 
-        // Delete Exam
-        $j('.delete-exam').click(function() {
-            const id = $j(this).data('id');
-            $j('#deleteForm').attr('action', `{{ url('timetables') }}/${id}`);
-            $j('#deleteModal').modal('show');
-        });
+                console.log('Edit exam - Timetable ID:', id, 'Course:', courseCode, 'Lecturer IDs:', lecturerIds, 'Time Slot:', timeSlot);
 
-        // Show Exam
-        $j('.show-exam').click(function() {
-            const id = $j(this).data('id');
-            $j.get(`{{ route('timetables.show', ':id') }}`.replace(':id', id), function(data) {
-                $j('#show_exam_course_code').text(data.course_code);
-                $j('#show_exam_course_name').text(data.course_name || 'N/A');
-                $j('#show_exam_date').text(data.exam_date ? moment(data.exam_date).format('DD-MM-YYYY (dddd)') : 'N/A');
-                $j('#show_exam_time_slot').text(`${data.start_time} - ${data.end_time} (${data.time_slot_name || 'N/A'})`);
-                $j('#show_exam_venue').text(data.venue_name || 'N/A');
-                $j('#show_exam_venue_capacity').text(data.venue_capacity || 'N/A');
-                $j('#show_exam_group_selection').text(data.group_selection || 'N/A');
-                $j('#show_exam_lecturers').text(data.lecturers.join(', ') || 'N/A');
-                $j('#show_exam_faculty').text(data.faculty_name || 'N/A');
-                $j('#showExamModal').modal('show');
-            }).fail(function(xhr) {
-                alert('Failed to load exam details.');
-                console.error('Error:', xhr.responseText);
+                $j('#examModalLabel').text('Edit Exam');
+                $j('#examForm').attr('action', `{{ url('timetables') }}/${id}`).find('[name="_method"]').remove()
+                    .end().append('<input type="hidden" name="_method" value="PUT">');
+                $j('#examId').val(id);
+                $j('#faculty_id').val(facultyId);
+                $j('#exam_date').val(examDate);
+                const timeSlotParsed = typeof timeSlot === 'string' ? JSON.parse(timeSlot) : timeSlot;
+                $j('#time_slot').val(JSON.stringify(timeSlotParsed));
+                $j('#venue_id').val(venueId);
+
+                $j('#examForm').find('[name="start_time"], [name="end_time"]').remove();
+                $j('<input>').attr({
+                    type: 'hidden',
+                    name: 'start_time',
+                    value: timeSlotParsed.start_time + ':00' // Ensure H:i:s
+                }).appendTo('#examForm');
+                $j('<input>').attr({
+                    type: 'hidden',
+                    name: 'end_time',
+                    value: timeSlotParsed.end_time + ':00' // Ensure H:i:s
+                }).appendTo('#examForm');
+
+                $j.get(`{{ route('timetables.getFacultyCourses') }}?faculty_id=${facultyId}`, function(data) {
+                    console.log('Edit exam - Courses:', data);
+                    $j('#course_code').empty().append('<option value="">Select Course</option>');
+                    data.course_codes.forEach(course => {
+                        $j('#course_code').append(`<option value="${course.course_code}" ${course.course_code === courseCode ? 'selected' : ''}>${course.name}</option>`);
+                    });
+                }).fail(function(xhr) {
+                    console.error('Error fetching courses:', xhr.status, xhr.responseText);
+                    alert('Failed to load courses.');
+                });
+
+                $j.get(`{{ route('timetables.getFacultyGroups') }}?faculty_id=${facultyId}`, function(data) {
+                    console.log('Edit exam - Groups:', data);
+                    $j('#group_selection').empty().append('<option value="All Groups">All Groups</option>');
+                    data.groups.forEach(group => {
+                        const isSelected = groupSelection && (groupSelection.split(',').includes(group.group_name) || groupSelection === group.group_name);
+                        $j('#group_selection').append(`<option value="${group.group_name}" ${isSelected ? 'selected' : ''}>${group.group_name}</option>`);
+                    });
+                    $j('#group_selection').select2({
+                        placeholder: "Select groups",
+                        allowClear: true,
+                        width: '100%'
+                    }).trigger('change');
+                }).fail(function(xhr) {
+                    console.error('Error fetching groups:', xhr.status, xhr.responseText);
+                    alert('Failed to load groups.');
+                });
+
+                $j.get(`{{ route('timetables.getCourseLecturers') }}?course_code=${courseCode}&timetable_id=${id}`, function(data) {
+                    console.log('Edit exam - Lecturers:', data);
+                    $j('#lecturer_ids').empty();
+                    data.lecturers.forEach(lecturer => {
+                        $j('#lecturer_ids').append(`<option value="${lecturer.id}" ${lecturer.selected || (lecturerIds && lecturerIds.includes(lecturer.id)) ? 'selected' : ''}>${lecturer.name}</option>`);
+                    });
+                    $j('#lecturer_ids').select2({
+                        placeholder: "Select lecturers",
+                        allowClear: true,
+                        width: '100%'
+                    }).trigger('change');
+                }).fail(function(xhr) {
+                    console.error('Error fetching lecturers:', xhr.status, xhr.responseText);
+                    alert('Failed to load lecturers.');
+                });
+
+                $j('#course_code').off('change').on('change', function() {
+                    const courseCode = $j(this).val();
+                    console.log('Edit exam - Course changed:', courseCode);
+                    if (courseCode) {
+                        $j.get(`{{ route('timetables.getCourseLecturers') }}?course_code=${courseCode}&timetable_id=${id}`, function(data) {
+                            console.log('Edit exam - Lecturers:', data);
+                            $j('#lecturer_ids').empty();
+                            data.lecturers.forEach(lecturer => {
+                                $j('#lecturer_ids').append(`<option value="${lecturer.id}" ${lecturer.selected ? 'selected' : ''}>${lecturer.name}</option>`);
+                            });
+                            $j('#lecturer_ids').select2({
+                                placeholder: "Select lecturers",
+                                allowClear: true,
+                                width: '100%'
+                            }).trigger('change');
+                        }).fail(function(xhr) {
+                            console.error('Error fetching lecturers:', xhr.status, xhr.responseText);
+                            alert('Failed to load lecturers.');
+                        });
+                    } else {
+                        $j('#lecturer_ids').empty().select2({
+                            placeholder: "Select lecturers",
+                            allowClear: true,
+                            width: '100%'
+                        }).trigger('change');
+                    }
+                });
+
+                $j('#examModal').modal('show');
             });
+
+            $j('#examForm').on('submit', function(e) {
+                e.preventDefault();
+                const form = $j(this);
+                const url = form.attr('action');
+                const method = form.find('[name="_method"]').val() || 'POST';
+                const data = form.serialize();
+
+                console.log('Submitting form:', { url, method, data });
+
+                $j.ajax({
+                    url: url,
+                    type: method,
+                    data: data,
+                    success: function(response) {
+                        console.log('Form submission successful:', response);
+                        $j('#examModal').modal('hide');
+                        location.reload();
+                    },
+                    error: function(xhr) {
+                        console.error('Form submission error:', xhr.status, xhr.responseText);
+                        let errorMsg = xhr.responseJSON?.error || 'Unknown error';
+                        if (xhr.responseJSON?.details) {
+                            errorMsg += '\nDetails: ' + Object.values(xhr.responseJSON.details).flat().join('; ');
+                        }
+                        alert('Failed to save exam: ' + errorMsg);
+                    }
+                });
+            });
+
+            $j('.delete-exam').click(function() {
+                const id = $j(this).data('id');
+                console.log('Delete exam clicked:', id);
+                $j('#deleteForm').attr('action', `{{ url('timetables') }}/${id}`);
+                $j('#deleteModal').modal('show');
+            });
+
+            $j('.show-exam').click(function() {
+                const id = $j(this).data('id');
+                const lecturerIds = $j(this).data('lecturer-ids');
+                console.log('Show exam - Timetable ID:', id, 'Lecturer IDs:', lecturerIds);
+                $j.get(showUrlTemplate.replace('ID', id), function(data) {
+                    console.log('Show exam - Response:', data);
+                    const lecturerText = data.lecturers && data.lecturers.length ? data.lecturers.join(', ') : 'No lecturers assigned';
+                    console.log('Show exam - Lecturer Text:', lecturerText);
+                    $j('#show_exam_lecturers').text(lecturerText);
+                    $j('#show_exam_course_code').text(data.course_code || 'N/A');
+                    $j('#show_exam_course_name').text(data.course_name || 'N/A');
+                    $j('#show_exam_date').text(data.exam_date ? moment(data.exam_date).format('DD-MM-YYYY (dddd)') : 'N/A');
+                    $j('#show_exam_time_slot').text(data.start_time && data.end_time ? `${data.start_time} - ${data.end_time} (${data.time_slot_name || 'N/A'})` : 'N/A');
+                    $j('#show_exam_venue').text(data.venue_name || 'N/A');
+                    $j('#show_exam_venue_capacity').text(data.venue_capacity || 'N/A');
+                    $j('#show_exam_group_selection').text(data.group_selection || 'N/A');
+                    $j('#show_exam_faculty').text(data.faculty_name || 'N/A');
+                    $j('#showExamModal').modal('show');
+                }).fail(function(xhr) {
+                    console.error('Show exam - Error:', xhr.status, xhr.responseText);
+                    alert('Failed to load exam details.');
+                });
+            });
+
+            let timeSlotIndex = 1;
+            window.addTimeSlot = function() {
+                const timeSlotHtml = `
+                    <div class="time-slot mb-2">
+                        <input type="text" class="form-control mb-1" name="time_slots[${timeSlotIndex}][name]" placeholder="Slot Name" required>
+                        <input type="time" class="form-control mb-1" name="time_slots[${timeSlotIndex}][start_time]" required>
+                        <input type="time" class="form-control" name="time_slots[${timeSlotIndex}][end_time]" required>
+                    </div>`;
+                $j('#timeSlots').append(timeSlotHtml);
+                timeSlotIndex++;
+            };
+
+            let editTimeSlotIndex = {{ $setup ? count($setup->time_slots) : 0 }};
+            window.addEditTimeSlot = function() {
+                const timeSlotHtml = `
+                    <div class="time-slot mb-2">
+                        <input type="text" class="form-control mb-1" name="time_slots[${editTimeSlotIndex}][name]" placeholder="Slot Name" required>
+                        <input type="time" class="form-control mb-1" name="time_slots[${editTimeSlotIndex}][start_time]" required>
+                        <input type="time" class="form-control" name="time_slots[${editTimeSlotIndex}][end_time]" required>
+                    </div>`;
+                $j('#editTimeSlots').append(timeSlotHtml);
+                editTimeSlotIndex++;
+            };
         });
-
-        // Add Time Slot
-        let timeSlotIndex = 1;
-        window.addTimeSlot = function() {
-            const timeSlotHtml = `
-                <div class="time-slot mb-2">
-                    <input type="text" class="form-control mb-1" name="time_slots[${timeSlotIndex}][name]" placeholder="Slot Name" required>
-                    <input type="time" class="form-control mb-1" name="time_slots[${timeSlotIndex}][start_time]" required>
-                    <input type="time" class="form-control" name="time_slots[${timeSlotIndex}][end_time]" required>
-                </div>`;
-            $j('#timeSlots').append(timeSlotHtml);
-            timeSlotIndex++;
-        };
-
-        // Add Edit Time Slot
-        let editTimeSlotIndex = {{ $setup ? count($setup->time_slots) : 0 }};
-        window.addEditTimeSlot = function() {
-            const timeSlotHtml = `
-                <div class="time-slot mb-2">
-                    <input type="text" class="form-control mb-1" name="time_slots[${editTimeSlotIndex}][name]" placeholder="Slot Name" required>
-                    <input type="time" class="form-control mb-1" name="time_slots[${editTimeSlotIndex}][start_time]" required>
-                    <input type="time" class="form-control" name="time_slots[${editTimeSlotIndex}][end_time]" required>
-                </div>`;
-            $j('#editTimeSlots').append(timeSlotHtml);
-            editTimeSlotIndex++;
-        };
-    });
-</script>
+    </script>
 @endsection

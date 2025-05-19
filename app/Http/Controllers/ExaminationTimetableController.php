@@ -9,8 +9,10 @@ use App\Models\Venue;
 use App\Models\Course;
 use App\Models\Program;
 use App\Models\FacultyGroup;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class ExaminationTimetableController extends Controller
 {
@@ -160,30 +162,50 @@ class ExaminationTimetableController extends Controller
         return redirect()->route('timetables.index')->with('success', 'Exam timetable created successfully.');
     }
 
-    public function update(Request $request, ExaminationTimetable $timetable)
-    {
-        // Validate the incoming request data
+         public function update(Request $request, ExaminationTimetable $timetable)
+{
+    Log::info('Update timetable:', ['id' => $timetable->id, 'input' => $request->all()]);
+    $setup = ExamSetup::first();
+    if (!$setup) {
+        Log::error('No setup found');
+        return response()->json(['error' => 'No setup found'], 422);
+    }
+    try {
+        $timeSlot = json_decode($request->input('time_slot'), true);
         $validated = $request->validate([
             'faculty_id' => 'required|exists:faculties,id',
             'course_code' => 'required|exists:courses,course_code',
-            'exam_date' => 'required|date',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i',
+            'exam_date' => 'required|date|in:' . implode(',', $this->getValidDates($setup)),
+            'start_time' => 'required|date_format:H:i,H:i:s', // Accept both formats
+            'end_time' => 'required|date_format:H:i,H:i:s|after:start_time',
             'venue_id' => 'required|exists:venues,id',
             'group_selection' => 'required|array|min:1',
             'group_selection.*' => 'string',
             'lecturer_ids' => 'required|array|min:1',
             'lecturer_ids.*' => 'exists:users,id',
         ]);
-
-        // Update the timetable with validated data
+        // Use time_slot values if provided
+        if ($timeSlot && isset($timeSlot['start_time'], $timeSlot['end_time'])) {
+            $validated['start_time'] = Carbon::createFromFormat('H:i', $timeSlot['start_time'])->format('H:i:s');
+            $validated['end_time'] = Carbon::createFromFormat('H:i', $timeSlot['end_time'])->format('H:i:s');
+        } else {
+            // Normalize start_time and end_time to H:i:s
+            $validated['start_time'] = Carbon::createFromFormat('H:i:s|H:i', $validated['start_time'])->format('H:i:s');
+            $validated['end_time'] = Carbon::createFromFormat('H:i:s|H:i', $validated['end_time'])->format('H:i:s');
+        }
         $validated['group_selection'] = implode(',', $validated['group_selection']);
+        Log::info('Validated data:', $validated);
         $timetable->update($validated);
         $timetable->lecturers()->sync($validated['lecturer_ids']);
-
-        // Redirect back to the index with a success message
-        return redirect()->route('timetables.index')->with('success', 'Exam timetable updated successfully.');
+        return response()->json(['success' => 'Exam timetable updated successfully']);
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        Log::error('Validation failed:', ['errors' => $e->errors()]);
+        return response()->json(['error' => 'Validation failed', 'details' => $e->errors()], 422);
+    } catch (\Exception $e) {
+        Log::error('Update failed:', ['error' => $e->getMessage()]);
+        return response()->json(['error' => 'Update failed', 'details' => $e->getMessage()], 500);
     }
+}
 
     public function destroy(ExaminationTimetable $timetable)
     {
@@ -194,6 +216,7 @@ class ExaminationTimetableController extends Controller
     public function show($id)
     {
         $timetable = ExaminationTimetable::with(['faculty', 'venue', 'lecturers', 'course'])->findOrFail($id);
+        Log::info('Show timetable:', ['id' => $id, 'lecturers' => $timetable->lecturers->pluck('name')->toArray()]);
         $course = $timetable->course;
         return response()->json([
             'course_code' => $timetable->course_code,
@@ -209,7 +232,6 @@ class ExaminationTimetableController extends Controller
             'faculty_name' => $timetable->faculty->name ?? 'N/A',
         ]);
     }
-
     public function getFacultyByProgramYear($programId, $yearNum)
     {
         $faculty = Faculty::where('program_id', $programId)
@@ -249,16 +271,27 @@ class ExaminationTimetableController extends Controller
         return response()->json(['groups' => $groups]);
     }
 
-    public function getCourseLecturers(Request $request)
-    {
-        $courseCode = $request->query('course_code');
-        $course = Course::where('course_code', $courseCode)->first();
-        if (!$course) {
-            return response()->json(['lecturers' => []]);
+       public function getCourseLecturers(Request $request)
+        {
+            $courseCode = $request->query('course_code');
+            $timetableId = $request->query('timetable_id', null);
+            $course = Course::where('course_code', $courseCode)->first();
+            if (!$course) {
+                Log::warning('Course not found:', ['course_code' => $courseCode]);
+                return response()->json(['lecturers' => []]);
+            }
+            $lecturers = $course->lecturers()->select('users.id', 'users.name')->get()->toArray();
+            if ($timetableId) {
+                $timetable = ExaminationTimetable::with('lecturers')->find($timetableId);
+                $assignedLecturerIds = $timetable ? $timetable->lecturers->pluck('id')->toArray() : [];
+                $lecturers = array_map(function ($lecturer) use ($assignedLecturerIds) {
+                    $lecturer['selected'] = in_array($lecturer['id'], $assignedLecturerIds);
+                    return $lecturer;
+                }, $lecturers);
+            }
+            Log::info('Course lecturers:', ['course_code' => $courseCode, 'lecturers' => $lecturers]);
+            return response()->json(['lecturers' => $lecturers]);
         }
-        $lecturers = $course->lecturers()->select('users.id', 'users.name')->get()->toArray();
-        return response()->json(['lecturers' => $lecturers]);
-    }
 
     private function getValidDates(ExamSetup $setup): array
     {
@@ -275,5 +308,33 @@ class ExaminationTimetableController extends Controller
             $currentDate->addDay();
         }
         return $dates;
+    }
+
+      public function generatePdf(Request $request)
+    {
+        $selectedType = $request->query('exam_type');
+        $setup = ExamSetup::whereJsonContains('type', $selectedType)->first();
+        if (!$setup) {
+            return back()->with('error', 'No setup found for the selected type.');
+        }
+
+        $days = $this->getValidDates($setup);
+        $timeSlots = $setup->time_slots;
+        $programs = Program::whereIn('id', $setup->programs)->get();
+        $timetables = ExaminationTimetable::with(['faculty', 'venue', 'lecturers'])
+            ->whereIn('exam_date', $days)
+            ->whereIn('faculty_id', Faculty::whereIn('program_id', $setup->programs)->pluck('id'))
+            ->get();
+
+        $dateChunks = array_chunk($days, 5); // 5 dates per table for readability
+
+        // Sanitize the academic year by replacing '/' with '-'
+        $sanitizedAcademicYear = str_replace('/', '-', $setup->academic_year);
+        $filename = 'examination_timetable_' . $sanitizedAcademicYear . '_draft_' . ($setup->draft_number ?? 1) . '.pdf';
+
+        $pdf = Pdf::loadView('timetables.pdf', compact('setup', 'dateChunks', 'timeSlots', 'programs', 'timetables', 'selectedType'))
+            ->setPaper('a4', 'landscape');
+
+        return $pdf->download($filename);
     }
 }

@@ -53,7 +53,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/calendars/import', [CalendarController::class, 'import'])->name('admin.calendars.import');
     Route::post('/timetable/import', [TimetableController::class, 'import'])->name('timetable.import');
     Route::get('/timetable/export', [TimetableController::class, 'export'])->name('timetable.export');
-    Route::get('/timetables/export-all-pdf', [ExaminationTimetableController::class, 'exportAllPdf'])->name('timetables.export.all.pdf');
+    Route::get('/timetables/pdf', [ExaminationTimetableController::class, 'generatePdf'])->name('timetables.pdf');
     Route::get('/timetables/faculties', [TimetableController::class, 'getAllFaculties'])->name('timetables.getAllFaculties');
     Route::get('/timetables/faculties-by-program', [TimetableController::class, 'getFacultiesByProgram'])->name('timetables.getFacultiesByProgram');
     Route::get('/timetables/courses', [TimetableController::class, 'getFacultyCourses'])->name('timetables.getCourses');
