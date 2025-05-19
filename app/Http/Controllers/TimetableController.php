@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\DB;
 
 class TimetableController extends Controller
 {
@@ -33,53 +34,242 @@ class TimetableController extends Controller
     {
         Log::info('Store request data:', $request->all());
 
-        $validated = $request->validate([
-            'day' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
-            'faculty_id' => 'required|exists:faculties,id',
-            'time_start' => 'required|date_format:H:i',
-            'time_end' => 'required|date_format:H:i|after:time_start',
-            'course_code' => 'required|string|exists:courses,course_code',
-            'activity' => 'required|string|max:255',
-            'venue_id' => 'required|exists:venues,id',
-            'lecturer_id' => 'required|exists:users,id',
-            'group_selection' => 'required|array|min:1',
-            'group_selection.*' => 'string'
-        ]);
-
-        $faculty = Faculty::findOrFail($validated['faculty_id']);
-        $venue = Venue::findOrFail($validated['venue_id']);
-        $course = Course::where('course_code', $validated['course_code'])->first();
-
-        // Convert group_selection array to comma-separated string
-        $validated['group_selection'] = implode(',', $validated['group_selection']);
-
-        // Add course_name if available
-        $validated['course_name'] = $course->name ?? null;
-
-        // Validate venue capacity
-        $studentCount = $this->calculateStudentCount($faculty, $validated['group_selection']);
-        if ($venue->capacity < $studentCount) {
-            return back()->withInput()->withErrors([
-                'venue_id' => "Venue capacity ({$venue->capacity}) is less than required students ({$studentCount})."
+        try {
+            $validated = $request->validate([
+                'day' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
+                'faculty_id' => 'required|exists:faculties,id',
+                'time_start' => 'required|date_format:H:i',
+                'time_end' => 'required|date_format:H:i|after:time_start',
+                'course_code' => 'required|string|exists:courses,course_code',
+                'activity' => 'required|string|max:255',
+                'venue_id' => 'required|exists:venues,id',
+                'lecturer_id' => 'required|exists:users,id',
+                'group_selection' => 'required|array|min:1',
+                'group_selection.*' => 'string'
             ]);
-        }
+            Log::info('Validation passed:', $validated);
 
-        // Check conflicts
-        $conflicts = $this->checkConflicts($request, $validated);
-        if (!empty($conflicts)) {
-            return back()->withInput()->withErrors([
-                'conflict' => implode(' ', $conflicts)
+            $faculty = Faculty::findOrFail($validated['faculty_id']);
+            $venue = Venue::findOrFail($validated['venue_id']);
+            $course = Course::where('course_code', $validated['course_code'])->firstOrFail();
+
+            $validated['group_selection'] = implode(',', $validated['group_selection']);
+            $validated['course_name'] = $course->name ?? null;
+            $validated['time_start'] = date('H:i:s', strtotime($validated['time_start']));
+            $validated['time_end'] = date('H:i:s', strtotime($validated['time_end']));
+
+            // Check for existing identical entry to prevent duplicates
+            $existing = Timetable::where('faculty_id', $validated['faculty_id'])
+                ->where('course_code', $validated['course_code'])
+                ->where('day', $validated['day'])
+                ->where('time_start', $validated['time_start'])
+                ->where('time_end', $validated['time_end'])
+                ->where('lecturer_id', $validated['lecturer_id'])
+                ->where('venue_id', $validated['venue_id'])
+                ->where('group_selection', $validated['group_selection'])
+                ->exists();
+            if ($existing) {
+                Log::warning('Duplicate timetable entry detected', $validated);
+                return $request->ajax()
+                    ? response()->json(['errors' => ['duplicate' => 'This timetable entry already exists.']], 422)
+                    : back()->withInput()->withErrors(['duplicate' => 'This timetable entry already exists.']);
+            }
+
+            $studentCount = $this->calculateStudentCount($faculty, $validated['group_selection']);
+            Log::info('Student count calculated:', ['student_count' => $studentCount, 'venue_capacity' => $venue->capacity]);
+            if ($venue->capacity < $studentCount) {
+                Log::warning('Venue capacity insufficient:', [
+                    'venue_capacity' => $venue->capacity,
+                    'student_count' => $studentCount
+                ]);
+                return $request->ajax()
+                    ? response()->json(['errors' => ['venue_id' => "Venue capacity ({$venue->capacity}) is less than required students ({$studentCount})."]], 422)
+                    : back()->withInput()->withErrors(['venue_id' => "Venue capacity ({$venue->capacity}) is less than required students ({$studentCount})."]);
+            }
+
+            $conflicts = $this->checkConflicts($request, $validated);
+            Log::info('Conflict check result:', ['conflicts' => $conflicts]);
+            if (!empty($conflicts)) {
+                Log::warning('Conflicts detected:', ['conflicts' => $conflicts]);
+                $errorMessage = implode(' ', $conflicts);
+                return $request->ajax()
+                    ? response()->json(['errors' => ['conflict' => $errorMessage]], 422)
+                    : back()->withInput()->withErrors(['conflict' => $errorMessage]);
+            }
+
+            DB::enableQueryLog();
+            DB::beginTransaction();
+            try {
+                $timetable = Timetable::create($validated);
+                DB::commit();
+                Log::info('Timetable created successfully:', [
+                    'id' => $timetable->id,
+                    'query_log' => DB::getQueryLog()
+                ]);
+                return $request->ajax()
+                    ? response()->json(['message' => 'Timetable entry created successfully.', 'id' => $timetable->id])
+                    : redirect()->route('timetable.index')->with('success', 'Timetable entry created successfully.');
+            } catch (\Illuminate\Database\QueryException $e) {
+                DB::rollBack();
+                Log::error('Database error creating timetable: ' . $e->getMessage(), [
+                    'exception' => $e,
+                    'validated' => $validated,
+                    'sql' => $e->getSql(),
+                    'bindings' => $e->getBindings(),
+                    'query_log' => DB::getQueryLog()
+                ]);
+                return $request->ajax()
+                    ? response()->json(['errors' => ['error' => 'Database error: ' . $e->getMessage()]], 422)
+                    : back()->withInput()->withErrors(['error' => 'Database error: ' . $e->getMessage()]);
+            }
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation failed:', ['errors' => $e->errors(), 'input' => $request->all()]);
+            return $request->ajax()
+                ? response()->json(['errors' => $e->errors()], 422)
+                : back()->withInput()->withErrors($e->errors());
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('Model not found: ' . $e->getMessage(), ['input' => $request->all()]);
+            return $request->ajax()
+                ? response()->json(['errors' => ['error' => 'Referenced record (faculty, venue, or course) not found.']], 422)
+                : back()->withInput()->withErrors(['error' => 'Referenced record (faculty, venue, or course) not found.']);
+        } catch (\Exception $e) {
+            Log::error('Unexpected error in store: ' . $e->getMessage(), [
+                'exception' => $e,
+                'input' => $request->all()
             ]);
+            return $request->ajax()
+                ? response()->json(['errors' => ['error' => 'Unexpected error: ' . $e->getMessage()]], 422)
+                : back()->withInput()->withErrors(['error' => 'Unexpected error: ' . $e->getMessage()]);
         }
+    }
+
+    public function update(Request $request, Timetable $timetable)
+    {
+        Log::info('Update request data:', $request->all());
 
         try {
-            Timetable::create($validated);
-        } catch (\Exception $e) {
-            Log::error('Failed to create timetable: ' . $e->getMessage(), $validated);
-            return back()->withInput()->withErrors(['error' => 'Failed to create timetable.']);
-        }
+            $validated = $request->validate([
+                'day' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
+                'faculty_id' => 'required|exists:faculties,id',
+                'time_start' => 'required|date_format:H:i',
+                'time_end' => 'required|date_format:H:i|after:time_start',
+                'course_code' => 'required|string|exists:courses,course_code',
+                'activity' => 'required|string|max:255',
+                'venue_id' => 'required|exists:venues,id',
+                'lecturer_id' => 'required|exists:users,id',
+                'group_selection' => 'required|array|min:1',
+                'group_selection.*' => 'string'
+            ]);
+            Log::info('Validation passed:', $validated);
 
-        return redirect()->route('timetable.index')->with('success', 'Timetable entry created successfully.');
+            // Format times to HH:mm:ss for consistency with database
+            $validated['time_start'] = date('H:i:s', strtotime($validated['time_start']));
+            $validated['time_end'] = date('H:i:s', strtotime($validated['time_end']));
+
+            $faculty = Faculty::findOrFail($validated['faculty_id']);
+            $venue = Venue::findOrFail($validated['venue_id']);
+            $course = Course::where('course_code', $validated['course_code'])->firstOrFail();
+
+            $validated['group_selection'] = implode(',', $validated['group_selection']);
+            $validated['course_name'] = $course->name ?? null;
+
+            // Check if the updated details are identical to the current entry
+            $current = [
+                'day' => $timetable->day,
+                'faculty_id' => $timetable->faculty_id,
+                'time_start' => $timetable->time_start,
+                'time_end' => $timetable->time_end,
+                'course_code' => $timetable->course_code,
+                'activity' => $timetable->activity,
+                'venue_id' => $timetable->venue_id,
+                'lecturer_id' => $timetable->lecturer_id,
+                'group_selection' => $timetable->group_selection
+            ];
+            $new = [
+                'day' => $validated['day'],
+                'faculty_id' => $validated['faculty_id'],
+                'time_start' => $validated['time_start'],
+                'time_end' => $validated['time_end'],
+                'course_code' => $validated['course_code'],
+                'activity' => $validated['activity'],
+                'venue_id' => $validated['venue_id'],
+                'lecturer_id' => $validated['lecturer_id'],
+                'group_selection' => $validated['group_selection']
+            ];
+
+            if ($current === $new) {
+                Log::info('No changes detected in timetable entry', ['timetable_id' => $timetable->id]);
+                return $request->ajax()
+                    ? response()->json(['message' => 'No changes made to timetable entry.', 'id' => $timetable->id])
+                    : redirect()->route('timetable.index')->with('success', 'No changes made to timetable entry.');
+            }
+
+            $studentCount = $this->calculateStudentCount($faculty, $validated['group_selection']);
+            Log::info('Student count calculated:', ['student_count' => $studentCount, 'venue_capacity' => $venue->capacity]);
+            if ($venue->capacity < $studentCount) {
+                Log::warning('Venue capacity insufficient:', [
+                    'venue_capacity' => $venue->capacity,
+                    'student_count' => $studentCount
+                ]);
+                return $request->ajax()
+                    ? response()->json(['errors' => ['venue_id' => "Venue capacity ({$venue->capacity}) is less than required students ({$studentCount})."]], 422)
+                    : back()->withInput()->withErrors(['venue_id' => "Venue capacity ({$venue->capacity}) is less than required students ({$studentCount})."]);
+            }
+
+            $conflicts = $this->checkConflicts($request, $validated, $timetable->id);
+            Log::info('Conflict check result:', ['conflicts' => $conflicts]);
+            if (!empty($conflicts)) {
+                Log::warning('Conflicts detected:', ['conflicts' => $conflicts]);
+                $errorMessage = implode(' ', $conflicts);
+                return $request->ajax()
+                    ? response()->json(['errors' => ['conflict' => $errorMessage]], 422)
+                    : back()->withInput()->withErrors(['conflict' => $errorMessage]);
+            }
+
+            DB::enableQueryLog();
+            DB::beginTransaction();
+            try {
+                $timetable->update($validated);
+                DB::commit();
+                Log::info('Timetable updated successfully:', [
+                    'id' => $timetable->id,
+                    'query_log' => DB::getQueryLog()
+                ]);
+                return $request->ajax()
+                    ? response()->json(['message' => 'Timetable entry updated successfully.', 'id' => $timetable->id])
+                    : redirect()->route('timetable.index')->with('success', 'Timetable entry updated successfully.');
+            } catch (\Illuminate\Database\QueryException $e) {
+                DB::rollBack();
+                Log::error('Database error updating timetable: ' . $e->getMessage(), [
+                    'exception' => $e,
+                    'validated' => $validated,
+                    'sql' => $e->getSql(),
+                    'bindings' => $e->getBindings(),
+                    'query_log' => DB::getQueryLog()
+                ]);
+                return $request->ajax()
+                    ? response()->json(['errors' => ['error' => 'Database error: ' . $e->getMessage()]], 422)
+                    : back()->withInput()->withErrors(['error' => 'Database error: ' . $e->getMessage()]);
+            }
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation failed:', ['errors' => $e->errors(), 'input' => $request->all()]);
+            return $request->ajax()
+                ? response()->json(['errors' => $e->errors()], 422)
+                : back()->withInput()->withErrors($e->errors());
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('Model not found: ' . $e->getMessage(), ['input' => $request->all()]);
+            return $request->ajax()
+                ? response()->json(['errors' => ['error' => 'Referenced record (faculty, venue, or course) not found.']], 422)
+                : back()->withInput()->withErrors(['error' => 'Referenced record (faculty, venue, or course) not found.']);
+        } catch (\Exception $e) {
+            Log::error('Unexpected error in update: ' . $e->getMessage(), [
+                'exception' => $e,
+                'input' => $request->all()
+            ]);
+            return $request->ajax()
+                ? response()->json(['errors' => ['error' => 'Unexpected error: ' . $e->getMessage()]], 422)
+                : back()->withInput()->withErrors(['error' => 'Unexpected error: ' . $e->getMessage()]);
+        }
     }
 
     public function show(Timetable $timetable)
@@ -106,34 +296,38 @@ class TimetableController extends Controller
             $groupDetails = implode(', ', $details) . " - Total: {$total}";
         }
 
-        $timetable->group_details = $groupDetails;
-        return response()->json($timetable);
+        // Format time_start and time_end to HH:mm for frontend
+        $timetableData = $timetable->toArray();
+        $timetableData['time_start'] = date('H:i', strtotime($timetable->time_start));
+        $timetableData['time_end'] = date('H:i', strtotime($timetable->time_end));
+        $timetableData['group_details'] = $groupDetails;
+
+        return response()->json($timetableData);
     }
 
-      public function import(Request $request)
-        {
-            $request->validate([
-                'file' => 'required|file|mimes:xlsx,xls,csv',
-            ]);
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv',
+        ]);
 
-            try {
-                $import = new TimetableImport;
-                Excel::import($import, $request->file('file'));
+        try {
+            $import = new TimetableImport;
+            Excel::import($import, $request->file('file'));
 
-                if (!empty($import->errors)) {
-                    return redirect()->route('timetable.index')
-                        ->withErrors(['import_errors' => $import->errors]);
-                }
-
+            if (!empty($import->errors)) {
                 return redirect()->route('timetable.index')
-                    ->with('success', 'Timetable imported successfully.');
-            } catch (\Exception $e) {
-                Log::error('Import failed: ' . $e->getMessage());
-                return redirect()->route('timetable.index')
-                    ->withErrors(['import_errors' => 'Failed to import timetable.']);
+                    ->withErrors(['import_errors' => $import->errors]);
             }
+
+            return redirect()->route('timetable.index')
+                ->with('success', 'Timetable imported successfully.');
+        } catch (\Exception $e) {
+            Log::error('Import failed: ' . $e->getMessage());
+            return redirect()->route('timetable.index')
+                ->withErrors(['import_errors' => 'Failed to import timetable.']);
         }
- 
+    }
 
     public function export()
     {
@@ -179,10 +373,26 @@ class TimetableController extends Controller
 
     private function checkConflicts(Request $request, array $validated, ?int $excludeId = null): array
     {
+        Log::info('Checking conflicts', [
+            'excludeId' => $excludeId,
+            'validated' => $validated
+        ]);
+
         $conflicts = [];
 
         // 1. Lecturer Conflict Check
         if ($validated['lecturer_id']) {
+            $potentialConflicts = Timetable::where('day', $validated['day'])
+                ->where('lecturer_id', $validated['lecturer_id'])
+                ->where(function ($query) use ($validated) {
+                    $query->where(function ($q) use ($validated) {
+                        $q->where('time_start', '<', $validated['time_end'])
+                            ->where('time_end', '>', $validated['time_start']);
+                    });
+                })
+                ->get();
+            Log::info('Potential lecturer conflicts before exclusion', ['conflicts' => $potentialConflicts->toArray()]);
+
             $lecturerConflict = Timetable::where('day', $validated['day'])
                 ->where('lecturer_id', $validated['lecturer_id'])
                 ->where(function ($query) use ($validated) {
@@ -194,11 +404,23 @@ class TimetableController extends Controller
                 ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
                 ->first();
             if ($lecturerConflict) {
+                Log::info('Lecturer conflict found', ['conflict' => $lecturerConflict->toArray()]);
                 $conflicts[] = "Lecturer is assigned to session {$lecturerConflict->course_code} for {$lecturerConflict->faculty->name} from {$lecturerConflict->time_start} to {$lecturerConflict->time_end}.";
             }
         }
 
-        // 2. Venue Conflict Check (Availability and Capacity already in store)
+        // 2. Venue Conflict Check
+        $potentialVenueConflicts = Timetable::where('day', $validated['day'])
+            ->where('venue_id', $validated['venue_id'])
+            ->where(function ($query) use ($validated) {
+                $query->where(function ($q) use ($validated) {
+                    $q->where('time_start', '<', $validated['time_end'])
+                        ->where('time_end', '>', $validated['time_start']);
+                });
+            })
+            ->get();
+        Log::info('Potential venue conflicts before exclusion', ['conflicts' => $potentialVenueConflicts->toArray()]);
+
         $venueConflict = Timetable::where('day', $validated['day'])
             ->where('venue_id', $validated['venue_id'])
             ->where(function ($query) use ($validated) {
@@ -210,6 +432,7 @@ class TimetableController extends Controller
             ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
             ->first();
         if ($venueConflict) {
+            Log::info('Venue conflict found', ['conflict' => $venueConflict->toArray()]);
             $conflicts[] = "Venue {$venueConflict->venue->name} is in use by {$venueConflict->faculty->name} for {$venueConflict->course_code} from {$venueConflict->time_start} to {$venueConflict->time_end}.";
         }
 
@@ -219,6 +442,18 @@ class TimetableController extends Controller
             $groups = FacultyGroup::where('faculty_id', $validated['faculty_id'])->pluck('group_name')->toArray();
         }
         foreach ($groups as $group) {
+            $potentialGroupConflicts = Timetable::where('day', $validated['day'])
+                ->where('faculty_id', $validated['faculty_id'])
+                ->where('group_selection', 'like', "%$group%")
+                ->where(function ($query) use ($validated) {
+                    $query->where(function ($q) use ($validated) {
+                        $q->where('time_start', '<', $validated['time_end'])
+                            ->where('time_end', '>', $validated['time_start']);
+                    });
+                })
+                ->get();
+            Log::info('Potential group conflicts before exclusion', ['group' => $group, 'conflicts' => $potentialGroupConflicts->toArray()]);
+
             $groupConflict = Timetable::where('day', $validated['day'])
                 ->where('faculty_id', $validated['faculty_id'])
                 ->where('group_selection', 'like', "%$group%")
@@ -231,12 +466,24 @@ class TimetableController extends Controller
                 ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
                 ->first();
             if ($groupConflict) {
+                Log::info('Group conflict found', ['group' => $group, 'conflict' => $groupConflict->toArray()]);
                 $conflicts[] = "Group $group has a session for {$groupConflict->course_code} from {$groupConflict->time_start} to {$groupConflict->time_end}.";
             }
         }
 
         // 4. Faculty "All Groups" Conflict Check
         if ($validated['group_selection'] === 'All Groups') {
+            $potentialFacultyConflicts = Timetable::where('day', $validated['day'])
+                ->where('faculty_id', $validated['faculty_id'])
+                ->where(function ($query) use ($validated) {
+                    $query->where(function ($q) use ($validated) {
+                        $q->where('time_start', '<', $validated['time_end'])
+                            ->where('time_end', '>', $validated['time_start']);
+                    });
+                })
+                ->get();
+            Log::info('Potential faculty All Groups conflicts before exclusion', ['conflicts' => $potentialFacultyConflicts->toArray()]);
+
             $facultyConflict = Timetable::where('day', $validated['day'])
                 ->where('faculty_id', $validated['faculty_id'])
                 ->where(function ($query) use ($validated) {
@@ -248,9 +495,22 @@ class TimetableController extends Controller
                 ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
                 ->first();
             if ($facultyConflict) {
+                Log::info('Faculty All Groups conflict found', ['conflict' => $facultyConflict->toArray()]);
                 $conflicts[] = "Faculty {$facultyConflict->faculty->name} has a session for groups ({$facultyConflict->group_selection}) with {$facultyConflict->course_code} from {$facultyConflict->time_start} to {$facultyConflict->time_end}.";
             }
         } else {
+            $potentialAllGroupsConflicts = Timetable::where('day', $validated['day'])
+                ->where('faculty_id', $validated['faculty_id'])
+                ->where('group_selection', 'All Groups')
+                ->where(function ($query) use ($validated) {
+                    $query->where(function ($q) use ($validated) {
+                        $q->where('time_start', '<', $validated['time_end'])
+                            ->where('time_end', '>', $validated['time_start']);
+                    });
+                })
+                ->get();
+            Log::info('Potential faculty All Groups conflicts (alternative) before exclusion', ['conflicts' => $potentialAllGroupsConflicts->toArray()]);
+
             $allGroupsConflict = Timetable::where('day', $validated['day'])
                 ->where('faculty_id', $validated['faculty_id'])
                 ->where('group_selection', 'All Groups')
@@ -263,11 +523,24 @@ class TimetableController extends Controller
                 ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
                 ->first();
             if ($allGroupsConflict) {
+                Log::info('Faculty All Groups conflict found (alternative)', ['conflict' => $allGroupsConflict->toArray()]);
                 $conflicts[] = "Faculty {$allGroupsConflict->faculty->name} has a session for all groups with {$allGroupsConflict->course_code} from {$allGroupsConflict->time_start} to {$allGroupsConflict->time_end}.";
             }
         }
 
-        // 5. Additional Enhancement: Course Conflict Check
+        // 5. Course Conflict Check
+        $potentialCourseConflicts = Timetable::where('day', $validated['day'])
+            ->where('course_code', $validated['course_code'])
+            ->where('faculty_id', $validated['faculty_id'])
+            ->where(function ($query) use ($validated) {
+                $query->where(function ($q) use ($validated) {
+                    $q->where('time_start', '<', $validated['time_end'])
+                        ->where('time_end', '>', $validated['time_start']);
+                });
+            })
+            ->get();
+        Log::info('Potential course conflicts before exclusion', ['conflicts' => $potentialCourseConflicts->toArray()]);
+
         $courseConflict = Timetable::where('day', $validated['day'])
             ->where('course_code', $validated['course_code'])
             ->where('faculty_id', $validated['faculty_id'])
@@ -280,6 +553,7 @@ class TimetableController extends Controller
             ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
             ->first();
         if ($courseConflict) {
+            Log::info('Course conflict found', ['conflict' => $courseConflict->toArray()]);
             $conflicts[] = "Course {$validated['course_code']} is already scheduled for {$courseConflict->faculty->name} from {$courseConflict->time_start} to {$courseConflict->time_end}.";
         }
 
@@ -319,4 +593,44 @@ class TimetableController extends Controller
         $lecturers = $course->lecturers()->select('users.id', 'users.name')->get()->toArray();
         return response()->json(['lecturers' => $lecturers]);
     }
+
+       public function destroy(Request $request, Timetable $timetable)
+{
+    Log::info('Delete request for timetable:', ['id' => $timetable->id, 'course_code' => $timetable->course_code]);
+
+    try {
+        DB::enableQueryLog();
+        DB::beginTransaction();
+        try {
+            $timetable->delete();
+            DB::commit();
+            Log::info('Timetable deleted successfully:', [
+                'id' => $timetable->id,
+                'query_log' => DB::getQueryLog()
+            ]);
+            return $request->ajax()
+                ? response()->json(['message' => 'Timetable entry deleted successfully.'])
+                : redirect()->route('timetable.index')->with('success', 'Timetable entry deleted successfully.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            DB::rollBack();
+            Log::error('Database error deleting timetable: ' . $e->getMessage(), [
+                'exception' => $e,
+                'sql' => $e->getSql(),
+                'bindings' => $e->getBindings(),
+                'query_log' => DB::getQueryLog()
+            ]);
+            return $request->ajax()
+                ? response()->json(['errors' => ['error' => 'Database error: ' . $e->getMessage()]], 422)
+                : back()->withErrors(['error' => 'Database error: ' . $e->getMessage()]);
+        }
+    } catch (\Exception $e) {
+        Log::error('Unexpected error in delete: ' . $e->getMessage(), [
+            'exception' => $e,
+            'timetable_id' => $timetable->id
+        ]);
+        return $request->ajax()
+            ? response()->json(['errors' => ['error' => 'Unexpected error: ' . $e->getMessage()]], 422)
+            : back()->withErrors(['error' => 'Unexpected error: ' . $e->getMessage()]);
+    }
+}
 }

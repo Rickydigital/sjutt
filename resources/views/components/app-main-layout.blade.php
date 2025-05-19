@@ -6,12 +6,52 @@
     <title>SJUT</title>
     <meta content="width=device-width, initial-scale=1.0, shrink-to-fit=no" name="viewport" />
     <link rel="icon" href="{{ asset('app-assets/img/kaiadmin/favicon.ico') }}" type="image/x-icon" />
+
+    {{-- Fonts and Icons --}}
     <link rel="stylesheet" href="{{ asset('app-assets/bootstrap-icons/bootstrap-icons.min.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    {{-- CSS Files --}}
     <link rel="stylesheet" href="{{ asset('app-assets/bootstrap-5.0.2/css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ asset('app-assets/select2/css/select2.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('app-assets/css/custom.css') }}">
+    <link rel="stylesheet" href="{{ asset('app-assets/css/plugins.min.css') }}" />
+    <link rel="stylesheet" href="{{ asset('app-assets/css/kaiadmin.min.css') }}" />
+    <link rel="stylesheet" href="{{ asset('app-assets/css/custom.css') }}" />
 
-    {{-- <!-- Fonts and icons --> --}}
+    {{-- Custom Styles for Timetable --}}
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Public Sans', sans-serif;
+        }
+        .main-panel {
+            background-color: #f4f6f9;
+        }
+        .page-inner {
+            padding: 20px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #6f42c1, #4B2E83);
+            border: none;
+            border-radius: 8px;
+            transition: background 0.3s;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #4B2E83, #6f42c1);
+        }
+        .select2-container--classic .select2-selection--single,
+        .select2-container--classic .select2-selection--multiple {
+            border-radius: 8px;
+            border: 1px solid #ced4da;
+        }
+        .select2-container--classic .select2-selection--single:focus,
+        .select2-container--classic .select2-selection--multiple:focus {
+            border-color: #6f42c1;
+            box-shadow: 0 0 5px rgba(111, 66, 193, 0.5);
+        }
+    </style>
+
+    {{-- WebFont Loader --}}
     <script src="{{ asset('app-assets/js/plugin/webfont/webfont.min.js') }}"></script>
     <script>
         WebFont.load({
@@ -33,13 +73,8 @@
         });
     </script>
 
-    {{-- <!-- CSS Files --> --}}
-    {{-- <link rel="stylesheet" href="{{ asset('app-assets/css/bootstrap.min.css') }}" /> --}}
-    <link rel="stylesheet" href="{{ asset('app-assets/css/plugins.min.css') }}" />
-    <link rel="stylesheet" href="{{ asset('app-assets/css/kaiadmin.min.css') }}" />
-
-    {{-- <!-- CSS Just for demo purpose, don't include it in your project --> --}}
-    <link rel="stylesheet" href="{{ asset('app-assets/css/demo.css') }}" />
+    {{-- Child Styles --}}
+    @yield('styles')
 </head>
 
 <body>
@@ -58,49 +93,29 @@
             @include('components.app-footer')
         </div>
     </div>
-    {{-- <!--   Core JS Files   --> --}}
-    <script src="{{ asset('app-assets/js/core/jquery-3.7.1.min.js') }}"></script>
 
+    {{-- Core JS Files --}}
+    <script src="{{ asset('app-assets/js/core/jquery-3.7.1.min.js') }}"></script>
     <script src="{{ asset('app-assets/js/core/popper.min.js') }}"></script>
-    {{-- <script src="{{ asset('app-assets/js/core/bootstrap.min.js') }}"></script> --}}
     <script src="{{ asset('app-assets/bootstrap-5.0.2/js/bootstrap.bundle.min.js') }}"></script>
 
-    {{-- <!-- jQuery Scrollbar --> --}}
+    {{-- Plugin JS Files --}}
     <script src="{{ asset('app-assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js') }}"></script>
-
-    {{-- <!-- Chart JS --> --}}
     <script src="{{ asset('app-assets/js/plugin/chart.js/chart.min.js') }}"></script>
-
-    {{-- <!-- jQuery Sparkline --> --}}
     <script src="{{ asset('app-assets/js/plugin/jquery.sparkline/jquery.sparkline.min.js') }}"></script>
-
-    {{-- <!-- Chart Circle --> --}}
     <script src="{{ asset('app-assets/js/plugin/chart-circle/circles.min.js') }}"></script>
-
-    {{-- <!-- Datatables --> --}}
     <script src="{{ asset('app-assets/js/plugin/datatables/datatables.min.js') }}"></script>
-
-    {{-- <!-- Bootstrap Notify --> --}}
     <script src="{{ asset('app-assets/js/plugin/bootstrap-notify/bootstrap-notify.min.js') }}"></script>
-
-    {{-- <!-- jQuery Vector Maps --> --}}
     <script src="{{ asset('app-assets/js/plugin/jsvectormap/jsvectormap.min.js') }}"></script>
     <script src="{{ asset('app-assets/js/plugin/jsvectormap/world.js') }}"></script>
-
-    {{-- <!-- Sweet Alert --> --}}
     <script src="{{ asset('app-assets/js/plugin/sweetalert/sweetalert.min.js') }}"></script>
-
-    {{-- <!-- Kaiadmin JS --> --}}
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
     <script src="{{ asset('app-assets/js/kaiadmin.min.js') }}"></script>
-
-    {{-- select2 --}}
     <script src="{{ asset('app-assets/select2/js/select2.full.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js" integrity="sha512-CryKbMe7sjSCDPl18jtJI5DR5jtkUWxPXWaLCst6QjH8wxDexfRJic2WRmRXmstr2Y8SxDDWuBO6CQC6IE4KtaA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="{{ asset('app-assets/js/custom.js') }}"></script>
 
-
-    {{-- <!-- Kaiadmin DEMO methods, don't include it in your project! --> --}}
-    {{-- <script src="{{ asset('app-assets/js/setting-demo.js') }}"></script>
-    <script src="{{ asset('app-assets/js/demo.js') }}"></script> --}}
+    {{-- Sparkline Charts --}}
     <script>
         $("#lineChart").sparkline([102, 109, 120, 99, 110, 105, 115], {
             type: "line",
@@ -130,7 +145,7 @@
         });
     </script>
 
-    {{-- success notification --}}
+    {{-- Success Notification --}}
     @session('success')
         <script>
             $.notify({
@@ -148,7 +163,7 @@
         </script>
     @endsession
 
-    {{-- error notification --}}
+    {{-- Error Notification --}}
     @session('error')
         <script>
             $.notify({
@@ -166,7 +181,7 @@
         </script>
     @endsession
 
-    {{-- additional scripts from child views --}}
+    {{-- Child Scripts --}}
     @yield('scripts')
 </body>
 

@@ -162,50 +162,45 @@ class ExaminationTimetableController extends Controller
         return redirect()->route('timetables.index')->with('success', 'Exam timetable created successfully.');
     }
 
-         public function update(Request $request, ExaminationTimetable $timetable)
-{
-    Log::info('Update timetable:', ['id' => $timetable->id, 'input' => $request->all()]);
-    $setup = ExamSetup::first();
-    if (!$setup) {
-        Log::error('No setup found');
-        return response()->json(['error' => 'No setup found'], 422);
-    }
-    try {
-        $timeSlot = json_decode($request->input('time_slot'), true);
-        $validated = $request->validate([
-            'faculty_id' => 'required|exists:faculties,id',
-            'course_code' => 'required|exists:courses,course_code',
-            'exam_date' => 'required|date|in:' . implode(',', $this->getValidDates($setup)),
-            'start_time' => 'required|date_format:H:i,H:i:s', // Accept both formats
-            'end_time' => 'required|date_format:H:i,H:i:s|after:start_time',
-            'venue_id' => 'required|exists:venues,id',
-            'group_selection' => 'required|array|min:1',
-            'group_selection.*' => 'string',
-            'lecturer_ids' => 'required|array|min:1',
-            'lecturer_ids.*' => 'exists:users,id',
-        ]);
-        // Use time_slot values if provided
-        if ($timeSlot && isset($timeSlot['start_time'], $timeSlot['end_time'])) {
-            $validated['start_time'] = Carbon::createFromFormat('H:i', $timeSlot['start_time'])->format('H:i:s');
-            $validated['end_time'] = Carbon::createFromFormat('H:i', $timeSlot['end_time'])->format('H:i:s');
-        } else {
-            // Normalize start_time and end_time to H:i:s
-            $validated['start_time'] = Carbon::createFromFormat('H:i:s|H:i', $validated['start_time'])->format('H:i:s');
-            $validated['end_time'] = Carbon::createFromFormat('H:i:s|H:i', $validated['end_time'])->format('H:i:s');
+    public function update(Request $request, ExaminationTimetable $timetable)
+    {
+        Log::info('Update timetable:', ['id' => $timetable->id, 'input' => $request->all()]);
+        $setup = ExamSetup::first();
+        if (!$setup) {
+            Log::error('No setup found');
+            return response()->json(['error' => 'No setup found'], 422);
         }
-        $validated['group_selection'] = implode(',', $validated['group_selection']);
-        Log::info('Validated data:', $validated);
-        $timetable->update($validated);
-        $timetable->lecturers()->sync($validated['lecturer_ids']);
-        return response()->json(['success' => 'Exam timetable updated successfully']);
-    } catch (\Illuminate\Validation\ValidationException $e) {
-        Log::error('Validation failed:', ['errors' => $e->errors()]);
-        return response()->json(['error' => 'Validation failed', 'details' => $e->errors()], 422);
-    } catch (\Exception $e) {
-        Log::error('Update failed:', ['error' => $e->getMessage()]);
-        return response()->json(['error' => 'Update failed', 'details' => $e->getMessage()], 500);
+        try {
+            $timeSlot = json_decode($request->input('time_slot'), true);
+            $validated = $request->validate([
+                'faculty_id' => 'required|exists:faculties,id',
+                'course_code' => 'required|exists:courses,course_code',
+                'exam_date' => 'required|date|in:' . implode(',', $this->getValidDates($setup)),
+                'start_time' => 'required|date_format:H:i',
+                'end_time' => 'required|date_format:H:i|after:start_time',
+                'venue_id' => 'required|exists:venues,id',
+                'group_selection' => 'required|array|min:1',
+                'group_selection.*' => 'string',
+                'lecturer_ids' => 'required|array|min:1',
+                'lecturer_ids.*' => 'exists:users,id',
+            ]);
+            if ($timeSlot && isset($timeSlot['start_time'], $timeSlot['end_time'])) {
+                $validated['start_time'] = Carbon::createFromFormat('H:i', $timeSlot['start_time'])->format('H:i');
+                $validated['end_time'] = Carbon::createFromFormat('H:i', $timeSlot['end_time'])->format('H:i');
+            }
+            $validated['group_selection'] = implode(',', $validated['group_selection']);
+            Log::info('Validated data:', $validated);
+            $timetable->update($validated);
+            $timetable->lecturers()->sync($validated['lecturer_ids']);
+            return response()->json(['success' => 'Exam timetable updated successfully']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation failed:', ['errors' => $e->errors()]);
+            return response()->json(['error' => 'Validation failed', 'details' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error('Update failed:', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Update failed', 'details' => $e->getMessage()], 500);
+        }
     }
-}
 
     public function destroy(ExaminationTimetable $timetable)
     {
