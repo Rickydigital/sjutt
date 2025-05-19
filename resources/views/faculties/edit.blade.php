@@ -71,9 +71,9 @@
                                     </option>
                                 @endforeach
                             </select>
-                            <div class="input-group">
-                                <button type="button" class="btn btn-primary" data-toggle="modal"
-                                    data-target="#addCourseModal">
+                            <div class="input-group my-2">
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                                    data-bs-target="#addCourseModal">
                                     <i class="fas fa-plus"></i> Add Course
                                 </button>
                             </div>
@@ -102,10 +102,10 @@
                     aria-labelledby="addCourseModalLabel" aria-hidden="true">
                     <div class="modal-dialog" role="document">
                         <div class="modal-content">
-                            <div class="modal-header" style="background-color: #4B2E83; color: white;">
+                            <div class="modal-header">
                                 <h5 class="modal-title" id="addCourseModalLabel">Add New Course</h5>
-                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                    <span aria-hidden="true">×</span>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                                    <span aria-hidden="true"></span>
                                 </button>
                             </div>
                             <form action="{{ route('faculties.storeCourse') }}" method="POST" id="addCourseForm">
@@ -159,9 +159,8 @@
                                     </div>
                                 </div>
                                 <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                                    <button type="submit" class="btn"
-                                        style="background-color: #4B2E83; color: white;">Save Course</button>
+                                    <button type="button" class="btn btn-outline-danger " data-bs-dismiss="modal">Close</button>
+                                    <button type="submit" class="btn btn-primary">Save Course</button>
                                 </div>
                             </form>
                         </div>
