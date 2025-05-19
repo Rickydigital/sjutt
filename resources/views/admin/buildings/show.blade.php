@@ -19,7 +19,7 @@
                 @if ($building->venues->isNotEmpty())
                     <h5 class="mt-3">Associated Venues</h5>
                     <table class="table table-bordered">
-                        <thead>
+                        <thead class="bg-primary text-white">
                             <tr>
                                 <th>Name</th>
                                 <th>Capacity</th>

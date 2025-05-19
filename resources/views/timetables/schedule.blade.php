@@ -10,7 +10,7 @@
             <div class="card-body">
                 <div class="table-responsive">
                     <table class="table table-bordered">
-                        <thead>
+                        <thead class="bg-primary text-white">
                             <tr>
                                 <th>Time Slot</th>
                                 @foreach ($days as $day)

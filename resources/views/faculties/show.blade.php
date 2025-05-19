@@ -35,7 +35,7 @@
                 @else
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped">
-                            <thead>
+                            <thead class="bg-primary text-white">
                                 <tr>
                                     <th>Group Name</th>
                                     <th>Student Count</th>

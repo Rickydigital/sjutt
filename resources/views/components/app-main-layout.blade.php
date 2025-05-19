@@ -9,47 +9,14 @@
 
     {{-- Fonts and Icons --}}
     <link rel="stylesheet" href="{{ asset('app-assets/bootstrap-icons/bootstrap-icons.min.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    {{-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ==" crossorigin="anonymous" referrerpolicy="no-referrer" /> --}}
 
     {{-- CSS Files --}}
-    <link rel="stylesheet" href="{{ asset('app-assets/bootstrap-5.0.2/css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('app-assets/bootstrap-5.0.2/css/bootstrap.css') }}">
     <link rel="stylesheet" href="{{ asset('app-assets/select2/css/select2.min.css') }}">
     <link rel="stylesheet" href="{{ asset('app-assets/css/plugins.min.css') }}" />
-    <link rel="stylesheet" href="{{ asset('app-assets/css/kaiadmin.min.css') }}" />
+    <link rel="stylesheet" href="{{ asset('app-assets/css/kaiadmin.css') }}" />
     <link rel="stylesheet" href="{{ asset('app-assets/css/custom.css') }}" />
-
-    {{-- Custom Styles for Timetable --}}
-    <style>
-        body {
-            background-color: #f4f6f9;
-            font-family: 'Public Sans', sans-serif;
-        }
-        .main-panel {
-            background-color: #f4f6f9;
-        }
-        .page-inner {
-            padding: 20px;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #6f42c1, #4B2E83);
-            border: none;
-            border-radius: 8px;
-            transition: background 0.3s;
-        }
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #4B2E83, #6f42c1);
-        }
-        .select2-container--classic .select2-selection--single,
-        .select2-container--classic .select2-selection--multiple {
-            border-radius: 8px;
-            border: 1px solid #ced4da;
-        }
-        .select2-container--classic .select2-selection--single:focus,
-        .select2-container--classic .select2-selection--multiple:focus {
-            border-color: #6f42c1;
-            box-shadow: 0 0 5px rgba(111, 66, 193, 0.5);
-        }
-    </style>
 
     {{-- WebFont Loader --}}
     <script src="{{ asset('app-assets/js/plugin/webfont/webfont.min.js') }}"></script>

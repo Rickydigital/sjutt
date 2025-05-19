@@ -34,7 +34,7 @@
                         <h3>{{ $faculty->name }}</h3>
                     </div>
                     <table>
-                        <thead>
+                        <thead class="bg-primary text-white">
                             <tr>
                                 <th>Time</th>
                                 @foreach ($days as $day)

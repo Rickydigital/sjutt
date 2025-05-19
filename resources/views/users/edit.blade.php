@@ -69,7 +69,7 @@
                 </div>
             </div>
             <div class=" d-flex flex-row justify-content-end ">
-                <a href="{{ route('users.index') }}" class="btn btn-danger mx-2">Cancel</a>
+                <a href="{{ route('users.index') }}" class="btn btn-outline-danger  mx-2">Cancel</a>
                 <button type="submit" class="btn btn-primary">Update User</button>
             </div>
         </form>

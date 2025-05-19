@@ -36,7 +36,7 @@
                 </div>
             @else
                 <table class="table table-striped mt-3">
-                    <thead>
+                    <thead class="bg-primary text-white">
                         <tr>
                             <th scope="col"> Name </th>
                             <th scope="col"> Email </th>

@@ -1,4 +1,4 @@
-@extends('layouts.admin')
+@extends('components.app-main-layout')
 
 @section('content')
     <div class="content">
@@ -6,7 +6,7 @@
             <div class="row">
                 <div class="col-md-8 offset-md-2">
                     <div class="card shadow-sm">
-                        <div class="card-header" style="background-color: #4B2E83; color: white;">
+                        <div class="card-header">
                             <strong class="card-title">Create Building</strong>
                         </div>
                         <div class="card-body">
@@ -26,9 +26,9 @@
                                         <small class="text-danger">{{ $message }}</small>
                                     @enderror
                                 </div>
-                                <div class="form-group text-right">
-                                    <a href="{{ route('buildings.index') }}" class="btn btn-secondary">Cancel</a>
-                                    <button type="submit" class="btn" style="background-color: #4B2E83; color: white;">Save Building</button>
+                                <div class="form-group d-flex flex-row justify-content-end">
+                                    <a href="{{ route('buildings.index') }}" class="btn btn-outline-danger">Cancel</a>
+                                    <button type="submit" class="btn btn-primary mx-2">Save Building</button>
                                 </div>
                             </form>
                         </div>

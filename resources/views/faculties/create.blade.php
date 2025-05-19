@@ -7,14 +7,6 @@
                 <strong class="card-title">Create Faculty</strong>
             </div>
             <div class="card-body">
-                @if (session('success'))
-                    <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        {{ session('success') }}
-                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                            <span aria-hidden="true">×</span>
-                        </button>
-                    </div>
-                @endif
                 <form action="{{ route('faculties.store') }}" method="POST" id="facultyForm">
                     @csrf
                     <div class="form-group">
@@ -177,6 +169,15 @@
                 headers: {
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
                 }
+            });
+
+            // attaching a select2 input to a modal
+            $('#lecturer_ids').select2({
+                dropdownParent: $('#addCourseModal'),
+                theme: "classic",
+                placeholder: 'Select an option',
+                allowClear: false,
+                width: '100%'
             });
 
             // Faculty Name Dropdown

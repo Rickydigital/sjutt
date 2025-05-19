@@ -29,7 +29,7 @@
             @else
                 <div class="table-responsive">
                     <table class="table table-striped">
-                        <thead>
+                        <thead class="bg-primary text-white">
                             <tr>
                                 <th>Name</th>
                                 <th>Administrator</th>

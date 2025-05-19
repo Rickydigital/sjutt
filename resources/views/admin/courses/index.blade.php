@@ -28,7 +28,7 @@
                 @else
                     <div class="table-responsive">
                         <table class="table table-striped">
-                            <thead>
+                            <thead class="bg-primary text-white">
                                 <tr>
                                     <th>Code</th>
                                     <th>Name</th>

@@ -1,4 +1,4 @@
-@extends('layouts.admin')
+@extends('components.app-main-layout')
 
 @section('content')
     <div class="content">
@@ -113,8 +113,8 @@
 
                             <!-- Password Update Section -->
                             <section>
-                                <h5 class="text-primary">{{ __('Update Password') }}</h5>
-                                <p class="text-muted small">{{ __('Ensure your account is using a long, random password to stay secure.') }}</p>
+                                <h5 class="text-primary">{{ 'Update Password' }}</h5>
+                                <p class="text-muted small">{{ 'Ensure your account is using a long and random password to stay secure.' }}</p>
 
                                 <form method="POST" action="{{ route('password.update') }}" class="form-horizontal mt-4">
                                     @csrf

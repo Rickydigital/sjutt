@@ -17,7 +17,7 @@
                 <p class="text-center">No venues found.</p>
             @else
                 <table class="table table-striped">
-                    <thead>
+                    <thead class="bg-primary text-white">
                         <tr>
                             <th>Name</th>
                             <th>Code</th>

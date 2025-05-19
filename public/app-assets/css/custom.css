@@ -1,26 +1,29 @@
-p{
+p {
     margin: 0px !important;
     padding: 0px !important;
 }
-.action-icon{
+
+.action-icon {
     font-size: 18px;
     border: none;
     margin-right: 10px;
     padding: 0px;
     background-color: transparent;
 }
+
 /* .select2-container {
     z-index: 9999;
 }
 .select2-search__field {
     z-index: 9999;
 } */
-.empty-cell{
+.empty-cell {
     align-items: center;
     justify-content: center;
     transition: all .3s;
 }
-.empty-cell:hover{
+
+.empty-cell:hover {
     cursor: pointer;
     background-color: rgb(222, 221, 221);
 }
@@ -34,6 +37,13 @@ p{
 .timetable-icons i:hover {
     color: #1a3c6d;
 }
-.course-cell{
-    background-color: red;
+
+.card-body {
+    overflow-x: auto
+}
+
+th,
+td {
+    /* padding: 5px; */
+    white-space: nowrap;
 }

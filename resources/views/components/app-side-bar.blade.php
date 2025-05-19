@@ -36,7 +36,7 @@
                 {{-- users --}}
                 <li class="nav-item">
                     <a data-bs-toggle="collapse" href="#users">
-                        <i class="fas fa-layer-group"></i>
+                        <i class="bi bi-people-fill "></i>
                         <p>Users Management</p>
                         <span class="caret"></span>
                     </a>
@@ -59,7 +59,7 @@
                 {{-- Structures --}}
                 <li class="nav-item">
                     <a data-bs-toggle="collapse" href="#structures">
-                        <i class="fas fa-th-list"></i>
+                        <i class="bi bi-buildings-fill"></i>
                         <p>Structures</p>
                         <span class="caret"></span>
                     </a>
@@ -82,7 +82,7 @@
                 {{-- Academics --}}
                 <li class="nav-item">
                     <a data-bs-toggle="collapse" href="#academics">
-                        <i class="fas fa-th-list"></i>
+                        <i class="bi bi-stack"></i>
                         <p>Academics</p>
                         <span class="caret"></span>
                     </a>
@@ -110,7 +110,7 @@
                 {{-- Community --}}
                 <li class="nav-item">
                     <a data-bs-toggle="collapse" href="#community">
-                        <i class="fas fa-pen-square"></i>
+                        <i class="bi bi-person-arms-up"></i>
                         <p>Community</p>
                         <span class="caret"></span>
                     </a>
@@ -138,7 +138,7 @@
                 {{-- News and Events --}}
                 <li class="nav-item">
                     <a data-bs-toggle="collapse" href="#news_events">
-                        <i class="fas fa-table"></i>
+                        <i class="bi bi-newspaper"></i>
                         <p>News & Events</p>
                         <span class="caret"></span>
                     </a>
@@ -166,7 +166,7 @@
                 {{-- Timetables --}}
                 <li class="nav-item">
                     <a data-bs-toggle="collapse" href="#timetables">
-                        <i class="fas fa-map-marker-alt"></i>
+                        <i class="bi bi-table"></i>
                         <p>Timetables & Calendar</p>
                         <span class="caret"></span>
                     </a>
