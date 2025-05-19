@@ -1,10 +1,19 @@
-
 @extends('components.app-main-layout')
 
 @section('content')
     <style>
-        tr {
-            min-height: 100px !important;
+        .empty-cell {
+            height: 100px !important;
+        }
+
+        /* styles.css */
+        .table-bordered th,
+        .table-bordered td {
+            border-width: 2px !important;
+        }
+
+        .table-bordered {
+            border-width: 2px !important;
         }
     </style>
     <!-- Page Header -->
@@ -14,7 +23,7 @@
                 <i class="fa fa-clock mr-2"></i> Timetable
             </h1>
             <div>
-                <a href="#" class="btn btn-primary mr-2" data-toggle="modal" data-target="#importTimetableModal">
+                <a href="#" class="btn btn-primary mr-2" data-bs-toggle="modal" data-bs-target="#importTimetableModal">
                     <i class="fa fa-upload mr-1"></i> Import
                 </a>
                 <a href="{{ route('timetable.export') }}" class="btn btn-success">
@@ -30,7 +39,7 @@
             <form method="GET" action="{{ route('timetable.index') }}">
                 <div class="form-group">
                     <label for="faculty">Select Faculty</label>
-                    <select name="faculty" id="faculty" class="form-control" onchange="this.form.submit()">
+                    <select name="faculty" id="faculty" class="form-control select2" onchange="this.form.submit()">
                         <option value="">Select a Faculty</option>
                         @foreach ($faculties as $id => $name)
                             <option value="{{ $id }}" {{ $facultyId == $id ? 'selected' : '' }}>
@@ -97,9 +106,9 @@
                                                         <p class=" text-center">{{ $activity->group_selection }} </p>
                                                         <p class=" text-center">{{ $activity->venue->name }} </p>
                                                         <div class="timetable-icons d-flex flex-row justify-content-center">
-                                                            <a href="#" class="action-icon" data-bs-toggle="tooltip"
-                                                                data-bs-placement="top" data-id="{{ $activity->id }}"
-                                                                title="Show Details">
+                                                            <a href="#" class="action-icon show-timetable"
+                                                                data-bs-toggle="tooltip" data-bs-placement="top"
+                                                                data-id="{{ $activity->id }}" title="Show Details">
                                                                 <i class="bi bi-eye-fill text-primary"></i>
                                                             </a>
                                                             <a href="{{ route('timetable.edit', $activity->id) }}"
@@ -145,8 +154,8 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Add New Timetable Entry</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">×</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true"></span>
                     </button>
                 </div>
                 <form id="addTimetableForm" method="POST" action="{{ route('timetable.store') }}">
@@ -212,8 +221,8 @@
                         </div>
                         <div class="form-group d-flex flex-column">
                             <label for="modal_group_selection">Group Selection <span class="text-danger">*</span></label>
-                            <select name="group_selection[]" id="modal_group_selection" class="select2" multiple
-                                required>
+                            <select name="group_selection[]" id="modal_group_selection" class="form-control select2"
+                                multiple required>
                                 <!-- Populated via AJAX -->
                             </select>
                             @error('group_selection')
@@ -222,7 +231,7 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
                         <button type="submit" class="btn btn-primary">Save</button>
                     </div>
                 </form>
@@ -234,10 +243,10 @@
     <div class="modal fade" id="showTimetableModal" tabindex="-1" role="dialog" aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
-                <div class="modal-header" style="background-color: #4B2E83; color: white;">
+                <div class="modal-header">
                     <h5 class="modal-title">Timetable Details</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">×</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true"></span>
                     </button>
                 </div>
                 <div class="modal-body">
@@ -253,7 +262,7 @@
                     <p><strong>Faculty:</strong> <span id="show_faculty"></span></p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
@@ -263,10 +272,10 @@
     <div class="modal fade" id="importTimetableModal" tabindex="-1" role="dialog" aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
-                <div class="modal-header" style="background-color: #4B2E83; color: white;">
+                <div class="modal-header">
                     <h5 class="modal-title">Import Timetable</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">×</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true"></span>
                     </button>
                 </div>
                 <form id="importTimetableForm" method="POST" action="{{ route('timetable.import') }}"
@@ -275,7 +284,7 @@
                     <div class="modal-body">
                         <div class="form-group">
                             <label for="import_file">Upload Excel File <span class="text-danger">*</span></label>
-                            <input type="file" name="file" id="import_file" class="form-control-file"
+                            <input type="file" name="file" id="import_file" class="form-control"
                                 accept=".xlsx,.xls,.csv" required>
                             @error('file')
                                 <span class="text-danger">{{ $message }}</span>
@@ -284,7 +293,7 @@
 
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
                         <button type="submit" class="btn btn-primary">Import</button>
                     </div>
                 </form>
@@ -307,19 +316,48 @@
             //     width: '100%'
             // });
 
+            $('#modal_course_code').select2({
+                dropdownParent: $('#addTimetableModal'),
+                theme: "classic",
+                placeholder: 'Select an option',
+                allowClear: false,
+                width: '100%'
+            });
+            $('#modal_lecturer_id').select2({
+                dropdownParent: $('#addTimetableModal'),
+                theme: "classic",
+                placeholder: 'Select an option',
+                allowClear: false,
+                width: '100%'
+            });
+            $('#modal_venue_id').select2({
+                dropdownParent: $('#addTimetableModal'),
+                theme: "classic",
+                placeholder: 'Select an option',
+                allowClear: false,
+                width: '100%'
+            });
+            $('#modal_group_selection').select2({
+                dropdownParent: $('#addTimetableModal'),
+                theme: "classic",
+                placeholder: 'Select an option',
+                allowClear: false,
+                width: '100%'
+            });
+
             // Handle "+" click to open add modal
             $(document).on('click', '.add-timetable', function(e) {
                 e.preventDefault();
-                console.log('Add timetable clicked');
+                // console.log('Add timetable clicked');
                 var facultyId = $(this).data('faculty');
-                console.log('Faculty ID:', facultyId);
+                // console.log('Faculty ID:', facultyId);
                 if (!facultyId) {
                     alert('Please select a faculty first.');
                     return;
                 }
                 var day = $(this).data('day');
                 var timeStart = $(this).data('time');
-                console.log('Day:', day, 'Time Start:', timeStart);
+                // console.log('Day:', day, 'Time Start:', timeStart);
 
                 // Populate modal fields
                 $('#modal_faculty_id').val(facultyId);

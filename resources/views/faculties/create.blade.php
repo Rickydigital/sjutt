@@ -68,10 +68,10 @@
                                     </option>
                                 @endforeach
                             </select>
-                            <div class="input-group">
-                                <button type="button" class="btn btn-primary" data-toggle="modal"
-                                    data-target="#addCourseModal">
-                                    <i class="fas fa-plus"></i> Add Course
+                            <div class="input-group my-2">
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                                    data-bs-target="#addCourseModal">
+                                    <i class="bi bi-plus" style="font-size: 20px"></i> Add Course
                                 </button>
                             </div>
                         </div>
@@ -95,15 +95,14 @@
                 </form>
 
                 <!-- Add Course Modal -->
-                <div class="modal fade" id="addCourseModal" tabindex="-1" role="dialog"
-                    aria-labelledby="addCourseModalLabel" aria-hidden="true">
+                <div class="modal fade" id="addCourseModal" tabindex="-1" aria-labelledby="addCourseModalLabel"
+                    aria-hidden="true">
                     <div class="modal-dialog" role="document">
                         <div class="modal-content">
-                            <div class="modal-header" style="background-color: #4B2E83; color: white;">
+                            <div class="modal-header">
                                 <h5 class="modal-title" id="addCourseModalLabel">Add New Course</h5>
-                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                    <span aria-hidden="true">×</span>
-                                </button>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                    aria-label="Close"></button>
                             </div>
                             <form action="{{ route('faculties.storeCourse') }}" method="POST" id="addCourseForm">
                                 @csrf
@@ -136,7 +135,7 @@
                                         <input type="number" name="credits" id="credits" class="form-control"
                                             value="{{ old('credits') }}" min="1" required>
                                         @error('credits')
-                                            <small class="text-danger">{{ $message }}</small>
+                                            NSW <small class="text-danger">{{ $message }}</small>
                                         @enderror
                                     </div>
                                     <div class="form-group">
@@ -156,7 +155,8 @@
                                     </div>
                                 </div>
                                 <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                    <button type="button" class="btn btn-secondary"
+                                        data-bs-dismiss="modal">Close</button>
                                     <button type="submit" class="btn"
                                         style="background-color: #4B2E83; color: white;">Save Course</button>
                                 </div>

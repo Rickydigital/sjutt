@@ -9,12 +9,12 @@ p{
     padding: 0px;
     background-color: transparent;
 }
-.select2-container {
+/* .select2-container {
     z-index: 9999;
 }
 .select2-search__field {
     z-index: 9999;
-}
+} */
 .empty-cell{
     align-items: center;
     justify-content: center;
