@@ -329,16 +329,35 @@ class TimetableController extends Controller
         }
     }
 
-    public function export()
-    {
-        $faculties = Faculty::orderBy('name')->with('timetables.venue')->get();
-        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-        $timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'];
-        $pdf = Pdf::loadView('timetable.pdf', compact('faculties', 'days', 'timeSlots'));
-        $randomNumber = mt_rand(1000, 9999); 
-        return $pdf->download("timetable_{$randomNumber}.pdf");
-    }
+          public function export()
+        {
+            $faculties = Faculty::orderBy('name')->with('timetables.venue')->get();
+            $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+            $timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'];
 
+            // Log all timetable data for debugging
+            foreach ($faculties as $faculty) {
+                Log::info('Timetable data for Faculty: ' . $faculty->name, [
+                    'faculty_id' => $faculty->id,
+                    'timetables' => $faculty->timetables->map(function ($timetable) {
+                        return [
+                            'id' => $timetable->id,
+                            'day' => $timetable->day,
+                            'time_start' => $timetable->time_start,
+                            'time_end' => $timetable->time_end,
+                            'course_code' => $timetable->course_code,
+                            'group_selection' => $timetable->group_selection,
+                            'venue' => $timetable->venue->name,
+                            'activity' => $timetable->activity
+                        ];
+                    })->toArray()
+                ]);
+            }
+
+            $pdf = Pdf::loadView('timetable.pdf', compact('faculties', 'days', 'timeSlots'));
+            $randomNumber = mt_rand(1000, 9999); 
+            return $pdf->download("timetable_{$randomNumber}.pdf");
+        }
     public function getStudentCount(Request $request)
     {
         $request->validate([

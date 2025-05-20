@@ -49,14 +49,29 @@
                                     @foreach ($days as $day)
                                         @if ($i > $occupiedUntil[$day])
                                             @php
-                                                $activity = null;
-                                                $slotEnd = date('H:i', strtotime($slotStart) + 3600);
-                                                foreach ($activitiesByDay[$day] ?? [] as $act) {
-                                                    if ($act->time_start < $slotEnd && $act->time_end > $slotStart) {
-                                                        $activity = $act;
-                                                        break;
+                                                  $activity = null;
+                                                    $slotEnd = date('H:i', strtotime($slotStart) + 3600);
+                                                    $slotStartTime = strtotime($slotStart);
+                                                    $slotEndTime = strtotime($slotEnd);
+                                                    $potentialActivities = [];
+                                                    foreach ($activitiesByDay[$day] ?? [] as $act) {
+                                                        $actStart = strtotime($act->time_start);
+                                                        $actEnd = strtotime($act->time_end);
+                                                        $isMatch = ($actStart <= $slotStartTime && $actEnd > $slotStartTime);
+                                                        $potentialActivities[] = [
+                                                            'course_code' => $act->course_code,
+                                                            'time_start' => $act->time_start,
+                                                            'time_end' => $act->time_end,
+                                                            'group_selection' => $act->group_selection,
+                                                            'venue' => $act->venue->name,
+                                                            'isMatch' => $isMatch,
+                                                            'reason' => $isMatch ? 'Matched' : ($actStart > $slotStartTime ? 'Starts too late' : 'Ends too early')
+                                                        ];
+                                                        if ($isMatch) {
+                                                            $activity = $act;
+                                                            break;
+                                                        }
                                                     }
-                                                }
                                             @endphp
                                             @if ($activity)
                                                 @php
