@@ -2,27 +2,171 @@
 
 @section('styles')
     <style>
-        .timetable-table { table-layout: fixed; width: 100%; }
-        .timetable-table th, .timetable-table td { border: 2px solid #dee2e6 !important; vertical-align: middle; text-align: center; padding: 8px; }
-        .timetable-table th { background: linear-gradient(135deg, #6f42c1, #4B2E83); color: white; font-weight: 600; }
-        .timetable-table .empty-cell { height: 80px; background-color: #f8f9fa; transition: background-color 0.3s; }
-        .timetable-table .empty-cell:hover { background-color: #e9ecef; }
-        .timetable-table .event-cell { background: linear-gradient(135deg, #e2e8f0, #f8f9fa); }
-        .card-header { background: linear-gradient(135deg, #6f42c1, #4B2E83); color: white; border-radius: 10px 10px 0 0; }
-        .week-end { border-bottom: 3px solid #343a40 !important; }
-        .month-end { border-bottom: 5px solid #343a40 !important; }
-        .month-table { margin-bottom: 2rem; }
-        .action-icon { cursor: pointer; margin: 0 5px; }
+        /* General table styles */
+        .timetable-table {
+            table-layout: auto; /* Changed from fixed to auto for dynamic column widths */
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px; /* Ensure table doesn't collapse too much on small screens */
+        }
+
+        .timetable-table th,
+        .timetable-table td {
+            border: 2px solid #dee2e6 !important;
+            vertical-align: middle;
+            text-align: center;
+            padding: 10px; /* Increased padding for better spacing */
+            font-size: 0.9rem;
+            word-wrap: break-word; /* Ensure text wraps */
+            overflow-wrap: break-word; /* Modern alternative to word-wrap */
+            min-width: 80px; /* Minimum width to prevent collapse */
+            max-width: 200px; /* Prevent cells from becoming too wide */
+        }
+
+        .timetable-table th {
+            background: linear-gradient(135deg, #6f42c1, #4B2E83);
+            color: white;
+            font-weight: 600;
+            white-space: normal; /* Allow header text to wrap */
+            line-height: 1.3; /* Improve readability with line height */
+            padding: 12px 8px; /* Slightly more padding for headers */
+        }
+
+        .timetable-table .empty-cell {
+            height: 80px;
+            background-color: #f8f9fa;
+            transition: background-color 0.3s;
+        }
+
+        .timetable-table .empty-cell:hover {
+            background-color: #e9ecef;
+        }
+
+        .timetable-table .event-cell {
+            background: linear-gradient(135deg, #e2e8f0, #f8f9fa);
+            white-space: normal; /* Allow text wrapping in event cells */
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, #6f42c1, #4B2E83);
+            color: white;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .week-end {
+            border-bottom: 3px solid #343a40 !important;
+        }
+
+        .month-end {
+            border-bottom: 5px solid #343a40 !important;
+        }
+
+        .month-table {
+            margin-bottom: 2rem;
+        }
+
+        .action-icon {
+            cursor: pointer;
+            margin: 0 5px;
+            font-size: 0.9rem;
+        }
+
+        /* Title styling */
+        .calendar-title {
+            font-size: clamp(1.5rem, 5vw, 2rem);
+            color: #4B2E83;
+            font-weight: bold;
+            line-height: 1.2;
+            margin-bottom: 1rem;
+            overflow-wrap: break-word;
+        }
+
+        /* Button container for responsive layout */
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        /* Ensure table is scrollable on small screens */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Media Queries for Small Screens */
+        @media (max-width: 768px) {
+            .calendar-title {
+                font-size: clamp(1.2rem, 4vw, 1.5rem);
+                text-align: center;
+            }
+
+            .action-buttons {
+                justify-content: center;
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .action-buttons .btn {
+                width: 100%;
+                max-width: 200px;
+                margin-bottom: 0.5rem;
+            }
+
+            .timetable-table th,
+            .timetable-table td {
+                font-size: 0.8rem;
+                padding: 8px; /* Slightly reduced padding */
+                min-width: 60px; /* Adjust min-width for smaller screens */
+                max-width: 150px; /* Tighter max-width */
+            }
+
+            /* Hide less critical columns on smaller screens */
+            .timetable-table th:nth-child(2),
+            .timetable-table td:nth-child(2),
+            .timetable-table th:nth-child(3),
+            .timetable-table td:nth-child(3),
+            .timetable-table th:nth-child(4),
+            .timetable-table td:nth-child(4),
+            .timetable-table th:nth-child(5),
+            .timetable-table td:nth-child(5) {
+                display: none;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .calendar-title {
+                font-size: clamp(1rem, 3.5vw, 1.2rem);
+            }
+
+            .timetable-table th,
+            .timetable-table td {
+                font-size: 0.7rem;
+                padding: 6px;
+                min-width: 50px; /* Further reduce min-width */
+                max-width: 120px; /* Further reduce max-width */
+            }
+
+            /* Hide Masters column on very small screens */
+            .timetable-table th:nth-child(6),
+            .timetable-table td:nth-child(6) {
+                display: none;
+            }
+
+            .timetable-table .empty-cell {
+                height: 60px;
+            }
+        }
     </style>
 @endsection
 
 @section('content')
     <div class="row mb-4">
-        <div class="col-12 d-flex justify-content-between align-items-center">
-            <h1 class="fw-bold" style="color: #4B2E83;">
+        <div class="col-12 d-flex flex-column flex-md-row justify-content-between align-items-center">
+            <h1 class="calendar-title">
                 <i class="fas fa-clock me-2"></i> Academic and Meeting Calendar
             </h1>
-            <div>
+            <div class="action-buttons">
                 @if($setup)
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#setupModal">
                         <i class="fas fa-cog"></i> Setup
@@ -108,7 +252,9 @@
                                                         @if($day['events']['Meeting/Activities Calendar'])
                                                             {{ $day['events']['Meeting/Activities Calendar'] }}
                                                             @if($day['eventIds']['Meeting/Activities Calendar'])
-                                                                <i class="fas fa-edit action-icon edit-event" data-event-id="{{ $day['eventIds']['Meeting/Activities Calendar'] }}" data-date="{{ $day['date'] }}" data-category="Meeting/Activities Calendar" data-description="{{ $day['events']['Meeting/Activities Calendar'] }}"></i>
+                                                                <i class="fas fa-edit action-icon edit-event" data-event-id="{{ $day['eventIds']['Meeting/Activities Calendar'] }}" data-date="{{ $day['date'] }}" data-category="腫
+
+System: Meeting/Activities Calendar" data-description="{{ $day['events']['Meeting/Activities Calendar'] }}"></i>
                                                                 <i class="fas fa-trash action-icon delete-event" data-event-id="{{ $day['eventIds']['Meeting/Activities Calendar'] }}"></i>
                                                             @endif
                                                         @else
@@ -167,7 +313,9 @@
                         @csrf
                         <div class="mb-3">
                             <label for="start_date" class="form-label">Start Date</label>
-                            <input type="date" class="form-control" id="start_date" name="start_date" value="{{ $setup ? $setup->start_date : '' }}" required>
+                            <input type="date" class="form-control" id="start_date" name="start_date" value="{{ $setup ? $setup->start_date : '' }}"
+
+System: required>
                         </div>
                         <div class="mb-3">
                             <label for="end_date" class="form-label">End Date</label>
