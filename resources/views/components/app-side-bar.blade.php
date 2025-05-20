@@ -183,7 +183,7 @@
                                 </a>
                             </li>
                             <li>
-                                <a href="{{ route('admin.calendars.index') }}">
+                                <a href="{{ route('calendar.index') }}">
                                     <span class="sub-item">University Calendar</span>
                                 </a>
                             </li>

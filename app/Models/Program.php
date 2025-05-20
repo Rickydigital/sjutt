@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Program extends Model
@@ -29,7 +30,11 @@ class Program extends Model
         return $this->hasMany(Faculty::class);
     }
 
-   
+       
+    public function calendarEvents(): HasMany
+    {
+        return $this->hasMany(CalendarEvent::class);
+    }
     
     public function getGeneratedFacultyNames(): array
     {
@@ -42,5 +47,10 @@ class Program extends Model
             $names[] = "{$this->short_name} {$year}";
         }
         return $names;
+    }
+
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(ProgramCategory::class, 'program_category_program');
     }
 }

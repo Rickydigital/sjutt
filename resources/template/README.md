@@ -1,88 +1,61 @@
-# ElaAdmin HTML5 Admin Dashboard Template
-**ElaAdnin** is a responsive Bootstrap 4 Admin Template. It provides you with a collection of ready to use code snippets and utilities, custom pages, loads of charts, dashboard variations, a collection of applications and some useful widgets. Preview of this awesome admin template available here: https://colorlib.com/polygon/elaadmin/index.html
+# Kaiadmin Lite - Free Bootstrap 5 Admin Dashboard
+![kaiadminlitethumb (1)](https://github.com/Hizrian/kaiadmin-lite/assets/10692084/4793c6b9-7991-4502-8633-14d9ed0ea486)
 
-# Preview
+This time, I want to introduce you Kaiadmin Lite – a free Bootstrap 5 Admin Dashboard built to easily manage and visualize business data.
 
-### Screenshot
+With Kaiadmin Lite, you can complete development faster with no design skills required. Save 1000s of hours of designing and coding work, as we've already done that for you.
 
-![ElaAdmin admin dashboard template preview](https://colorlib.com/wp/wp-content/uploads/sites/2/ela-admin-free-admin-panel-template.jpg)
+Don't worry about getting started – we've documented how to get started using this dashboard template and utilizing the available components and plugins, making it easy to leverage the full potential of Kaiadmin Bootstrap 5 Admin Dashboard.
 
-### Demo Site: [Here](https://colorlib.com/polygon/elaadmin/index.html)
+**Product Detail** : https://themekita.com/kaiadmin-lite-bootstrap-5-dashboard.html
 
-### TOC
-- [Built With](#built-with)
-- [Changelog](#changelog)
-- [Authors](#authors)
-- [License](#license)
+**Live Preview** : https://themekita.com/demo-kaiadmin-lite-bootstrap-dashboard/livepreview/demo1/
 
-### Built With
+# Get Kaiadmin PRO
 
-- [amCharts](https://www.amcharts.com/)
-- [barRating](http://github.com/antennaio/jquery-bar-rating)
-- [Bootstrap](http://getbootstrap.com/)
-- [C3](https://github.com/c3js/c3) - A D3-based reusable chart library
-- [Chart.js](http://www.chartjs.org/)
-- [Chartist.js](https://gionkunz.github.io/chartist-js/)
-- [Chosen](https://harvesthq.github.io/chosen/)
-- [DataMaps](http://datamaps.github.io/)
-- [dataTables](https://datatables.net/)
-- [Datepicker for Bootstrap](https://github.com/uxsolutions/bootstrap-datepicker)
-- [Dropzone.js](http://www.dropzonejs.com)
-- [ECharts](https://github.com/ecomfe/echarts/)
-- [Flot Charts](http://www.flotcharts.org/)
-- [Fontawesome](http://fontawesome.io/)
-- [FullCalendar](https://fullcalendar.io/)
-- [gauge.js](http://bernii.github.io/gauge.js/)
-- [gmaps](https://hpneo.github.io/gmaps/)
-- [Granim](https://sarcadass.github.io/granim.js)
-- [Highcharts JS](http://www.highcharts.com/)
-- [Ion.RangeSlider](https://github.com/IonDen/ion.rangeSlider)
-- [jQuery asScrollbar](https://github.com/amazingSurge/jquery-asScrollbar)
-- [jQuery Knob](https://github.com/aterrien/jQuery-Knob)
-- [jQuery Line Progressbar](https://kingrayhan.github.io/LineProgressbar/)
-- [jQuery Validation Plugin](http://jqueryvalidation.org/)
-- [jquery-circle-progress](http://kottenator.github.io/jquery-circle-progress/) - jQuery Plugin to draw animated circular progress bars
-- [jquery.sparkline](http://omnipotent.net/jquery.sparkline/)
-- [jQuery](https://jquery.com/)
-- [JQVMap](https://github.com/manifestinteractive/jqvmap/) - jQuery Vector Map Library
-- [JQVMap](https://jqvmap.com/)
-- [jRate](https://github.com/senthilporunan/jRate) - SVG based star Rating jQuery plugin
-- [jsgrid](https://github.com/tabalinas/jsgrid) - Lightweight Grid jQuery Plugin
-- [JustGage](http://www.justgage.com) - animated gauges using RaphaelJS
-- [Load Google Maps API](https://github.com/yuanqing/load-google-maps-api)
-- [metismenu](https://github.com/onokumus/metisMenu) - A simple jQuery menu plugin
-- [moment.js](https://momentjs.com)
-- [morris.js](http://morrisjs.github.io/morris.js/)
-- [Nestable jQuery Plugin](https://github.com/dbushell/Nestable)
-- [Owl Carousel](https://github.com/OwlCarousel2/OwlCarousel2)
-- [Pace](https://github.com/HubSpot/pace) - website preloader
-- [Peity](http://benpickles.github.io/peity)
-- [Peity](http://benpickles.github.io/peity/)
-- [Popper.js](https://popper.js.org/)
-- [Raphaël](https://github.com/DmitryBaranovskiy/raphael) - Cross-browser vector graphics
-- [Rickshaw](https://github.com/shutterstock/rickshaw)
-- [Sass](http://sass-lang.com/)
-- [Select2](https://github.com/select2/select2)
-- [simpleWeather](http://simpleweatherjs.com )
-- [Sticky-kit](https://github.com/leafo/sticky-kit)
-- [Sweetalert2](https://github.com/sweetalert2/sweetalert2)
-- [toastr](https://github.com/CodeSeven/toastr)
-- [wysihtml5](https://github.com/xing/wysihtml5)
+![bg_themekitacom](https://github.com/Hizrian/kaiadmin-lite/assets/10692084/195bfcb3-f587-4920-bfba-a583244116ad)
+[Product Detail](https://themekita.com/demo-kaiadmin-pro-bootstrap-dashboard/) |  [Buy This](https://themekita.lemonsqueezy.com/buy/526b603e-8eb3-4dcb-a7a3-842375952df5)
+
+***
+### [Kaiadmin - Classic Dashboard](https://themekita.com/demo-kaiadmin-pro-bootstrap-dashboard/livepreview/examples/demo1/)
+![Kaiadmin - Classic Dashboard](https://github.com/Hizrian/kaiadmin-lite/assets/10692084/106e027a-4ffe-4856-b729-0e6939c0473d)
+
+***
+### [Kaiadmin - White Classic Dashboard](https://themekita.com/demo-kaiadmin-pro-bootstrap-dashboard/livepreview/examples/demo2/)
+![Kaiadmin - White Classic Dashboard](https://github.com/Hizrian/kaiadmin-lite/assets/10692084/ab70a0f7-116d-46ad-9037-a4081b0db763)
+
+***
+### [Kaiadmin - Dark Dashboard](https://themekita.com/demo-kaiadmin-pro-bootstrap-dashboard/livepreview/examples/demo3/)
+![Kaiadmin - Dark Dashboard](https://github.com/Hizrian/kaiadmin-lite/assets/10692084/1a645dc4-d150-45d7-9883-1955b0666d18)
+
+***
+### [Kaiadmin - Creative Dashboard](https://themekita.com/demo-kaiadmin-pro-bootstrap-dashboard/livepreview/examples/demo4/)
+![Kaiadmin - Creative Dashboard](https://github.com/Hizrian/kaiadmin-lite/assets/10692084/fccc0204-3cb7-45dd-b0a5-532c57af3c12)
+
+***
+### [Kaiadmin - Trendy Dashboard](https://themekita.com/demo-kaiadmin-pro-bootstrap-dashboard/livepreview/examples/demo5/)
+![Kaiadmin - Trendy Dashboard](https://github.com/Hizrian/kaiadmin-lite/assets/10692084/bd9d4ce8-08a3-48bd-975e-3d77e5c51388)
+
+***
+### [Kaiadmin - Trendy 2 Dashboard](https://themekita.com/demo-kaiadmin-pro-bootstrap-dashboard/livepreview/examples/demo6/)
+![Kaiadmin - Trendy 2 Dashboard](https://github.com/Hizrian/kaiadmin-lite/assets/10692084/3cdd531f-16e0-4c4e-bfbd-89f80d3a25fe)
+
+***
+### [Kaiadmin - Horizontal Dashboard](https://themekita.com/demo-kaiadmin-pro-bootstrap-dashboard/livepreview/examples/demo7/)
+![Kaiadmin - Horizontal Dashboard](https://github.com/Hizrian/kaiadmin-lite/assets/10692084/2cac93cc-2542-43d9-9072-8625bdd2f8ad)
+
+***
+### [Kaiadmin - Enterprise Dashboard](https://themekita.com/demo-kaiadmin-pro-bootstrap-dashboard/livepreview/examples/demo8/)
+![Kaiadmin - Enterprise Dashboard](https://github.com/Hizrian/kaiadmin-lite/assets/10692084/ce2aa3f8-1f62-4ca1-87cd-111b74e50940)
+
+***
+### [Kaiadmin - Futuristic Dashboard](https://themekita.com/demo-kaiadmin-pro-bootstrap-dashboard/livepreview/examples/demo9/)
+![Kaiadmin - Futuristic Dashboard](https://github.com/Hizrian/kaiadmin-lite/assets/10692084/83f79f3d-d248-4d01-ac15-9c98bee3ca9f)
 
 
-### Changelog
-#### V 1.0.0
-Initial Release
-### Authors
-[Colorlib](https://colorlib.com)
 
-### More info
-- [Bootstrap admin dashboards](https://colorlib.com/wp/free-bootstrap-admin-dashboard-templates/)
-- [Angular dashboards](https://colorlib.com/wp/angularjs-admin-templates/)
-- [Free Admin Dashboards](https://colorlib.com/wp/free-html5-admin-dashboard-templates/)
-- [Website Templates](https://colorlib.com/wp/templates/)
-- [WordPress Themes](https://colorlib.com/wp/free-wordpress-themes/)
 
-### License
 
-ElaAdmin is licensed under The MIT License (MIT). Which means that you can use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the final products. But you always need to state that Colorlib is the original author of this template.
+
+
+

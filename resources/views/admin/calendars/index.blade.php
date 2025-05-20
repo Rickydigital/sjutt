@@ -32,7 +32,7 @@
             <!-- Filters -->
             <div class="row mb-4">
                 <div class="col-md-12">
-                    <form method="GET" action="{{ route('admin.calendars.index') }}" class="row">
+                    <form method="GET" action="{{ route('calendar.index') }}" class="row">
                         <div class="col-md-3 mb-3">
                             <input type="text" name="search" class="form-control" placeholder="Search calendars..."
                                 value="{{ request('search') }}">

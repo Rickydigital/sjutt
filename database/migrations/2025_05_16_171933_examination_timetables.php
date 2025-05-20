@@ -30,7 +30,7 @@ return new class extends Migration
         Schema::create('examination_timetable_lecturer', function (Blueprint $table) {
             $table->id();
             $table->foreignId('examination_timetable_id')->constrained('examination_timetables')->onDelete('cascade');
-            $table->foreignId('lecturer_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->timestamps();
         });
     }

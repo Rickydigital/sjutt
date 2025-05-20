@@ -3,7 +3,7 @@
 use App\Http\Controllers\Admin\NewsController;
 use App\Http\Controllers\Admin\EventController;
 use App\Http\Controllers\Admin\QueryController;
-use App\Http\Controllers\Admin\CalendarController;
+use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\AdminSuggestionController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ExaminationTimetableController;
@@ -20,9 +20,10 @@ use App\Http\Controllers\YearController;
 use App\Http\Controllers\VenueController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
+use App\Models\Faculty;
 
 Route::get('/', function () {
-    return view('welcome');
+    return view('auth.login');
 });
 
 Route::get('/dashboard', function () {
@@ -42,15 +43,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    Route::get('/queries', [QueryController::class, 'index'])->name('admin.queries.index');
-    Route::post('/queries/{query}/progress', [QueryController::class, 'addProgress'])->name('admin.queries.addProgress');
-    Route::get('/calendars', [CalendarController::class, 'index'])->name('admin.calendars.index');
-    Route::get('/calendars/create', [CalendarController::class, 'create'])->name('admin.calendars.create');
-    Route::post('/calendars', [CalendarController::class, 'store'])->name('admin.calendars.store');
-    Route::get('/calendars/{id}/edit', [CalendarController::class, 'edit'])->name('admin.calendars.edit');
-    Route::put('/calendars/{id}', [CalendarController::class, 'update'])->name('admin.calendars.update');
-    Route::delete('/calendars/{id}', [CalendarController::class, 'destroy'])->name('admin.calendars.destroy');
-    Route::post('/calendars/import', [CalendarController::class, 'import'])->name('admin.calendars.import');
+    // Route::get('/calendars', [CalendarController::class, 'index'])->name('admin.calendars.index');
+    // Route::get('/calendars/create', [CalendarController::class, 'create'])->name('admin.calendars.create');
+    // Route::post('/calendars', [CalendarController::class, 'store'])->name('admin.calendars.store');
+    // Route::get('/calendars/{id}/edit', [CalendarController::class, 'edit'])->name('admin.calendars.edit');
+    // Route::put('/calendars/{id}', [CalendarController::class, 'update'])->name('admin.calendars.update');
+    // Route::delete('/calendars/{id}', [CalendarController::class, 'destroy'])->name('admin.calendars.destroy');
+    // Route::post('/calendars/import', [CalendarController::class, 'import'])->name('admin.calendars.import');
     Route::post('/timetable/import', [TimetableController::class, 'import'])->name('timetable.import');
     Route::get('/timetable/export', [TimetableController::class, 'export'])->name('timetable.export');
     Route::get('/timetables/pdf', [ExaminationTimetableController::class, 'generatePdf'])->name('timetables.pdf');
@@ -93,6 +92,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/suggestions', [AdminSuggestionController::class, 'index'])->name('admin.suggestions.index');
     Route::get('/suggestions/conversation/{student_id}', [AdminSuggestionController::class, 'conversation'])->name('admin.suggestions.conversation');
     Route::post('/suggestions/reply/{student_id}', [AdminSuggestionController::class, 'replyToStudent'])->name('admin.suggestions.reply');
+    Route::get('/calendar/export', [CalendarController::class, 'export'])->name('calendar.export');
+    Route::resource('calendar', CalendarController::class);
 
 });
 
