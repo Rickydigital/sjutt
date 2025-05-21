@@ -128,11 +128,14 @@ class ExaminationTimetableController extends Controller
         return redirect()->route('timetables.index')->with('success', 'Setup updated successfully.');
     }
 
-    public function store(Request $request)
+         public function store(Request $request)
     {
         $setup = ExamSetup::first();
         if (!$setup) {
-            return back()->with('error', 'No setup found.');
+            Log::error('No setup found');
+            return $request->ajax()
+                ? response()->json(['errors' => ['setup' => 'No setup found']], 422)
+                : back()->with('error', 'No setup found')->withInput();
         }
 
         $timeSlot = json_decode($request->input('time_slot'), true);
@@ -149,18 +152,61 @@ class ExaminationTimetableController extends Controller
             'lecturer_ids.*' => 'exists:users,id',
         ]);
 
+        // Handle "All Groups" selection
+        if (in_array('all', $validated['group_selection'])) {
+            $groups = FacultyGroup::where('faculty_id', $validated['faculty_id'])
+                ->pluck('group_name')
+                ->toArray();
+            $validated['group_selection'] = $groups;
+        }
+
         // Extract start_time and end_time from time_slot if not directly provided
         if ($timeSlot && isset($timeSlot['start_time']) && isset($timeSlot['end_time'])) {
             $validated['start_time'] = $timeSlot['start_time'];
             $validated['end_time'] = $timeSlot['end_time'];
         }
 
-        $validated['group_selection'] = implode(',', $validated['group_selection']);
-        $timetable = ExaminationTimetable::create($validated);
-        $timetable->lecturers()->sync($validated['lecturer_ids']);
+        // Check for conflicts
+        $conflicts = $this->checkConflicts($request, $validated);
+        Log::info('Conflict check result:', ['conflicts' => $conflicts]);
+        if (!empty($conflicts)) {
+            $errorMessage = implode(' ', $conflicts);
+            Log::info('Returning conflict error:', ['errorMessage' => $errorMessage]);
+            return $request->ajax()
+                ? response()->json(['errors' => ['conflict' => $errorMessage]], 422)
+                : back()->withInput()->withErrors(['conflict' => $errorMessage]);
+        }
 
-        return redirect()->route('timetables.index')->with('success', 'Exam timetable created successfully.');
+        try {
+            $validated['group_selection'] = implode(',', $validated['group_selection']);
+            $timetable = ExaminationTimetable::create($validated);
+            $timetable->lecturers()->sync($validated['lecturer_ids']);
+            Log::info('Exam timetable created successfully:', ['id' => $timetable->id]);
+            return $request->ajax()
+                ? response()->json(['message' => 'Exam timetable created successfully.', 'id' => $timetable->id])
+                : redirect()->route('timetables.index')->with('success', 'Exam timetable created successfully.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            Log::error('Database error creating timetable:', [
+                'error' => $e->getMessage(),
+                'sql' => $e->getSql(),
+                'bindings' => $e->getBindings()
+            ]);
+            $errorMessage = 'Failed to save exam timetable due to a database error.';
+            return $request->ajax()
+                ? response()->json(['errors' => ['database' => $errorMessage]], 422)
+                : back()->withInput()->withErrors(['database' => $errorMessage]);
+        } catch (\Exception $e) {
+            Log::error('Unexpected error in store:', [
+                'error' => $e->getMessage(),
+                'input' => $request->all()
+            ]);
+            $errorMessage = 'Failed to save exam timetable due to an unexpected error.';
+            return $request->ajax()
+                ? response()->json(['errors' => ['error' => $errorMessage]], 422)
+                : back()->withInput()->withErrors(['error' => $errorMessage]);
+        }
     }
+
 
     public function update(Request $request, ExaminationTimetable $timetable)
     {
@@ -184,10 +230,31 @@ class ExaminationTimetableController extends Controller
                 'lecturer_ids' => 'required|array|min:1',
                 'lecturer_ids.*' => 'exists:users,id',
             ]);
+
+            // Handle "All Groups" selection
+            if (in_array('all', $validated['group_selection'])) {
+                $groups = FacultyGroup::where('faculty_id', $validated['faculty_id'])
+                    ->pluck('group_name')
+                    ->toArray();
+                $validated['group_selection'] = $groups;
+            }
+
+            // Extract start_time and end_time from time_slot if not directly provided
             if ($timeSlot && isset($timeSlot['start_time'], $timeSlot['end_time'])) {
                 $validated['start_time'] = Carbon::createFromFormat('H:i', $timeSlot['start_time'])->format('H:i');
                 $validated['end_time'] = Carbon::createFromFormat('H:i', $timeSlot['end_time'])->format('H:i');
             }
+
+
+
+            // Check for conflicts, excluding the current timetable
+            $conflicts = $this->checkConflicts($request, $validated, $timetable->id);
+            Log::info('Conflict check result:', ['conflicts' => $conflicts]);
+            if (!empty($conflicts)) {
+                $errorMessage = implode(' ', $conflicts);
+                return response()->json(['errors' => ['conflict' => $errorMessage]], 422);
+            }
+
             $validated['group_selection'] = implode(',', $validated['group_selection']);
             Log::info('Validated data:', $validated);
             $timetable->update($validated);
@@ -212,7 +279,17 @@ class ExaminationTimetableController extends Controller
     {
         $timetable = ExaminationTimetable::with(['faculty', 'venue', 'lecturers', 'course'])->findOrFail($id);
         Log::info('Show timetable:', ['id' => $id, 'lecturers' => $timetable->lecturers->pluck('name')->toArray()]);
+
         $course = $timetable->course;
+        $groupSelection = $timetable->group_selection;
+
+        // Check if all groups are selected
+        $allGroups = FacultyGroup::where('faculty_id', $timetable->faculty_id)
+            ->pluck('group_name')
+            ->toArray();
+        $selectedGroups = explode(',', $timetable->group_selection);
+        $isAllGroups = empty(array_diff($allGroups, $selectedGroups)) && empty(array_diff($selectedGroups, $allGroups));
+
         return response()->json([
             'course_code' => $timetable->course_code,
             'course_name' => $course ? $course->name : 'N/A',
@@ -222,7 +299,7 @@ class ExaminationTimetableController extends Controller
             'time_slot_name' => $timetable->time_slot_name ?? 'N/A',
             'venue_name' => $timetable->venue->name ?? 'N/A',
             'venue_capacity' => $timetable->venue->capacity ?? 'N/A',
-            'group_selection' => $timetable->group_selection,
+            'group_selection' => $isAllGroups ? 'All Groups' : $groupSelection,
             'lecturers' => $timetable->lecturers->pluck('name')->toArray(),
             'faculty_name' => $timetable->faculty->name ?? 'N/A',
         ]);
@@ -266,27 +343,27 @@ class ExaminationTimetableController extends Controller
         return response()->json(['groups' => $groups]);
     }
 
-       public function getCourseLecturers(Request $request)
-        {
-            $courseCode = $request->query('course_code');
-            $timetableId = $request->query('timetable_id', null);
-            $course = Course::where('course_code', $courseCode)->first();
-            if (!$course) {
-                Log::warning('Course not found:', ['course_code' => $courseCode]);
-                return response()->json(['lecturers' => []]);
-            }
-            $lecturers = $course->lecturers()->select('users.id', 'users.name')->get()->toArray();
-            if ($timetableId) {
-                $timetable = ExaminationTimetable::with('lecturers')->find($timetableId);
-                $assignedLecturerIds = $timetable ? $timetable->lecturers->pluck('id')->toArray() : [];
-                $lecturers = array_map(function ($lecturer) use ($assignedLecturerIds) {
-                    $lecturer['selected'] = in_array($lecturer['id'], $assignedLecturerIds);
-                    return $lecturer;
-                }, $lecturers);
-            }
-            Log::info('Course lecturers:', ['course_code' => $courseCode, 'lecturers' => $lecturers]);
-            return response()->json(['lecturers' => $lecturers]);
+    public function getCourseLecturers(Request $request)
+    {
+        $courseCode = $request->query('course_code');
+        $timetableId = $request->query('timetable_id', null);
+        $course = Course::where('course_code', $courseCode)->first();
+        if (!$course) {
+            Log::warning('Course not found:', ['course_code' => $courseCode]);
+            return response()->json(['lecturers' => []]);
         }
+        $lecturers = $course->lecturers()->select('users.id', 'users.name')->get()->toArray();
+        if ($timetableId) {
+            $timetable = ExaminationTimetable::with('lecturers')->find($timetableId);
+            $assignedLecturerIds = $timetable ? $timetable->lecturers->pluck('id')->toArray() : [];
+            $lecturers = array_map(function ($lecturer) use ($assignedLecturerIds) {
+                $lecturer['selected'] = in_array($lecturer['id'], $assignedLecturerIds);
+                return $lecturer;
+            }, $lecturers);
+        }
+        Log::info('Course lecturers:', ['course_code' => $courseCode, 'lecturers' => $lecturers]);
+        return response()->json(['lecturers' => $lecturers]);
+    }
 
     private function getValidDates(ExamSetup $setup): array
     {
@@ -305,7 +382,7 @@ class ExaminationTimetableController extends Controller
         return $dates;
     }
 
-      public function generatePdf(Request $request)
+    public function generatePdf(Request $request)
     {
         $selectedType = $request->query('exam_type');
         $setup = ExamSetup::whereJsonContains('type', $selectedType)->first();
@@ -332,4 +409,111 @@ class ExaminationTimetableController extends Controller
 
         return $pdf->download($filename);
     }
+
+
+   private function checkConflicts(Request $request, array $validated, ?int $excludeId = null): array
+{
+    Log::info('Checking conflicts', [
+        'excludeId' => $excludeId,
+        'validated' => $validated
+    ]);
+
+    $conflicts = [];
+
+    // 1. Lecturer Conflict Check
+    if (!empty($validated['lecturer_ids'])) {
+        $lecturerConflict = ExaminationTimetable::where('exam_date', $validated['exam_date'])
+            ->where(function ($query) use ($validated) {
+                $query->where(function ($q) use ($validated) {
+                    $q->where('start_time', '<', $validated['end_time'])
+                      ->where('end_time', '>', $validated['start_time']);
+                });
+            })
+            ->whereHas('lecturers', fn($q) => $q->whereIn('users.id', $validated['lecturer_ids']))
+            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+            ->with(['lecturers' => fn($q) => $q->whereIn('users.id', $validated['lecturer_ids'])])
+            ->first();
+        if ($lecturerConflict) {
+            $conflictingLecturers = $lecturerConflict->lecturers->pluck('name')->toArray();
+            $conflicts[] = sprintf(
+                'Lecturer(s) %s are assigned to exam %s for %s from %s to %s.',
+                implode(', ', $conflictingLecturers),
+                $lecturerConflict->course_code,
+                $lecturerConflict->faculty->name,
+                $lecturerConflict->start_time,
+                $lecturerConflict->end_time
+            );
+        }
+    }
+
+    // 2. Venue Conflict Check
+    $venueConflict = ExaminationTimetable::where('exam_date', $validated['exam_date'])
+        ->where('venue_id', $validated['venue_id'])
+        ->where(function ($query) use ($validated) {
+            $query->where(function ($q) use ($validated) {
+                $q->where('start_time', '<', $validated['end_time'])
+                  ->where('end_time', '>', $validated['start_time']);
+            });
+        })
+        ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+        ->first();
+    if ($venueConflict) {
+        $conflicts[] = sprintf(
+            'Venue %s is in use for exam %s for %s from %s to %s.',
+            $venueConflict->venue->name,
+            $venueConflict->course_code,
+            $venueConflict->faculty->name,
+            $venueConflict->start_time,
+            $venueConflict->end_time
+        );
+    }
+
+    // 3. Group Conflict Check
+    $groups = $validated['group_selection'];
+    foreach ($groups as $group) {
+        $groupConflict = ExaminationTimetable::where('exam_date', $validated['exam_date'])
+            ->where('group_selection', 'like', "%$group%")
+            ->where(function ($query) use ($validated) {
+                $query->where(function ($q) use ($validated) {
+                    $q->where('start_time', '<', $validated['end_time'])
+                      ->where('end_time', '>', $validated['start_time']);
+                });
+            })
+            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+            ->first();
+        if ($groupConflict) {
+            $conflicts[] = sprintf(
+                'Group %s has an exam for %s from %s to %s.',
+                trim(str_replace('Group', '', $group)), // Remove "Group" prefix
+                $groupConflict->course_code,
+                $groupConflict->start_time,
+                $groupConflict->end_time
+            );
+        }
+    }
+
+    // 4. Course Conflict Check
+    $courseConflict = ExaminationTimetable::where('exam_date', $validated['exam_date'])
+        ->where('course_code', $validated['course_code'])
+        ->where('faculty_id', $validated['faculty_id'])
+        ->where(function ($query) use ($validated) {
+            $query->where(function ($q) use ($validated) {
+                $q->where('start_time', '<', $validated['end_time'])
+                  ->where('end_time', '>', $validated['start_time']);
+            });
+        })
+        ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+        ->first();
+    if ($courseConflict) {
+        $conflicts[] = sprintf(
+            'Course %s is already scheduled for %s from %s to %s.',
+            $validated['course_code'],
+            $courseConflict->faculty->name,
+            $courseConflict->start_time,
+            $courseConflict->end_time
+        );
+    }
+
+    return $conflicts;
+}
 }

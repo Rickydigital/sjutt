@@ -954,6 +954,7 @@
     </div>
 @endsection
 
+
 @section('scripts')
     <script>
         $(document).ready(function() {
@@ -973,8 +974,7 @@
                         return $('<span style="font-weight: 500;">' + data.text + '</span>');
                     };
                     options.templateSelection = function(data) {
-                        return $('<span style="font-weight: 600; color: #4B2E83;">' + data.text +
-                        '</span>');
+                        return $('<span style="font-weight: 600; color: #4B2E83;">' + data.text + '</span>');
                     };
                 }
 
@@ -1003,7 +1003,7 @@
                 Swal.fire({
                     icon: type,
                     title: title,
-                    text: message,
+                    html: message, // Use html to support lists or formatted text
                     timer: type === 'success' ? 1500 : undefined,
                     showConfirmButton: type !== 'success',
                 });
@@ -1058,8 +1058,7 @@
                         $('#course_code').empty().append('<option value="">Select Course</option>');
                         response.course_codes.forEach(course => {
                             const option = new Option(`${course.course_code} - ${course.name}`,
-                                course.course_code, false, course.course_code === courseCode
-                                );
+                                course.course_code, false, course.course_code === courseCode);
                             $('#course_code').append(option);
                         });
                         $('#course_code').trigger('change');
@@ -1085,8 +1084,9 @@
                         faculty_id: facultyId
                     },
                     success: function(response) {
-                        $('#group_selection').empty().append(
-                            '<option value="" disabled>Select Groups</option>');
+                        $('#group_selection').empty()
+                            .append('<option value="" disabled>Select Groups</option>')
+                            .append('<option value="all">All Groups</option>');
                         response.groups.forEach(group => {
                             const isSelected = selectedGroups.includes(group.group_name);
                             const option = new Option(
@@ -1094,7 +1094,11 @@
                                 group.group_name, false, isSelected);
                             $('#group_selection').append(option);
                         });
-                        $('#group_selection').trigger('change');
+                        if (selectedGroups.length > 0 && response.groups.every(g => selectedGroups.includes(g.group_name))) {
+                            $('#group_selection').val('all').trigger('change');
+                        } else {
+                            $('#group_selection').val(selectedGroups).trigger('change');
+                        }
                     },
                     error: function(xhr) {
                         console.error('Error fetching groups:', xhr.responseText);
@@ -1260,19 +1264,19 @@
                     },
                     error: function(xhr) {
                         console.error('Error saving exam:', xhr.responseText);
-                        const errorMessage = xhr.responseJSON && xhr.responseJSON.error ? xhr
-                            .responseJSON.error : 'Failed to save exam.';
-                        const errorDetails = xhr.responseJSON && xhr.responseJSON.details ? xhr
-                            .responseJSON.details : {};
-                        let detailedMessage = errorMessage;
-                        if (Object.keys(errorDetails).length > 0) {
-                            detailedMessage += '<ul>';
-                            Object.values(errorDetails).forEach(error => {
-                                detailedMessage += `<li>${error}</li>`;
+                        const errors = xhr.responseJSON && xhr.responseJSON.errors ? xhr.responseJSON.errors : {};
+                        let errorMessage = errors.conflict || errors.database || errors.error || xhr.responseJSON?.message || 'Failed to save exam.';
+                        
+                        // Handle validation errors or other detailed errors
+                        if (xhr.responseJSON && xhr.responseJSON.errors && !errors.conflict && !errors.database && !errors.error) {
+                            errorMessage = '<ul>';
+                            Object.values(xhr.responseJSON.errors).forEach(error => {
+                                errorMessage += `<li>${error}</li>`;
                             });
-                            detailedMessage += '</ul>';
+                            errorMessage += '</ul>';
                         }
-                        showAlert('error', 'Error', detailedMessage);
+                        
+                        showAlert('error', 'Error', errorMessage);
                     }
                 });
             });
@@ -1350,3 +1354,4 @@
         });
     </script>
 @endsection
+
