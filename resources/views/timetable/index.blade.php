@@ -2,10 +2,7 @@
 
 @section('content')
     <style>
-        /* body {
-            background-color: #f4f6f9;
-        } */
-
+        /* Existing styles unchanged */
         .timetable-table th,
         .timetable-table td {
             border: 2px solid #dee2e6 !important;
@@ -33,6 +30,11 @@
         .timetable-table .course-cell {
             background: linear-gradient(135deg, #e2e8f0, #f8f9fa);
             transition: transform 0.2s;
+            display: inline-block; /* Changed to inline-block for side-by-side */
+            width: auto; /* Allow dynamic width based on content */
+            margin: 2px; /* Add small margin for spacing */
+            padding: 5px; /* Ensure padding for content */
+            vertical-align: top; /* Align to top for consistency */
         }
 
         .timetable-table .course-cell:hover {
@@ -79,21 +81,6 @@
             box-shadow: 0 0 5px rgba(111, 66, 193, 0.5);
         }
 
-        /* .btn-primary {
-            background: linear-gradient(135deg, #6f42c1, #4B2E83);
-            border: none;
-            border-radius: 8px;
-            transition: background 0.3s;
-        }
-
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #4B2E83, #6f42c1);
-        }
-
-        .btn-outline-danger {
-            border-radius: 8px;
-        } */
-
         .select2-container--classic .select2-selection--multiple {
             border-radius: 8px;
             border: 1px solid #ced4da;
@@ -102,6 +89,30 @@
         .select-all-option {
             font-weight: bold;
             background-color: #f0f0f0;
+        }
+
+        /* Add new styles for the "+" icon in occupied slots */
+        .add-session-container {
+            margin-top: 5px; /* Reduced margin for better fit */
+            padding: 5px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: inline-block; /* Align with course-cell */
+            vertical-align: top;
+        }
+
+        .add-session-container:hover {
+            background-color: #e9ecef;
+        }
+
+        /* New style for the container of side-by-side cells */
+        .course-container {
+            display: flex;
+            justify-content: space-between; /* Space out items evenly */
+            flex-wrap: wrap; /* Allow wrapping if too many items */
+            padding: 5px;
         }
     </style>
 
@@ -182,56 +193,66 @@
                                             @if ($i > $occupiedUntil[$day])
                                                 @php
                                                     $activitiesForDay = $activitiesByDay->get($day, collect());
-                                                    $activity = $activitiesForDay->first(function ($act) use (
-                                                        $slotStart,
-                                                    ) {
+                                                    $activities = $activitiesForDay->filter(function ($act) use ($slotStart) {
                                                         return substr($act->time_start, 0, 5) == $slotStart;
                                                     });
+                                                    $maxDuration = $activities->max(function ($act) {
+                                                        return (strtotime($act->time_end) - strtotime($act->time_start)) / 3600;
+                                                    }) ?? 1;
+                                                    $rowspan = ceil($maxDuration);
+                                                    $occupiedUntil[$day] = $i + $rowspan - 1;
                                                 @endphp
-                                                @if ($activity)
-                                                    @php
-                                                        $startTime = strtotime($activity->time_start);
-                                                        $endTime = strtotime($activity->time_end);
-                                                        $duration = ($endTime - $startTime) / 3600;
-                                                        $rowspan = ceil($duration);
-                                                        $occupiedUntil[$day] = $i + $rowspan - 1;
-                                                    @endphp
-                                                    <td rowspan="{{ $rowspan }}" class="course-cell">
-                                                        <p class="fw-bold mb-1">{{ $activity->course_code }}</p>
-                                                        <p class="mb-1">{{ $activity->activity }}</p>
-                                                        <p class="mb-1">{{ $activity->group_selection }}</p>
-                                                        <p class="mb-2">{{ $activity->venue->name }}</p>
-                                                        <div class="d-flex justify-content-center">
-                                                            <a href="#" class="action-icon show-timetable"
-                                                                data-bs-toggle="tooltip" data-bs-placement="top"
-                                                                data-id="{{ $activity->id }}" title="View Details">
-                                                                <i class="bi bi-eye-fill text-primary"></i>
-                                                            </a>
-                                                            <a href="#" class="action-icon edit-timetable"
-                                                                data-bs-toggle="tooltip" data-bs-placement="top"
-                                                                data-id="{{ $activity->id }}" title="Edit">
-                                                                <i class="bi bi-pencil-square text-primary"></i>
-                                                            </a>
-                                                            <form action="{{ route('timetable.destroy', $activity->id) }}"
-                                                                method="POST" style="display:inline;"
-                                                                class="delete-timetable-form">
-                                                                @csrf
-                                                                @method('DELETE')
-                                                                <button type="submit" data-bs-toggle="tooltip"
-                                                                    data-bs-placement="top" class="action-icon"
-                                                                    title="Delete">
-                                                                    <i class="bi bi-trash text-danger"></i>
-                                                                </button>
-                                                            </form>
+                                                <td rowspan="{{ $rowspan }}">
+                                                    @if ($activities->isNotEmpty())
+                                                        <div class="course-container">
+                                                            @foreach ($activities as $activity)
+                                                                <div class="course-cell p-2">
+                                                                    <p class="fw-bold mb-1">{{ $activity->course_code }}</p>
+                                                                    <p class="mb-1">{{ $activity->activity }}</p>
+                                                                    <p class="mb-1">{{ $activity->group_selection }}</p>
+                                                                    <p class="mb-2">{{ $activity->venue->name }}</p>
+                                                                    <div class="d-flex justify-content-center">
+                                                                        <a href="#" class="action-icon show-timetable"
+                                                                            data-bs-toggle="tooltip" data-bs-placement="top"
+                                                                            data-id="{{ $activity->id }}" title="View Details">
+                                                                            <i class="bi bi-eye-fill text-primary"></i>
+                                                                        </a>
+                                                                        <a href="#" class="action-icon edit-timetable"
+                                                                            data-bs-toggle="tooltip" data-bs-placement="top"
+                                                                            data-id="{{ $activity->id }}" title="Edit">
+                                                                            <i class="bi bi-pencil-square text-primary"></i>
+                                                                        </a>
+                                                                        <form action="{{ route('timetable.destroy', $activity->id) }}"
+                                                                            method="POST" style="display:inline;"
+                                                                            class="delete-timetable-form">
+                                                                            @csrf
+                                                                            @method('DELETE')
+                                                                            <button type="submit" data-bs-toggle="tooltip"
+                                                                                data-bs-placement="top" class="action-icon"
+                                                                                title="Delete">
+                                                                                <i class="bi bi-trash text-danger"></i>
+                                                                            </button>
+                                                                        </form>
+                                                                    </div>
+                                                                </div>
+                                                            @endforeach
                                                         </div>
-                                                    </td>
-                                                @else
-                                                    <td class="add-timetable empty-cell" data-day="{{ $day }}"
-                                                        data-time="{{ $slotStart }}"
-                                                        data-faculty="{{ $facultyId }}">
-                                                        <i class="bi bi-plus-circle fs-5"></i>
-                                                    </td>
-                                                @endif
+                                                        <!-- Add "+" icon below the sessions -->
+                                                        <div class="add-session-container add-timetable"
+                                                            data-day="{{ $day }}"
+                                                            data-time="{{ $slotStart }}"
+                                                            data-faculty="{{ $facultyId }}">
+                                                            <i class="bi bi-plus-circle fs-5"></i>
+                                                        </div>
+                                                    @else
+                                                        <div class="add-timetable empty-cell"
+                                                            data-day="{{ $day }}"
+                                                            data-time="{{ $slotStart }}"
+                                                            data-faculty="{{ $facultyId }}">
+                                                            <i class="bi bi-plus-circle fs-5"></i>
+                                                        </div>
+                                                    @endif
+                                                </td>
                                             @endif
                                         @endforeach
                                     </tr>
@@ -473,6 +494,11 @@
             const faculties = @json($faculties);
             console.log('Faculties available:', faculties);
 
+            // Ensure Bootstrap modal initialization
+            $('#editTimetableModal').on('shown.bs.modal', function () {
+                console.log('Edit modal opened');
+            });
+
             // Initialize Select2
             const initializeSelect2 = (selector, modalId = null) => {
                 $(selector).select2({
@@ -664,9 +690,8 @@
                     e.preventDefault();
                     const $form = $(this);
                     const venueId = $form.find('[name="venue_id"]').val();
-                    const venueCapacityRaw = $form.find('option:selected').data('capacity');
-                    console.log('Venue ID:', venueId, 'Raw Capacity:',
-                    venueCapacityRaw); // Debug log
+                    const venueCapacityRaw = $form.find('option[value="' + venueId + '"]').data('capacity');
+                    console.log('Venue ID:', venueId, 'Raw Capacity:', venueCapacityRaw); // Debug log
                     const venueCapacity = parseInt(venueCapacityRaw) || 0;
                     const groups = $form.find('[name="group_selection[]"]').val();
 
@@ -702,10 +727,12 @@
             $(document).on('click', '.edit-timetable', function(e) {
                 e.preventDefault();
                 const timetableId = $(this).data('id');
+                console.log('Edit timetable clicked, ID:', timetableId); // Debug log
                 $.ajax({
                     url: '{{ route('timetable.show', ':id') }}'.replace(':id', timetableId),
                     method: 'GET',
                     success: function(data) {
+                        console.log('Timetable data fetched:', data); // Debug log
                         $('#editTimetableForm').attr('action',
                             '{{ route('timetable.update', ':id') }}'.replace(':id',
                                 timetableId));
@@ -745,6 +772,10 @@
                                             .course_code));
                                 });
                                 $('#edit_modal_course_code').trigger('change');
+                            },
+                            error: function(xhr) {
+                                console.error('Error fetching courses:', xhr.responseText);
+                                showAlert('error', 'Error', 'Failed to load courses.');
                             }
                         });
 
@@ -768,12 +799,16 @@
                                                 group.group_name)));
                                 });
                                 $('#edit_modal_group_selection').trigger('change');
+                            },
+                            error: function(xhr) {
+                                console.error('Error fetching groups:', xhr.responseText);
+                                showAlert('error', 'Error', 'Failed to load groups.');
                             }
                         });
 
                         $('#edit_modal_activity').val(data.activity);
                         $('#edit_modal_venue_id').val(data.venue_id).trigger('change');
-                        $('#editTimetableModal').modal('show');
+                        $('#editTimetableModal').modal('show'); // Ensure modal is shown
                     },
                     error: function(xhr) {
                         console.error('Error fetching timetable:', xhr.responseText);
@@ -791,7 +826,7 @@
                     method: 'GET',
                     success: function(data) {
                         $('#show_course_code').text(data.course_code);
-                        $('#show_course_name').text(data.course_name || 'N/A');
+                        $('#show_course_name').text(data.name || 'N/A');
                         $('#show_activity').text(data.activity);
                         $('#show_day').text(data.day);
                         $('#show_time_start').text(data.time_start);

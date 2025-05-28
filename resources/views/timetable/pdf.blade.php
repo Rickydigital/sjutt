@@ -14,6 +14,22 @@
         .page { page-break-after: always; }
         .no-break { page-break-after: auto; }
         p { text-align: center; }
+        /* New styles for side-by-side sessions */
+        .session-container {
+            display: flex;
+            justify-content: space-between; /* Space out sessions evenly */
+            flex-wrap: wrap; /* Allow wrapping if too many sessions */
+            padding: 5px;
+        }
+        .session {
+            background: linear-gradient(135deg, #e2e8f0, #f8f9fa);
+            padding: 5px;
+            margin: 2px;
+            display: inline-block; /* Ensure proper alignment */
+            vertical-align: top;
+            width: auto; /* Dynamic width based on content */
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -49,42 +65,40 @@
                                     @foreach ($days as $day)
                                         @if ($i > $occupiedUntil[$day])
                                             @php
-                                                  $activity = null;
-                                                    $slotEnd = date('H:i', strtotime($slotStart) + 3600);
-                                                    $slotStartTime = strtotime($slotStart);
-                                                    $slotEndTime = strtotime($slotEnd);
-                                                    $potentialActivities = [];
-                                                    foreach ($activitiesByDay[$day] ?? [] as $act) {
-                                                        $actStart = strtotime($act->time_start);
-                                                        $actEnd = strtotime($act->time_end);
-                                                        $isMatch = ($actStart <= $slotStartTime && $actEnd > $slotStartTime);
-                                                        $potentialActivities[] = [
-                                                            'course_code' => $act->course_code,
-                                                            'time_start' => $act->time_start,
-                                                            'time_end' => $act->time_end,
-                                                            'group_selection' => $act->group_selection,
-                                                            'venue' => $act->venue->name,
-                                                            'isMatch' => $isMatch,
-                                                            'reason' => $isMatch ? 'Matched' : ($actStart > $slotStartTime ? 'Starts too late' : 'Ends too early')
-                                                        ];
-                                                        if ($isMatch) {
-                                                            $activity = $act;
-                                                            break;
-                                                        }
+                                                $slotEnd = date('H:i', strtotime($slotStart) + 3600);
+                                                $slotStartTime = strtotime($slotStart);
+                                                $slotEndTime = strtotime($slotEnd);
+                                                $matchingActivities = [];
+                                                foreach ($activitiesByDay[$day] ?? [] as $act) {
+                                                    $actStart = strtotime($act->time_start);
+                                                    $actEnd = strtotime($act->time_end);
+                                                    $isMatch = ($actStart <= $slotStartTime && $actEnd > $slotStartTime);
+                                                    if ($isMatch) {
+                                                        $matchingActivities[] = $act;
                                                     }
-                                            @endphp
-                                            @if ($activity)
-                                                @php
-                                                    $startTime = strtotime($activity->time_start);
-                                                    $endTime = strtotime($activity->time_end);
+                                                }
+                                                // Calculate rowspan based on the maximum duration of all matching activities
+                                                $maxSpan = 1;
+                                                foreach ($matchingActivities as $act) {
+                                                    $startTime = strtotime($act->time_start);
+                                                    $endTime = strtotime($act->time_end);
                                                     $span = ceil(($endTime - $startTime) / 3600);
-                                                    $occupiedUntil[$day] = $i + $span - 1;
-                                                @endphp
-                                                <td rowspan="{{ $span }}">
-                                                   <strong>{{ $activity->course_code }} </strong> <br>
-                                                   {{ $activity->group_selection }} <br>
-                                                    {{ $activity->activity }} <br>
-                                                    {{ $activity->venue->name }}
+                                                    $maxSpan = max($maxSpan, $span);
+                                                }
+                                                $occupiedUntil[$day] = $i + $maxSpan - 1;
+                                            @endphp
+                                            @if (!empty($matchingActivities))
+                                                <td rowspan="{{ $maxSpan }}">
+                                                    <div class="session-container">
+                                                        @foreach ($matchingActivities as $activity)
+                                                            <div class="session">
+                                                                <strong>{{ $activity->course_code }}</strong> <br>
+                                                                {{ $activity->group_selection }} <br>
+                                                                {{ $activity->activity }} <br>
+                                                                {{ $activity->venue->name }}
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
                                                 </td>
                                             @else
                                                 <td> </td>

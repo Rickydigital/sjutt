@@ -219,92 +219,27 @@ class CalendarController extends Controller
         }
     }
 
-    public function export()
-    {
+         public function export()
+{
+    $setup = CalendarSetup::first();
+    $calendarData = [];
+
+    if ($setup) {
         try {
-            // Log start of export process
-            Log::info('Starting PDF export process', [
-                'timestamp' => now()->toDateTimeString(),
-                'memory_usage' => memory_get_usage(true) / 1024 / 1024 . ' MB',
-                'php_version' => PHP_VERSION,
-                
-            ]);
-
-            // Fetch calendar setup
-            $setup = CalendarSetup::first();
-            if (!$setup) {
-                Log::warning('No calendar setup found', [
-                    'setup' => null,
-                ]);
-                return redirect()->back()->with('error', 'No calendar setup found');
-            }
-
-            // Log setup details
-            Log::info('Calendar setup retrieved', [
-                'setup_id' => $setup->id,
-                'start_date' => $setup->start_date,
-                'end_date' => $setup->end_date,
-            ]);
-
-            // Generate calendar data
-            Log::info('Generating calendar data');
             $calendarData = $this->generateCalendarData($setup);
-            Log::info('Calendar data generated', [
-                'month_count' => count($calendarData),
-                'total_days' => array_sum(array_map(fn($month) => count($month['days']), $calendarData)),
-            ]);
-
-            // Configure dompdf options as an array
-            $options = [
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true, // Enable if external images/CSS are needed
-                'defaultFont' => 'Helvetica',
-                'dpi' => 96,
-                'isPhpEnabled' => true, // Required for Blade/Twig rendering
-            ];
-            Log::info('Dompdf options configured', [
-                'options' => $options,
-            ]);
-
-            // Load view for PDF
-            Log::info('Loading view for PDF rendering');
-            $pdf = Pdf::loadView('calendar.pdf', compact('calendarData'));
-            Log::info('View loaded successfully');
-
-            // Apply options using setOptions
-            $pdf->setOptions($options);
-            Log::info('PDF options applied');
-
-            // Set paper size and orientation
-            $pdf->setPaper('A4', 'portrait');
-            Log::info('PDF paper size set to A4 portrait');
-
-            // Attempt to render PDF
-            Log::info('Rendering PDF');
-            $pdf->render();
-            Log::info('PDF rendered successfully', [
-                'output_size' => strlen($pdf->output()) / 1024 / 1024 . ' MB',
-            ]);
-
-            // Download PDF
-            Log::info('Initiating PDF download');
-            return $pdf->download('calendar.pdf');
         } catch (\Exception $e) {
-            // Enhanced error logging
-            Log::error('Failed to export PDF: ' . $e->getMessage(), [
+            Log::error('Failed to generate calendar data for PDF: ' . $e->getMessage(), [
                 'exception' => $e,
+                'setup' => $setup->toArray(),
                 'trace' => $e->getTraceAsString(),
-                'memory_usage' => memory_get_usage(true) / 1024 / 1024 . ' MB',
-                'calendar_data_summary' => isset($calendarData) ? [
-                    'month_count' => count($calendarData),
-                    'total_days' => array_sum(array_map(fn($month) => count($month['days']), $calendarData)),
-                ] : 'not generated',
-                'setup' => isset($setup) ? $setup->toArray() : 'not retrieved',
-                'view' => 'calendar.pdf',
             ]);
-            return redirect()->back()->with('error', 'Failed to export PDF: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to generate PDF. Please try again later.');
         }
     }
+
+    $pdf = Pdf::loadView('calendar.pdf', compact('setup', 'calendarData'));
+    return $pdf->download('academic_calendar.pdf');
+}
 
     private function generateCalendarData($setup)
     {
