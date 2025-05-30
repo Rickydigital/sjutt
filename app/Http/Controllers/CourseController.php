@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\CoursesExport;
+use App\Imports\CoursesImport;
 use App\Models\Program;
 use App\Models\Course;
 use App\Models\User;
 use App\Models\Faculty;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class CourseController extends Controller
 {
@@ -82,5 +85,21 @@ class CourseController extends Controller
     {
         $course->delete();
         return redirect()->route('courses.index')->with('success', 'Course deleted successfully.');
+    }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv'
+        ]);
+
+        Excel::import(new CoursesImport, $request->file('file'));
+
+        return back()->with('success', 'Courses imported successfully!');
+    }
+
+    public function export()
+    {
+        return Excel::download(new CoursesExport, 'courses_template.xlsx');
     }
 }

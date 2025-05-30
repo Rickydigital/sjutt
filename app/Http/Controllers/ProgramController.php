@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\ProgramsExport;
+use App\Imports\ProgramsImport;
 use App\Models\Program;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Str;
 
 class ProgramController extends Controller
 {
@@ -62,5 +66,19 @@ class ProgramController extends Controller
     {
         $program->delete();
         return redirect()->route('programs.index')->with('success', 'Program deleted successfully.');
+    }
+
+    public function export()
+    {
+        $filename = 'programs_' . now()->format('Ymd') . '_' . rand(1000, 9999) . '.xlsx';
+        return Excel::download(new ProgramsExport, $filename);
+    }
+
+    public function import(Request $request)
+    {
+        $request->validate(['file' => 'required|mimes:xlsx,xls']);
+
+        Excel::import(new ProgramsImport, $request->file('file'));
+        return redirect()->route('programs.index')->with('success', 'Programs imported successfully.');
     }
 }

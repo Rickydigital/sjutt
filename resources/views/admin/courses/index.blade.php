@@ -1,81 +1,99 @@
 @extends('components.app-main-layout')
 
 @section('content')
-
-    <div class="animated fadeIn">
-        <!-- Page Header -->
-        <div class="row mb-4">
-            <div class="col-md-12">
-                <div class="d-flex align-items-center justify-content-between">
-                    <h1 class="font-weight-bold">
-                        <i class="fa fa-graduation-cap mr-2"></i> Course Management
-                    </h1>
-                    <a href="{{ route('courses.create') }}" class="btn btn-primary"> New Course </a>
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex flex-row justify-content-between">
+                <div class="col-md-4">
+                    <strong class="card-title">Courses</strong>
+                </div>
+                <div>
+                    <a href="{{ route('courses.create') }}" class="btn btn-primary">New Course</a>
+                    <a href="{{ route('courses.export') }}" class="btn btn-success">Export Courses</a>
+                    <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#importModal">Import Courses</button>
                 </div>
             </div>
         </div>
+        <div class="card-body">
+            @if (session('success'))
+                <div class="alert alert-success">{{ session('success') }}</div>
+            @endif
+            @if (session('error'))
+                <div class="alert alert-danger">{{ session('error') }}</div>
+            @endif
+            @if ($courses->isEmpty())
+                <p class="text-center">No courses found.</p>
+            @else
+                <table class="table table-striped">
+                    <thead class="bg-primary text-white">
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Credits</th>
+                            <th>Lecturers</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($courses as $course)
+                            <tr>
+                                <td>{{ $course->course_code }}</td>
+                                <td>{{ $course->name }}</td>
+                                <td>{{ $course->credits }}</td>
+                                <td>{{ $course->lecturers->pluck('name')->join(', ') ?: 'None' }}</td>
+                                <td>
+                                    <a href="{{ route('courses.show', $course) }}" class="action-icon text-primary"
+                                        data-bs-toggle="tooltip" data-bs-placement="top" title="View">
+                                        <i class="bi bi-eye-fill"></i>
+                                    </a>
+                                    <a href="{{ route('courses.edit', $course) }}" class="action-icon text-primary"
+                                        data-bs-toggle="tooltip" data-bs-placement="top" title="Edit">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </a>
+                                    <form action="{{ route('courses.destroy', $course) }}" method="POST"
+                                        style="display: inline;"
+                                        onsubmit="return confirm('Are you sure you want to delete this course?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="action-icon text-danger" data-bs-toggle="tooltip"
+                                            data-bs-placement="top" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+                <div class="my-2">
+                    {{ $courses->links('vendor.pagination.bootstrap-5') }}
+                </div>
+            @endif
+        </div>
+    </div>
 
-        <!-- Course Table -->
-        <div class="card">
-            <div class="card-header">
-                <strong class="card-title">List of Courses</strong>
-            </div>
-            <div class="card-body p-0">
-                @if ($courses->isEmpty())
-                    <div class="alert alert-info text-center m-3">
-                        <i class="fa fa-info-circle mr-2"></i> No courses found.
+    <!-- Import Modal -->
+    <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importModalLabel">Import Courses</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="{{ route('courses.import') }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="file" class="form-label">Select Excel File</label>
+                            <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls" required>
+                        </div>
                     </div>
-                @else
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead class="bg-primary text-white">
-                                <tr>
-                                    <th>Code</th>
-                                    <th>Name</th>
-                                    <th>Credits</th>
-                                    <th>Lecturers</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($courses as $course)
-                                    <tr>
-                                        <td class="align-middle">{{ $course->course_code }}</td>
-                                        <td class="align-middle">{{ $course->name }}</td>
-                                        <td class="align-middle">{{ $course->credits }}</td>
-                                        <td class="align-middle">
-                                            {{ $course->lecturers->pluck('name')->join(', ') ?: 'None' }}
-                                        </td>
-                                        <td class="align-middle">
-                                            <a href="{{ route('courses.edit', $course->id) }}"
-                                                class="action-icon text-primary" title="Edit">
-                                                <i class="bi bi-pencil-square"></i>
-                                            </a>
-                                            <form action="{{ route('courses.destroy', $course->id) }}" method="POST"
-                                                style="display:inline;">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="action-icon text-danger" title="Delete"
-                                                    onclick="return confirm('Are you sure?');">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Import</button>
                     </div>
-                @endif
+                </form>
             </div>
         </div>
-
-        @if ($courses->hasPages())
-            <div class="row mt-4">
-                <div class="col-md-12">
-                    {{ $courses->links('pagination::bootstrap-4') }}
-                </div>
-            </div>
-        @endif
     </div>
 @endsection

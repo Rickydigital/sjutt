@@ -10,7 +10,15 @@
                     <h1 class="font-weight-bold">
                         <i class="fa fa-university mr-2"></i> Faculty Management
                     </h1>
-                    <a href="{{ route('faculties.create') }}" class="btn btn-primary"> New Faculty </a>
+                    
+
+                       <div class="mb-3">
+                             <a href="{{ route('faculties.create') }}" class="btn btn-primary"> New Faculty </a>
+                            <a href="{{ route('faculties.export') }}" class="btn btn-success">Export Faculties</a>
+                            <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#importModal">
+                                Import Faculties
+                            </button>
+                        </div>
                 </div>
             </div>
         </div>
@@ -86,4 +94,28 @@
             </div>
         </div>
     </div>
+
+        <!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form action="{{ route('faculties.import') }}" method="POST" enctype="multipart/form-data">
+      @csrf
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="importModalLabel">Import Faculties</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="file" class="form-label">Choose Excel File</label>
+            <input type="file" class="form-control" id="file" name="file" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Import</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
 @endsection

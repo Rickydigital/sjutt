@@ -3,16 +3,24 @@
 @section('content')
     <div class="card">
         <div class="card-header">
-            <div class=" d-flex flex-row justify-content-between">
+            <div class="d-flex flex-row justify-content-between">
                 <div class="col-md-4">
                     <strong class="card-title">Venues</strong>
                 </div>
-
-                <a href="{{ route('venues.create') }}" class="btn btn-primary"> New Venue </a>
-
+                <div>
+                    <a href="{{ route('venues.create') }}" class="btn btn-primary">New Venue</a>
+                    <a href="{{ route('venues.export') }}" class="btn btn-success">Export Venues Now</a>
+                    <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#importModal">Import Buildings & Venues</button>
+                </div>
             </div>
         </div>
         <div class="card-body">
+            @if (session('success'))
+                <div class="alert alert-success">{{ session('success') }}</div>
+            @endif
+            @if (session('error'))
+                <div class="alert alert-danger">{{ session('error') }}</div>
+            @endif
             @if ($venues->isEmpty())
                 <p class="text-center">No venues found.</p>
             @else
@@ -59,8 +67,35 @@
                         @endforeach
                     </tbody>
                 </table>
-                {{ $venues->links() }}
+                 <div class=" my-2">
+                    {{ $venues->links('vendor.pagination.bootstrap-5') }}
+                </div>
             @endif
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importModalLabel">Import Buildings & Venues</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="{{ route('venues.import') }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="file" class="form-label">Select Excel File</label>
+                            <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Import</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 @endsection

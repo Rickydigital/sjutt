@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\FacultiesExport;
+use App\Imports\FacultiesImport;
 use App\Models\Faculty;
 use App\Models\Program;
 use App\Models\Course;
 use App\Models\FacultyGroup;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class FacultyController extends Controller
 {
@@ -173,4 +176,20 @@ class FacultyController extends Controller
 
         return response()->json(['faculty_names' => array_values($availableNames)]);
     }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv',
+        ]);
+
+        Excel::import(new FacultiesImport, $request->file('file'));
+
+        return redirect()->route('faculties.index')->with('success', 'Faculties imported successfully.');
+    }
+
+    public function export()
+    {
+        return Excel::download(new FacultiesExport, 'faculties.xlsx');
+}
 }

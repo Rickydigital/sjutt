@@ -78,14 +78,22 @@ Route::middleware('auth')->group(function () {
     Route::resource('gallery', GalleryController::class);
     Route::resource('about', AboutController::class);
     Route::resource('fee_structures', FeeStructureController::class);
+    Route::get('/courses/export', [CourseController::class, 'export'])->name('courses.export');
+    Route::post('/courses/import', [CourseController::class, 'import'])->name('courses.import');
     Route::resource('courses', CourseController::class);
     Route::resource('users', UserController::class);
     Route::resource('news', NewsController::class);
     Route::resource('events', EventController::class);
+    Route::post('/faculties/import', [FacultyController::class, 'import'])->name('faculties.import');
+    Route::get('/faculties/export', [FacultyController::class, 'export'])->name('faculties.export');
     Route::resource('faculties', FacultyController::class);
     Route::resource('years', YearController::class);
     Route::resource('buildings', BuildingController::class);
+    Route::get('programs/export', [ProgramController::class, 'export'])->name('programs.export');
+    Route::post('programs/import', [ProgramController::class, 'import'])->name('programs.import');
     Route::resource('programs', ProgramController::class);
+    Route::post('/venues/import', [VenueController::class, 'import'])->name('venues.import');
+    Route::get('/venues/export', [VenueController::class, 'exportVenues'])->name('venues.export');
     Route::resource('venues', VenueController::class);
     Route::put('users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
     Route::put('users/{user}/activate', [UserController::class, 'activate'])->name('users.activate');
@@ -94,6 +102,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/suggestions/reply/{student_id}', [AdminSuggestionController::class, 'replyToStudent'])->name('admin.suggestions.reply');
     Route::get('/calendar/export', [CalendarController::class, 'export'])->name('calendar.export');
     Route::resource('calendar', CalendarController::class);
+    
+
+   
 
 });
 

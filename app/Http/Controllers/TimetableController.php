@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 class TimetableController extends Controller
 {
     public function index(Request $request)
-    {   
+    {
         $facultyId = $request->input('faculty');
         $timetables = $facultyId ? Timetable::where('faculty_id', $facultyId)->with('faculty', 'venue', 'lecturer')->get() : collect();
         $faculties = Faculty::pluck('name', 'id');
@@ -329,35 +329,35 @@ class TimetableController extends Controller
         }
     }
 
-          public function export()
-        {
-            $faculties = Faculty::orderBy('name')->with('timetables.venue')->get();
-            $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-            $timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'];
+    public function export()
+    {
+        $faculties = Faculty::orderBy('name')->with('timetables.venue')->get();
+        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        $timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'];
 
-            // Log all timetable data for debugging
-            foreach ($faculties as $faculty) {
-                Log::info('Timetable data for Faculty: ' . $faculty->name, [
-                    'faculty_id' => $faculty->id,
-                    'timetables' => $faculty->timetables->map(function ($timetable) {
-                        return [
-                            'id' => $timetable->id,
-                            'day' => $timetable->day,
-                            'time_start' => $timetable->time_start,
-                            'time_end' => $timetable->time_end,
-                            'course_code' => $timetable->course_code,
-                            'group_selection' => $timetable->group_selection,
-                            'venue' => $timetable->venue->name,
-                            'activity' => $timetable->activity
-                        ];
-                    })->toArray()
-                ]);
-            }
-
-            $pdf = Pdf::loadView('timetable.pdf', compact('faculties', 'days', 'timeSlots'));
-            $randomNumber = mt_rand(1000, 9999); 
-            return $pdf->download("timetable_{$randomNumber}.pdf");
+        // Log all timetable data for debugging
+        foreach ($faculties as $faculty) {
+            Log::info('Timetable data for Faculty: ' . $faculty->name, [
+                'faculty_id' => $faculty->id,
+                'timetables' => $faculty->timetables->map(function ($timetable) {
+                    return [
+                        'id' => $timetable->id,
+                        'day' => $timetable->day,
+                        'time_start' => $timetable->time_start,
+                        'time_end' => $timetable->time_end,
+                        'course_code' => $timetable->course_code,
+                        'group_selection' => $timetable->group_selection,
+                        'venue' => $timetable->venue->name,
+                        'activity' => $timetable->activity
+                    ];
+                })->toArray()
+            ]);
         }
+
+        $pdf = Pdf::loadView('timetable.pdf', compact('faculties', 'days', 'timeSlots'));
+        $randomNumber = mt_rand(1000, 9999);
+        return $pdf->download("timetable_{$randomNumber}.pdf");
+    }
     public function getStudentCount(Request $request)
     {
         $request->validate([
@@ -390,129 +390,129 @@ class TimetableController extends Controller
             ->sum('student_count');
     }
 
-      private function checkConflicts(Request $request, array $validated, ?int $excludeId = null): array
-{
-    Log::info('Checking conflicts', [
-        'excludeId' => $excludeId,
-        'validated' => $validated
-    ]);
+    private function checkConflicts(Request $request, array $validated, ?int $excludeId = null): array
+    {
+        Log::info('Checking conflicts', [
+            'excludeId' => $excludeId,
+            'validated' => $validated
+        ]);
 
-    $conflicts = [];
+        $conflicts = [];
 
-    // 1. Lecturer Conflict Check
-    if ($validated['lecturer_id']) {
-        $lecturerConflict = Timetable::where('day', $validated['day'])
-            ->where('lecturer_id', $validated['lecturer_id'])
-            ->where('course_code', '!=', $validated['course_code']) // Allow same lecturer for different courses
+        // 1. Lecturer Conflict Check
+        if ($validated['lecturer_id']) {
+            $lecturerConflict = Timetable::where('day', $validated['day'])
+                ->where('lecturer_id', $validated['lecturer_id'])
+                ->where('course_code', '!=', $validated['course_code']) // Allow same lecturer for different courses
+                ->where(function ($query) use ($validated) {
+                    $query->where(function ($q) use ($validated) {
+                        $q->where('time_start', '<', $validated['time_end'])
+                            ->where('time_end', '>', $validated['time_start']);
+                    });
+                })
+                ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+                ->first();
+            if ($lecturerConflict) {
+                Log::info('Lecturer conflict found', ['conflict' => $lecturerConflict->toArray()]);
+                $conflicts[] = "Lecturer is assigned to session {$lecturerConflict->course_code} for {$lecturerConflict->faculty->name} from {$lecturerConflict->time_start} to {$lecturerConflict->time_end}.";
+            }
+        }
+
+        // 2. Venue Conflict Check
+        $venueConflict = Timetable::where('day', $validated['day'])
+            ->where('venue_id', $validated['venue_id'])
             ->where(function ($query) use ($validated) {
                 $query->where(function ($q) use ($validated) {
                     $q->where('time_start', '<', $validated['time_end'])
-                      ->where('time_end', '>', $validated['time_start']);
+                        ->where('time_end', '>', $validated['time_start']);
                 });
             })
             ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
             ->first();
-        if ($lecturerConflict) {
-            Log::info('Lecturer conflict found', ['conflict' => $lecturerConflict->toArray()]);
-            $conflicts[] = "Lecturer is assigned to session {$lecturerConflict->course_code} for {$lecturerConflict->faculty->name} from {$lecturerConflict->time_start} to {$lecturerConflict->time_end}.";
+        if ($venueConflict) {
+            Log::info('Venue conflict found', ['conflict' => $venueConflict->toArray()]);
+            $conflicts[] = "Venue {$venueConflict->venue->name} is in use by {$venueConflict->faculty->name} for {$venueConflict->course_code} from {$venueConflict->time_start} to {$venueConflict->time_end}.";
         }
-    }
 
-    // 2. Venue Conflict Check
-    $venueConflict = Timetable::where('day', $validated['day'])
-        ->where('venue_id', $validated['venue_id'])
-        ->where(function ($query) use ($validated) {
-            $query->where(function ($q) use ($validated) {
-                $q->where('time_start', '<', $validated['time_end'])
-                  ->where('time_end', '>', $validated['time_start']);
-            });
-        })
-        ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
-        ->first();
-    if ($venueConflict) {
-        Log::info('Venue conflict found', ['conflict' => $venueConflict->toArray()]);
-        $conflicts[] = "Venue {$venueConflict->venue->name} is in use by {$venueConflict->faculty->name} for {$venueConflict->course_code} from {$venueConflict->time_start} to {$venueConflict->time_end}.";
-    }
+        // 3. Group Conflict Check
+        $groups = explode(',', $validated['group_selection']);
+        if ($groups[0] === 'All Groups') {
+            $groups = FacultyGroup::where('faculty_id', $validated['faculty_id'])->pluck('group_name')->toArray();
+        }
+        foreach ($groups as $group) {
+            $groupConflict = Timetable::where('day', $validated['day'])
+                ->where('faculty_id', $validated['faculty_id'])
+                ->where('group_selection', 'like', "%$group%")
+                ->where(function ($query) use ($validated) {
+                    $query->where(function ($q) use ($validated) {
+                        $q->where('time_start', '<', $validated['time_end'])
+                            ->where('time_end', '>', $validated['time_start']);
+                    });
+                })
+                ->where('venue_id', '!=', $validated['venue_id']) // Allow same group if venue differs
+                ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+                ->first();
+            if ($groupConflict) {
+                Log::info('Group conflict found', ['group' => $group, 'conflict' => $groupConflict->toArray()]);
+                $conflicts[] = "Group $group is already assigned to session {$groupConflict->course_code} at {$groupConflict->venue->name} from {$groupConflict->time_start} to {$groupConflict->time_end}.";
+            }
+        }
 
-    // 3. Group Conflict Check
-    $groups = explode(',', $validated['group_selection']);
-    if ($groups[0] === 'All Groups') {
-        $groups = FacultyGroup::where('faculty_id', $validated['faculty_id'])->pluck('group_name')->toArray();
-    }
-    foreach ($groups as $group) {
-        $groupConflict = Timetable::where('day', $validated['day'])
+        // 4. Faculty "All Groups" Conflict Check (relaxed to allow multiple sessions)
+        if (in_array('All Groups', $groups)) {
+            $facultyConflict = Timetable::where('day', $validated['day'])
+                ->where('faculty_id', $validated['faculty_id'])
+                ->where('group_selection', 'like', '%All Groups%')
+                ->where(function ($query) use ($validated) {
+                    $query->where(function ($q) use ($validated) {
+                        $q->where('time_start', '<', $validated['time_end'])
+                            ->where('time_end', '>', $validated['time_start']);
+                    });
+                })
+                ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+                ->first();
+            if ($facultyConflict) {
+                Log::info('Faculty All Groups conflict found', ['conflict' => $facultyConflict->toArray()]);
+                $conflicts[] = "Faculty {$facultyConflict->faculty->name} has a session for all groups with {$facultyConflict->course_code} from {$facultyConflict->time_start} to {$facultyConflict->time_end}.";
+            }
+        } else {
+            $allGroupsConflict = Timetable::where('day', $validated['day'])
+                ->where('faculty_id', $validated['faculty_id'])
+                ->where('group_selection', 'All Groups')
+                ->where(function ($query) use ($validated) {
+                    $query->where(function ($q) use ($validated) {
+                        $q->where('time_start', '<', $validated['time_end'])
+                            ->where('time_end', '>', $validated['time_start']);
+                    });
+                })
+                ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+                ->first();
+            if ($allGroupsConflict) {
+                Log::info('Faculty All Groups conflict found (alternative)', ['conflict' => $allGroupsConflict->toArray()]);
+                $conflicts[] = "Faculty {$allGroupsConflict->faculty->name} has a session for all groups with {$allGroupsConflict->course_code} from {$allGroupsConflict->time_start} to {$allGroupsConflict->time_end}.";
+            }
+        }
+
+        // 5. Course Conflict Check
+        $courseConflict = Timetable::where('day', $validated['day'])
+            ->where('course_code', $validated['course_code'])
             ->where('faculty_id', $validated['faculty_id'])
-            ->where('group_selection', 'like', "%$group%")
+            ->where('activity', $validated['activity']) // Conflict only if same activity
             ->where(function ($query) use ($validated) {
                 $query->where(function ($q) use ($validated) {
                     $q->where('time_start', '<', $validated['time_end'])
-                      ->where('time_end', '>', $validated['time_start']);
-                });
-            })
-            ->where('venue_id', '!=', $validated['venue_id']) // Allow same group if venue differs
-            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
-            ->first();
-        if ($groupConflict) {
-            Log::info('Group conflict found', ['group' => $group, 'conflict' => $groupConflict->toArray()]);
-            $conflicts[] = "Group $group is already assigned to session {$groupConflict->course_code} at {$groupConflict->venue->name} from {$groupConflict->time_start} to {$groupConflict->time_end}.";
-        }
-    }
-
-    // 4. Faculty "All Groups" Conflict Check (relaxed to allow multiple sessions)
-    if (in_array('All Groups', $groups)) {
-        $facultyConflict = Timetable::where('day', $validated['day'])
-            ->where('faculty_id', $validated['faculty_id'])
-            ->where('group_selection', 'like', '%All Groups%')
-            ->where(function ($query) use ($validated) {
-                $query->where(function ($q) use ($validated) {
-                    $q->where('time_start', '<', $validated['time_end'])
-                      ->where('time_end', '>', $validated['time_start']);
+                        ->where('time_end', '>', $validated['time_start']);
                 });
             })
             ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
             ->first();
-        if ($facultyConflict) {
-            Log::info('Faculty All Groups conflict found', ['conflict' => $facultyConflict->toArray()]);
-            $conflicts[] = "Faculty {$facultyConflict->faculty->name} has a session for all groups with {$facultyConflict->course_code} from {$facultyConflict->time_start} to {$facultyConflict->time_end}.";
+        if ($courseConflict) {
+            Log::info('Course conflict found', ['conflict' => $courseConflict->toArray()]);
+            $conflicts[] = "Course {$validated['course_code']} is already scheduled for {$courseConflict->faculty->name} as {$courseConflict->activity} from {$courseConflict->time_start} to {$courseConflict->time_end}.";
         }
-    } else {
-        $allGroupsConflict = Timetable::where('day', $validated['day'])
-            ->where('faculty_id', $validated['faculty_id'])
-            ->where('group_selection', 'All Groups')
-            ->where(function ($query) use ($validated) {
-                $query->where(function ($q) use ($validated) {
-                    $q->where('time_start', '<', $validated['time_end'])
-                      ->where('time_end', '>', $validated['time_start']);
-                });
-            })
-            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
-            ->first();
-        if ($allGroupsConflict) {
-            Log::info('Faculty All Groups conflict found (alternative)', ['conflict' => $allGroupsConflict->toArray()]);
-            $conflicts[] = "Faculty {$allGroupsConflict->faculty->name} has a session for all groups with {$allGroupsConflict->course_code} from {$allGroupsConflict->time_start} to {$allGroupsConflict->time_end}.";
-        }
-    }
 
-    // 5. Course Conflict Check
-    $courseConflict = Timetable::where('day', $validated['day'])
-        ->where('course_code', $validated['course_code'])
-        ->where('faculty_id', $validated['faculty_id'])
-        ->where('activity', $validated['activity']) // Conflict only if same activity
-        ->where(function ($query) use ($validated) {
-            $query->where(function ($q) use ($validated) {
-                $q->where('time_start', '<', $validated['time_end'])
-                  ->where('time_end', '>', $validated['time_start']);
-            });
-        })
-        ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
-        ->first();
-    if ($courseConflict) {
-        Log::info('Course conflict found', ['conflict' => $courseConflict->toArray()]);
-        $conflicts[] = "Course {$validated['course_code']} is already scheduled for {$courseConflict->faculty->name} as {$courseConflict->activity} from {$courseConflict->time_start} to {$courseConflict->time_end}.";
+        return $conflicts;
     }
-
-    return $conflicts;
-}
 
     public function getFacultyCourses(Request $request)
     {
@@ -548,43 +548,43 @@ class TimetableController extends Controller
         return response()->json(['lecturers' => $lecturers]);
     }
 
-       public function destroy(Request $request, Timetable $timetable)
-{
-    Log::info('Delete request for timetable:', ['id' => $timetable->id, 'course_code' => $timetable->course_code]);
+    public function destroy(Request $request, Timetable $timetable)
+    {
+        Log::info('Delete request for timetable:', ['id' => $timetable->id, 'course_code' => $timetable->course_code]);
 
-    try {
-        DB::enableQueryLog();
-        DB::beginTransaction();
         try {
-            $timetable->delete();
-            DB::commit();
-            Log::info('Timetable deleted successfully:', [
-                'id' => $timetable->id,
-                'query_log' => DB::getQueryLog()
-            ]);
-            return $request->ajax()
-                ? response()->json(['message' => 'Timetable entry deleted successfully.'])
-                : redirect()->route('timetable.index')->with('success', 'Timetable entry deleted successfully.');
-        } catch (\Illuminate\Database\QueryException $e) {
-            DB::rollBack();
-            Log::error('Database error deleting timetable: ' . $e->getMessage(), [
+            DB::enableQueryLog();
+            DB::beginTransaction();
+            try {
+                $timetable->delete();
+                DB::commit();
+                Log::info('Timetable deleted successfully:', [
+                    'id' => $timetable->id,
+                    'query_log' => DB::getQueryLog()
+                ]);
+                return $request->ajax()
+                    ? response()->json(['message' => 'Timetable entry deleted successfully.'])
+                    : redirect()->route('timetable.index')->with('success', 'Timetable entry deleted successfully.');
+            } catch (\Illuminate\Database\QueryException $e) {
+                DB::rollBack();
+                Log::error('Database error deleting timetable: ' . $e->getMessage(), [
+                    'exception' => $e,
+                    'sql' => $e->getSql(),
+                    'bindings' => $e->getBindings(),
+                    'query_log' => DB::getQueryLog()
+                ]);
+                return $request->ajax()
+                    ? response()->json(['errors' => ['error' => 'Database error: ' . $e->getMessage()]], 422)
+                    : back()->withErrors(['error' => 'Database error: ' . $e->getMessage()]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Unexpected error in delete: ' . $e->getMessage(), [
                 'exception' => $e,
-                'sql' => $e->getSql(),
-                'bindings' => $e->getBindings(),
-                'query_log' => DB::getQueryLog()
+                'timetable_id' => $timetable->id
             ]);
             return $request->ajax()
-                ? response()->json(['errors' => ['error' => 'Database error: ' . $e->getMessage()]], 422)
-                : back()->withErrors(['error' => 'Database error: ' . $e->getMessage()]);
+                ? response()->json(['errors' => ['error' => 'Unexpected error: ' . $e->getMessage()]], 422)
+                : back()->withErrors(['error' => 'Unexpected error: ' . $e->getMessage()]);
         }
-    } catch (\Exception $e) {
-        Log::error('Unexpected error in delete: ' . $e->getMessage(), [
-            'exception' => $e,
-            'timetable_id' => $timetable->id
-        ]);
-        return $request->ajax()
-            ? response()->json(['errors' => ['error' => 'Unexpected error: ' . $e->getMessage()]], 422)
-            : back()->withErrors(['error' => 'Unexpected error: ' . $e->getMessage()]);
     }
-}
 }

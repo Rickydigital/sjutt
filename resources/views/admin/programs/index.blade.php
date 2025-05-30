@@ -6,12 +6,23 @@
     <!-- Page Header -->
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="d-flex align-items-center justify-content-between">
-                <h1 class="font-weight-bold">
-                    <i class="fa fa-book mr-2"></i> Program Management
-                </h1>
+            
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ route('programs.export') }}" class="btn btn-success">
+                    <i class="bi bi-download me-1"></i> Export Programs
+                </a>
+
+                <a href="{{ asset('storage/sample_import_programs.xlsx') }}" class="btn btn-secondary">
+                    <i class="bi bi-file-earmark-text me-1"></i> Sample Import
+                </a>
+
+                <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#importModal">
+                    <i class="bi bi-upload me-1"></i> Import Programs
+                </button>
+
                 <a href="{{ route('programs.create') }}" class="btn btn-primary"> New Program </a>
             </div>
+
         </div>
     </div>
 
@@ -76,6 +87,32 @@
             </div>
         </div>
     @endif
+
+
+
+    <!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form action="{{ route('programs.import') }}" method="POST" enctype="multipart/form-data" class="modal-content">
+            @csrf
+            <div class="modal-header">
+                <h5 class="modal-title" id="importModalLabel">Import Programs from Excel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="file">Choose Excel file</label>
+                    <input type="file" name="file" id="file" class="form-control" accept=".xlsx,.xls" required>
+                </div>
+                <small class="text-muted">Ensure the file includes: Name, Short Name, Total Years, Description, Administrator Email.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-info">Import</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 @endsection
 

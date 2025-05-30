@@ -6,6 +6,9 @@ use App\Models\Venue;
 use App\Models\Building;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Imports\BuildingsVenuesImport;
+use App\Exports\VenuesExport;
 
 class VenueController extends Controller
 {
@@ -59,7 +62,6 @@ class VenueController extends Controller
             'type',
         ]);
 
-        // Ensure building_id is an integer
         $data['building_id'] = (int) $data['building_id'];
 
         Log::info('Storing venue with raw request: ', $request->all());
@@ -116,7 +118,6 @@ class VenueController extends Controller
             'type',
         ]);
 
-        // Ensure building_id is an integer
         $data['building_id'] = (int) $data['building_id'];
 
         Log::info('Updating venue with raw request: ', $request->all());
@@ -151,4 +152,26 @@ class VenueController extends Controller
         $venues = Venue::with('building')->get();
         return response()->json($venues);
     }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls',
+        ]);
+
+        try {
+            Excel::import(new BuildingsVenuesImport, $request->file('file'));
+            return redirect()->route('venues.index')->with('success', 'Buildings and venues imported successfully.');
+        } catch (\Exception $e) {
+            Log::error('Failed to import buildings and venues: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to import buildings and venues: ' . $e->getMessage());
+        }
+    }
+
+    public function exportVenues()
+    {
+        $filename = 'sjutvenues' . rand(1000, 9999) . '.xlsx';
+        return Excel::download(new VenuesExport, $filename);
+    }
+
 }
