@@ -6,21 +6,41 @@ use App\Models\Building;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\BuildingsImport;
+use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Support\Facades\Log;
 
-class BuildingController extends Controller
+
+class BuildingController extends Controller implements HasMiddleware
 {
+    /**
+     * Define middleware for controller actions.
+     *
+     * @return array
+     */
+    public static function middleware(): array
+    {
+        return [
+            'permission:view buildings' => ['only' => ['index', 'show', 'create', 'apiIndex']],
+            'permission:create buildings' => ['only' => ['store']],
+            'permission:edit buildings' => ['only' => ['update']],
+            'permission:delete buildings' => ['only' => ['destroy']],
+        ];
+    }
+
+    
     public function index()
     {
         $buildings = Building::withCount('venues')->paginate(10);
         return view('admin.buildings.index', compact('buildings'));
     }
 
+   
     public function create()
     {
         return view('admin.buildings.create');
     }
 
+    
     public function store(Request $request)
     {
         $request->validate([
@@ -33,17 +53,20 @@ class BuildingController extends Controller
         return redirect()->route('buildings.index')->with('success', 'Building added successfully.');
     }
 
+    
     public function show(Building $building)
     {
         $building->load('venues');
         return view('admin.buildings.show', compact('building'));
     }
 
+    
     public function edit(Building $building)
     {
         return view('admin.buildings.edit', compact('building'));
     }
 
+    
     public function update(Request $request, Building $building)
     {
         $request->validate([
@@ -56,6 +79,7 @@ class BuildingController extends Controller
         return redirect()->route('buildings.index')->with('success', 'Building updated successfully.');
     }
 
+    
     public function destroy(Building $building)
     {
         if ($building->venues()->exists()) {
@@ -66,11 +90,10 @@ class BuildingController extends Controller
         return redirect()->route('buildings.index')->with('success', 'Building deleted successfully.');
     }
 
+    
     public function apiIndex()
     {
         $buildings = Building::with('venues')->get();
         return response()->json($buildings);
     }
-
-   
 }
