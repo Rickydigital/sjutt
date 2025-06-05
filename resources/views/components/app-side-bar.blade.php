@@ -126,7 +126,7 @@
                 @endcanany
 
                 {{-- Community --}}
-                @can('view talents')
+                {{-- @can('view talents')
                 <li class="nav-item">
                     <a data-bs-toggle="collapse" href="#community">
                         <i class="bi bi-person-arms-up"></i>
@@ -153,7 +153,7 @@
                         </ul>
                     </div>
                 </li>
-                @endcan
+                @endcan --}}
 
                 {{-- News and Events --}}
                 @canany(['view news', 'view events', 'view gallery'])

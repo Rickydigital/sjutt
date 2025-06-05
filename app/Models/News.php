@@ -10,7 +10,7 @@ class News extends Model {
     protected $fillable = ['title', 'description', 'image', 'video', 'created_by'];
 
     public function user() {
-        return $this->belongsTo(Student::class, 'created_by'); // Use Student for your app
+        return $this->belongsTo(Student::class, 'created_by'); 
     }
 
     public function reactions() {
