@@ -136,7 +136,7 @@ class UserController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'],
-            'gender' => $validated['gender'],
+            'gender' => $validated['gender'], 
         ];
 
         if (!empty($validated['password'])) {
