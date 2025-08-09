@@ -94,6 +94,7 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::put('/timetables/{timetable}', [ExaminationTimetableController::class, 'update'])->name('timetables.update')->middleware(['permission:edit examination timetables']);
     Route::delete('/timetables/{timetable}', [ExaminationTimetableController::class, 'destroy'])->name('timetables.destroy')->middleware(['permission:delete examination timetables']);
     Route::post('/timetable/generate', [TimetableController::class, 'generateTimetable'])->name('timetable.generate');
+    Route::post('/timetables/generate', [ExaminationTimetableController::class, 'generateTimetable'])->name('timetables.generate');
 
     // Faculties
     Route::post('/faculties/store-course', [FacultyController::class, 'storeCourse'])->name('faculties.storeCourse')->middleware(['permission:create courses']);

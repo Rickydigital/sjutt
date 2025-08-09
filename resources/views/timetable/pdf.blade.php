@@ -14,24 +14,20 @@
         .page { page-break-after: always; }
         .no-break { page-break-after: auto; }
         p { text-align: center; }
-        .session-container {
-            display: flex;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            padding: 5px;
-        }
         .session {
             background: linear-gradient(135deg, #e2e8f0, #f8f9fa);
             padding: 5px;
-            margin: 2px;
-            display: inline-block;
-            vertical-align: top;
-            width: auto;
+            margin: 2px 0;
             text-align: center;
+            box-sizing: border-box;
+            font-size: 11px; /* Consistent font size for readability */
+            line-height: 1.4;
         }
-        /* Reduce font size for cells with multiple sessions */
-        .session-container.multiple-sessions .session {
-            font-size: 10px;
+        @media print {
+            .page { page-break-after: always; }
+            .session {
+                font-size: 10px; /* Slightly smaller for print, but still readable */
+            }
         }
     </style>
 </head>
@@ -47,6 +43,24 @@
                 @php
                     $activitiesByDay = $faculty->timetables->groupBy('day');
                     $occupiedUntil = array_fill_keys($days, -1);
+                    // Group activities by time slot and day for easier row management
+                    $activitiesByTimeAndDay = [];
+                    foreach ($activitiesByDay as $day => $activities) {
+                        foreach ($activities as $act) {
+                            $startTime = strtotime($act->time_start);
+                            // Find the time slot index
+                            $slotIndex = -1;
+                            foreach ($timeSlots as $i => $slotStart) {
+                                if (strtotime($slotStart) <= $startTime && $startTime < strtotime($slotStart) + 3600) {
+                                    $slotIndex = $i;
+                                    break;
+                                }
+                            }
+                            if ($slotIndex >= 0) {
+                                $activitiesByTimeAndDay[$slotIndex][$day][] = $act;
+                            }
+                        }
+                    }
                 @endphp
                 <div class="header-container">
                     <h3>{{ $faculty->name }}</h3>
@@ -62,51 +76,49 @@
                     </thead>
                     <tbody>
                         @foreach ($timeSlots as $i => $slotStart)
-                            <tr>
-                                <td>{{ $slotStart }}-{{ date('H:i', strtotime($slotStart) + 3600) }}</td>
-                                @foreach ($days as $day)
-                                    @if ($i > $occupiedUntil[$day])
-                                        @php
-                                            $slotEnd = date('H:i', strtotime($slotStart) + 3600);
-                                            $slotStartTime = strtotime($slotStart);
-                                            $slotEndTime = strtotime($slotEnd);
-                                            $matchingActivities = [];
-                                            foreach ($activitiesByDay[$day] ?? [] as $act) {
-                                                $actStart = strtotime($act->time_start);
-                                                $actEnd = strtotime($act->time_end);
-                                                $isMatch = ($actStart <= $slotStartTime && $actEnd > $slotStartTime);
-                                                if ($isMatch) {
-                                                    $matchingActivities[] = $act;
-                                                }
-                                            }
-                                            $maxSpan = 1;
-                                            foreach ($matchingActivities as $act) {
-                                                $startTime = strtotime($act->time_start);
-                                                $endTime = strtotime($act->time_end);
-                                                $span = ceil(($endTime - $startTime) / 3600);
-                                                $maxSpan = max($maxSpan, $span);
-                                            }
-                                            $occupiedUntil[$day] = $i + $maxSpan - 1;
-                                        @endphp
-                                        @if (!empty($matchingActivities))
-                                            <td rowspan="{{ $maxSpan }}">
-                                                <div class="session-container {{ count($matchingActivities) > 1 ? 'multiple-sessions' : '' }}">
-                                                    @foreach ($matchingActivities as $activity)
-                                                        <div class="session">
-                                                            <strong>{{ $activity->course_code }}</strong> <br>
-                                                            {{ $activity->group_selection }} <br>
-                                                            {{ $activity->activity }} <br>
-                                                            {{ $activity->venue->name }}
-                                                        </div>
-                                                    @endforeach
-                                                </div>
-                                            </td>
-                                        @else
-                                            <td> </td>
-                                        @endif
+                            @php
+                                $slotEnd = date('H:i', strtotime($slotStart) + 3600);
+                                $maxActivities = 1; // Default to 1 row per time slot
+                                // Calculate the maximum number of activities in this time slot across all days
+                                foreach ($days as $day) {
+                                    $activities = $activitiesByTimeAndDay[$i][$day] ?? [];
+                                    $maxActivities = max($maxActivities, count($activities));
+                                }
+                            @endphp
+                            <!-- Generate rows based on the maximum number of activities -->
+                            @for ($row = 0; $row < $maxActivities; $row++)
+                                <tr>
+                                    @if ($row === 0)
+                                        <td rowspan="{{ $maxActivities }}">{{ $slotStart }}-{{ $slotEnd }}</td>
                                     @endif
-                                @endforeach
-                            </tr>
+                                    @foreach ($days as $day)
+                                        @if ($i > $occupiedUntil[$day])
+                                            @php
+                                                $activities = $activitiesByTimeAndDay[$i][$day] ?? [];
+                                                $activity = $activities[$row] ?? null;
+                                                if ($activity) {
+                                                    $startTime = strtotime($activity->time_start);
+                                                    $endTime = strtotime($activity->time_end);
+                                                    $span = ceil(($endTime - $startTime) / 3600);
+                                                    $occupiedUntil[$day] = $i + $span - 1;
+                                                }
+                                            @endphp
+                                            @if ($activity)
+                                                <td rowspan="{{ $span }}">
+                                                    <div class="session">
+                                                        <strong>{{ $activity->course_code }}</strong><br>
+                                                        {{ $activity->group_selection }}<br>
+                                                        {{ $activity->activity }}<br>
+                                                        {{ $activity->venue->name }}
+                                                    </div>
+                                                </td>
+                                            @else
+                                                <td> </td>
+                                            @endif
+                                        @endif
+                                    @endforeach
+                                </tr>
+                            @endfor
                         @endforeach
                     </tbody>
                 </table>

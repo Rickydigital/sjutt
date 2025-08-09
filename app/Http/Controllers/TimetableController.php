@@ -41,8 +41,8 @@ class TimetableController extends Controller
                 'time_start' => 'required|date_format:H:i',
                 'time_end' => 'required|date_format:H:i|after:time_start',
                 'course_code' => 'required|string|exists:courses,course_code',
-                'activity' => 'required|string|max:255',
-                'venue_id' => 'required|exists:venues,id',
+                'activity' => 'nullable|in:Practical,Workshop,Lecture', 
+                'venue_id' => 'required|string|regex:/^(\d+)(,\d+)*$/',
                 'lecturer_id' => 'required|exists:users,id',
                 'group_selection' => 'required|array|min:1',
                 'group_selection.*' => 'string'
@@ -154,8 +154,8 @@ class TimetableController extends Controller
                 'time_start' => 'required|date_format:H:i',
                 'time_end' => 'required|date_format:H:i|after:time_start',
                 'course_code' => 'required|string|exists:courses,course_code',
-                'activity' => 'required|string|max:255',
-                'venue_id' => 'required|exists:venues,id',
+                'activity' => 'nullable|in:Practical,Workshop,Lecture', 
+                'venue_id' => 'required|string|regex:/^(\d+)(,\d+)*$/',
                 'lecturer_id' => 'required|exists:users,id',
                 'group_selection' => 'required|array|min:1',
                 'group_selection.*' => 'string'
@@ -306,7 +306,7 @@ class TimetableController extends Controller
     }
 
 
-     public function generateTimetable(Request $request)
+           public function generateTimetable(Request $request)
 {
     Log::info('Generate timetable request:', $request->all());
 
@@ -326,6 +326,8 @@ class TimetableController extends Controller
             'groups.*.*' => 'required|string',
             'venues' => 'required|array|min:1',
             'venues.*' => 'required|exists:venues,id',
+            'activities' => 'required|array|min:1',
+            'activities.*' => 'nullable|in:Practical,Workshop,Lecture',
         ]);
 
         $faculty = Faculty::findOrFail($validated['faculty_id']);
@@ -333,12 +335,11 @@ class TimetableController extends Controller
         $timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
         $venues = Venue::whereIn('id', $validated['venues'])->select('id', 'name', 'capacity')->get();
 
-        // Prepare session data
         $sessions = [];
         foreach ($validated['courses'] as $index => $courseCode) {
             $course = Course::where('course_code', $courseCode)->firstOrFail();
-            // Check if groups[$index] exists, default to ['All Groups'] if missing
             $groupSelection = isset($validated['groups'][$index]) ? implode(',', $validated['groups'][$index]) : 'All Groups';
+            $activity = $validated['activities'][$index] ?? 'Lecture';
             $sessions[] = [
                 'course_code' => $courseCode,
                 'course_name' => $course->name,
@@ -347,27 +348,43 @@ class TimetableController extends Controller
                 'lecturer_id' => $validated['lecturers'][$index],
                 'group_selection' => $groupSelection,
                 'faculty_id' => $validated['faculty_id'],
-                'activity' => 'Lecture',
+                'activity' => $activity,
             ];
         }
 
-        // Generate timetable
-        $timetables = $this->scheduleTimetable($sessions, $days, $timeSlots, $venues, $faculty);
+        $result = $this->scheduleTimetable($sessions, $days, $timeSlots, $venues, $faculty, $request);
 
-        if (empty($timetables)) {
-            return response()->json(['errors' => ['scheduling' => 'Unable to generate a conflict-free timetable. Try adjusting sessions or venues.']], 422);
+        if (empty($result['timetables'])) {
+            Log::warning('No timetables generated due to scheduling conflicts or insufficient resources.', [
+                'errors' => $result['errors'] ?? []
+            ]);
+            return response()->json([
+                'errors' => [
+                    'scheduling' => $result['errors'] ? implode(' ', $result['errors']) : 'Unable to generate a conflict-free timetable. Try adjusting sessions, venues, or lecturers.'
+                ]
+            ], 422);
         }
 
-        // Save generated timetable entries
         DB::beginTransaction();
         try {
             $createdTimetables = [];
-            foreach ($timetables as $timetable) {
+            $warnings = $result['warnings'] ?? [];
+            foreach ($result['timetables'] as $timetable) {
                 $created = Timetable::create($timetable);
                 $createdTimetables[] = $created;
             }
             DB::commit();
             Log::info('Timetable generated successfully:', ['timetables' => $createdTimetables]);
+
+            if (!empty($warnings) && !$request->has('force_proceed')) {
+                return response()->json([
+                    'message' => 'Timetable generated with warnings.',
+                    'timetables' => $createdTimetables,
+                    'warnings' => $warnings,
+                    'proceed' => true
+                ], 422);
+            }
+
             return response()->json([
                 'message' => 'Timetable generated successfully.',
                 'timetables' => $createdTimetables
@@ -386,138 +403,169 @@ class TimetableController extends Controller
     }
 }
 
-    private function scheduleTimetable(array $sessions, array $days, array $timeSlots, $venues, Faculty $faculty): array
-    {
-        $timetables = [];
-        $usedSlots = []; // Track used [day][time][venue_id]
-        $lecturerSlots = []; // Track lecturer availability [lecturer_id][day][time]
-        $groupSlots = []; // Track group availability [group][day][time]
+private function scheduleTimetable(array $sessions, array $days, array $timeSlots, $venues, Faculty $faculty, Request $request): array
+{
+    $timetables = [];
+    $warnings = [];
+    $errors = [];
+    $usedSlots = [];
+    $lecturerSlots = [];
+    $groupSlots = [];
 
-        // Shuffle sessions to introduce randomness in scheduling order
-        shuffle($sessions);
+    shuffle($sessions);
 
-        foreach ($sessions as $session) {
-            $scheduled = 0;
-            $requiredSessions = $session['sessions_per_week'];
-            $hours = $session['hours_per_session'];
-            $studentCount = $this->calculateStudentCount($faculty, $session['group_selection']);
+    foreach ($sessions as $session) {
+        $scheduled = 0;
+        $requiredSessions = $session['sessions_per_week'];
+        $hours = $session['hours_per_session'];
+        $studentCount = $this->calculateStudentCount($faculty, $session['group_selection']);
+        $sessionConflicts = [];
 
-            // Try to schedule each required session
-            while ($scheduled < $requiredSessions) {
-                $scheduledSession = false;
+        while ($scheduled < $requiredSessions) {
+            $scheduledSession = false;
+            $combinations = [];
 
-                // Create a randomized list of day-time-venue combinations
-                $combinations = [];
-                foreach ($days as $day) {
-                    foreach ($timeSlots as $index => $startTime) {
-                        $endTime = date('H:i', strtotime($startTime) + ($hours * 3600));
-                        if (!in_array($endTime, $timeSlots) && $endTime !== '20:00') {
-                            continue; // Skip if end time exceeds 19:00 or is invalid
-                        }
-                        foreach ($venues as $venue) {
-                            if ($venue->capacity >= $studentCount) {
-                                $combinations[] = ['day' => $day, 'startTime' => $startTime, 'venue' => $venue];
-                            }
-                        }
-                    }
-                }
-                shuffle($combinations); // Randomize the order of combinations
-
-                foreach ($combinations as $combo) {
-                    $day = $combo['day'];
-                    $startTime = $combo['startTime'];
-                    $venue = $combo['venue'];
+            foreach ($days as $day) {
+                foreach ($timeSlots as $index => $startTime) {
                     $endTime = date('H:i', strtotime($startTime) + ($hours * 3600));
-
-                    // Check lecturer availability
-                    $lecturerAvailable = true;
-                    for ($h = 0; $h < $hours; $h++) {
-                        $currentTime = date('H:i', strtotime($startTime) + ($h * 3600));
-                        if (isset($lecturerSlots[$session['lecturer_id']][$day][$currentTime])) {
-                            $lecturerAvailable = false;
-                            break;
-                        }
-                    }
-                    if (!$lecturerAvailable) {
+                    if (!in_array($endTime, $timeSlots) && $endTime !== '20:00') {
                         continue;
                     }
-
-                    // Check group availability
-                    $groups = $session['group_selection'] === 'All Groups' 
-                        ? FacultyGroup::where('faculty_id', $session['faculty_id'])->pluck('group_name')->toArray()
-                        : explode(',', $session['group_selection']);
-                    $groupsAvailable = true;
-                    foreach ($groups as $group) {
-                        for ($h = 0; $h < $hours; $h++) {
-                            $currentTime = date('H:i', strtotime($startTime) + ($h * 3600));
-                            if (isset($groupSlots[$group][$day][$currentTime])) {
-                                $groupsAvailable = false;
-                                break 2;
-                            }
-                        }
+                    $filteredVenues = $session['activity'] === 'Practical'
+                        ? $venues->filter(fn($venue) => stripos($venue->name, 'laboratory') !== false)
+                        : $venues;
+                    foreach ($filteredVenues as $venue) {
+                        $combinations[] = ['day' => $day, 'startTime' => $startTime, 'venue' => $venue];
                     }
-                    if (!$groupsAvailable) {
-                        continue;
-                    }
-
-                    // Check venue availability
-                    $venueAvailable = true;
-                    for ($h = 0; $h < $hours; $h++) {
-                        $currentTime = date('H:i', strtotime($startTime) + ($h * 3600));
-                        if (isset($usedSlots[$day][$currentTime][$venue->id])) {
-                            $venueAvailable = false;
-                            break;
-                        }
-                    }
-                    if (!$venueAvailable) {
-                        continue;
-                    }
-
-                    // Validate with existing conflict checker
-                    $timetableData = [
-                        'day' => $day,
-                        'time_start' => $startTime,
-                        'time_end' => $endTime,
-                        'course_code' => $session['course_code'],
-                        'course_name' => $session['course_name'],
-                        'activity' => $session['activity'],
-                        'venue_id' => $venue->id,
-                        'lecturer_id' => $session['lecturer_id'],
-                        'group_selection' => $session['group_selection'],
-                        'faculty_id' => $session['faculty_id'],
-                    ];
-
-                    $conflicts = $this->checkConflicts(new Request($timetableData), $timetableData);
-                    if (empty($conflicts)) {
-                        // Slot is valid, add to timetable
-                        $timetables[] = $timetableData;
-
-                        // Mark slots as used
-                        for ($h = 0; $h < $hours; $h++) {
-                            $currentTime = date('H:i', strtotime($startTime) + ($h * 3600));
-                            $usedSlots[$day][$currentTime][$venue->id] = true;
-                            $lecturerSlots[$session['lecturer_id']][$day][$currentTime] = true;
-                            foreach ($groups as $group) {
-                                $groupSlots[$group][$day][$currentTime] = true;
-                            }
-                        }
-
-                        $scheduled++;
-                        $scheduledSession = true;
-                        break; // Move to next session
-                    }
-                }
-
-                if (!$scheduledSession) {
-                    Log::warning('Could not schedule session:', ['session' => $session]);
-                    return []; // Return empty array to indicate failure
                 }
             }
-        }
 
-        return $timetables;
+            if (empty($combinations)) {
+                $sessionConflicts[] = "No suitable venues available for {$session['course_code']} (Activity: {$session['activity']}, Students: {$studentCount}).";
+                break;
+            }
+
+            shuffle($combinations);
+
+            foreach ($combinations as $combo) {
+                $day = $combo['day'];
+                $startTime = $combo['startTime'];
+                $venue = $combo['venue'];
+                $endTime = date('H:i', strtotime($startTime) + ($hours * 3600));
+
+                // Check capacity
+                if ($venue->capacity < $studentCount && !$request->has('force_proceed')) {
+                    $sessionConflicts[] = "Venue {$venue->name} capacity ({$venue->capacity}) is insufficient for {$studentCount} students.";
+                    continue;
+                }
+
+                // Check lecturer availability
+                $lecturerAvailable = true;
+                for ($h = 0; $h < $hours; $h++) {
+                    $currentTime = date('H:i', strtotime($startTime) + ($h * 3600));
+                    if (isset($lecturerSlots[$session['lecturer_id']][$day][$currentTime])) {
+                        $lecturerAvailable = false;
+                        $sessionConflicts[] = "Lecturer ID {$session['lecturer_id']} is unavailable on {$day} at {$currentTime}.";
+                        break;
+                    }
+                }
+                if (!$lecturerAvailable) {
+                    continue;
+                }
+
+                // Check group availability
+                $groups = $session['group_selection'] === 'All Groups'
+                    ? FacultyGroup::where('faculty_id', $session['faculty_id'])->pluck('group_name')->toArray()
+                    : explode(',', $session['group_selection']);
+                $groupsAvailable = true;
+                foreach ($groups as $group) {
+                    for ($h = 0; $h < $hours; $h++) {
+                        $currentTime = date('H:i', strtotime($startTime) + ($h * 3600));
+                        if (isset($groupSlots[$group][$day][$currentTime])) {
+                            $groupsAvailable = false;
+                            $sessionConflicts[] = "Group {$group} is unavailable on {$day} at {$currentTime}.";
+                            break 2;
+                        }
+                    }
+                }
+                if (!$groupsAvailable) {
+                    continue;
+                }
+
+                // Check venue availability
+                $venueAvailable = true;
+                for ($h = 0; $h < $hours; $h++) {
+                    $currentTime = date('H:i', strtotime($startTime) + ($h * 3600));
+                    if (isset($usedSlots[$day][$currentTime][$venue->id])) {
+                        $venueAvailable = false;
+                        $sessionConflicts[] = "Venue {$venue->name} is unavailable on {$day} at {$currentTime}.";
+                        break;
+                    }
+                }
+                if (!$venueAvailable) {
+                    continue;
+                }
+
+                // Validate with existing conflict checker
+                $timetableData = [
+                    'day' => $day,
+                    'time_start' => $startTime,
+                    'time_end' => $endTime,
+                    'course_code' => $session['course_code'],
+                    'course_name' => $session['course_name'],
+                    'activity' => $session['activity'],
+                    'venue_id' => $venue->id,
+                    'lecturer_id' => $session['lecturer_id'],
+                    'group_selection' => $session['group_selection'],
+                    'faculty_id' => $session['faculty_id'],
+                ];
+
+                // Check capacity warning
+                if ($venue->capacity < $studentCount && !$request->has('force_proceed')) {
+                    $warnings[] = "Venue {$venue->name} capacity ({$venue->capacity}) is less than required students ({$studentCount}) for {$session['course_code']}.";
+                }
+
+                $conflicts = $this->checkConflicts(new Request($timetableData), $timetableData);
+                if (!empty($conflicts)) {
+                    $sessionConflicts = array_merge($sessionConflicts, $conflicts);
+                    continue;
+                }
+
+                $timetables[] = $timetableData;
+
+                for ($h = 0; $h < $hours; $h++) {
+                    $currentTime = date('H:i', strtotime($startTime) + ($h * 3600));
+                    $usedSlots[$day][$currentTime][$venue->id] = true;
+                    $lecturerSlots[$session['lecturer_id']][$day][$currentTime] = true;
+                    foreach ($groups as $group) {
+                        $groupSlots[$group][$day][$currentTime] = true;
+                    }
+                }
+
+                $scheduled++;
+                $scheduledSession = true;
+                break;
+            }
+
+            if (!$scheduledSession) {
+                Log::warning('Could not schedule session:', [
+                    'session' => $session,
+                    'conflicts' => array_unique($sessionConflicts)
+                ]);
+                $errors[] = "Cannot schedule {$session['course_code']}: " . implode(' ', array_unique($sessionConflicts));
+                break;
+            }
+        }
     }
 
+    return [
+        'timetables' => $timetables,
+        'warnings' => $warnings,
+        'errors' => $errors
+    ];
+}
+
+    
 
     public function import(Request $request)
     {
