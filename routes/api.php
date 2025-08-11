@@ -17,6 +17,7 @@ Route::get('/fee_structures', [FeeStructureController::class, 'index']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/request-registration-otp', [AuthController::class, 'requestRegistrationOtp']);
 Route::post('/verify-registration-otp', [AuthController::class, 'verifyRegistrationOtp']);
+Route::get('/get-programs', [AuthController::class, 'getPrograms']);
 Route::post('/login', [NewsController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/request-otp', [AuthController::class, 'requestOtp']);
@@ -35,7 +36,7 @@ Route::post('send-notification', [FirebaseNotificationController::class, 'sendNo
 Route::get('/galleries', [GalleryController::class, 'index']);
 Route::get('/galleries/latest', [GalleryController::class, 'latest']);
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/news/{id}/comment', [NewsController::class, 'comment']);
     Route::post('/news/{id}/react', [NewsController::class, 'react']);
     Route::delete('/news/{id}/react', [NewsController::class, 'removeReaction']);

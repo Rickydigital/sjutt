@@ -12,13 +12,14 @@ class Student extends Authenticatable
     use HasFactory, Notifiable, HasApiTokens;
 
     protected $fillable = [
-        'name',
+        'first_name',
+        'last_name',
         'reg_no',
-        'year_of_study',
         'email',
         'password',
         'gender',
         'faculty_id',
+        'program_id',
         'is_online',
         'fcm_token',
         'can_upload',
@@ -27,6 +28,10 @@ class Student extends Authenticatable
 
     public function faculty() {
         return $this->belongsTo(Faculty::class);
+    }
+
+    public function program() {
+        return $this->belongsTo(Program::class);
     }
 
     protected $hidden = [

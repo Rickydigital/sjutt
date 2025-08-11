@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Mobile;
 use App\Http\Controllers\Controller;
 use App\Mail\OtpMail;
 use App\Models\Otp;
+use App\Models\Program;
 use App\Models\Student;
 use App\Models\Faculty;
 use Illuminate\Http\Request;
@@ -13,26 +14,43 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
+use Validator;
 
 class AuthController extends Controller
 {
+    public function getPrograms()
+    {
+        //get all programs with their faculties
+        $programs = Program::with('faculties')->get();
+        return response()->json(['success' => true, 'programs' => $programs], 200);
+    }
     public function register(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
+
+        $validator = Validator::make($request->all(), [
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
             'reg_no' => 'required|string|unique:students,reg_no',
-            'year_of_study' => 'required|integer|between:1,4',
             'faculty_id' => 'required|exists:faculties,id',
+            'program_id' => 'required|exists:programs,id',
             'email' => 'required|email|unique:students,email',
             'password' => 'required|string|min:6',
             'gender' => 'required|in:male,female,other',
         ]);
 
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $validator->errors()
+            ], 422);
+        }
+
         $student = Student::create([
-            'name' => $request->name,
+            'first_name' => $request->first_name,
+            'last_name' => $request->last_name,
             'reg_no' => $request->reg_no,
-            'year_of_study' => $request->year_of_study,
             'faculty_id' => $request->faculty_id,
+            'program_id' => $request->program_id,
             'email' => $request->email,
             'password' => bcrypt($request->password),
             'gender' => $request->gender,
@@ -50,15 +68,25 @@ class AuthController extends Controller
     public function requestRegistrationOtp(Request $request)
     {
         try {
-            $request->validate([
+
+            $validator = Validator::make($request->all(), [
                 'email' => 'required|email|unique:students,email',
-                'name' => 'required|string|max:255',
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
                 'reg_no' => 'required|string|unique:students,reg_no',
-                'year_of_study' => 'required|integer|between:1,4',
+                'program_id' => 'required|exists:faculties,id',
                 'faculty_id' => 'required|exists:faculties,id',
                 'password' => 'required|string|min:6',
                 'gender' => 'required|in:male,female,other',
             ]);
+    
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
             Log::info('Received OTP request data: ', $request->all());
     
             $email = $request->email;
@@ -71,7 +99,7 @@ class AuthController extends Controller
     
             // Prepare data for storage
             $data = $request->only([
-                'name', 'reg_no', 'year_of_study', 'faculty_id', 'password', 'gender'
+                'first_name','last_name', 'reg_no', 'program_id', 'faculty_id', 'password', 'gender'
             ]);
             Log::info('Prepared OTP data: ', $data);
     
@@ -146,7 +174,7 @@ class AuthController extends Controller
             }
     
             // Validate required fields in data
-            $requiredFields = ['name', 'reg_no', 'year_of_study', 'faculty_id', 'password', 'gender'];
+            $requiredFields = ['first_name','last_name', 'reg_no', 'program_id', 'faculty_id', 'password', 'gender'];
             foreach ($requiredFields as $field) {
                 if (!isset($data[$field])) {
                     Log::error("Missing $field in OTP data for email: " . $request->email, ['data' => $data]);
@@ -156,9 +184,10 @@ class AuthController extends Controller
     
             // Register the user
             $student = Student::create([
-                'name' => $data['name'],
+                'first_name' => $data['first_name'],
+                'last_name' => $data['last_name'],
                 'reg_no' => $data['reg_no'],
-                'year_of_study' => $data['year_of_study'],
+                'program_id' => $data['program_id'],
                 'faculty_id' => $data['faculty_id'],
                 'email' => $request->email,
                 'password' => bcrypt($data['password']),
