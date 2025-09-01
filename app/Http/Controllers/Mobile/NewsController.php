@@ -13,6 +13,7 @@ use App\Models\Student;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 
 class NewsController extends Controller
@@ -332,19 +333,27 @@ class NewsController extends Controller
     public function login(Request $request)
     {
         try {
-            $request->validate([
-                'email' => 'required|email',
+            $validator = Validator::make($request->all(), [
+                'reg_no' => 'required|string',
                 'password' => 'required',
             ]);
     
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+    
             // Find the student by email
-            $student = Student::where('email', $request->email)->first();
+            $student = Student::where('reg_no', $request->reg_no)->first();
     
             // Check if student exists and password is correct
             if (!$student || !Hash::check($request->password, $student->password)) {
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid credentials'
+                    'status' => 'error',
+                    'message' => 'Invalid credentials',
                 ], 401);
             }
     
@@ -352,8 +361,8 @@ class NewsController extends Controller
             $token = $student->createToken('mobile-app')->plainTextToken;
     
             return response()->json([
-                'success' => true,
-                'message' => 'Login successful',
+                'status' => 'success',
+                'message' => 'login successful',
                 'data' => [
                     'token' => $token,
                     'student' => $student
@@ -363,9 +372,8 @@ class NewsController extends Controller
         } catch (\Exception $e) {
             \Log::error('Login Error: ' . $e->getMessage());
             return response()->json([
-                'success' => false,
+                'status' => 'error',
                 'message' => 'Login failed',
-                'error' => $e->getMessage()
             ], 500);
         }
     }

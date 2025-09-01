@@ -7,8 +7,8 @@ use App\Http\Controllers\Mobile\GalleryController;
 use App\Http\Controllers\Mobile\NewsController;
 use App\Http\Controllers\Mobile\TalentController;
 use App\Http\Controllers\Mobile\TimetableController;
+use App\Http\Controllers\Mobile\VenueController;
 use App\Http\Controllers\SuggestionController;
-use App\Http\Controllers\VenueController;
 use App\Http\Controllers\Mobile\CalendarController;
 use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\FirebaseNotificationController;
@@ -17,6 +17,7 @@ Route::get('/fee_structures', [FeeStructureController::class, 'index']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/request-registration-otp', [AuthController::class, 'requestRegistrationOtp']);
 Route::post('/verify-registration-otp', [AuthController::class, 'verifyRegistrationOtp']);
+Route::get('/get-programs', [AuthController::class, 'getPrograms']);
 Route::post('/login', [NewsController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/request-otp', [AuthController::class, 'requestOtp']);
@@ -35,7 +36,7 @@ Route::post('send-notification', [FirebaseNotificationController::class, 'sendNo
 Route::get('/galleries', [GalleryController::class, 'index']);
 Route::get('/galleries/latest', [GalleryController::class, 'latest']);
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth:mobile-auth')->group(function (): void {
     Route::post('/news/{id}/comment', [NewsController::class, 'comment']);
     Route::post('/news/{id}/react', [NewsController::class, 'react']);
     Route::delete('/news/{id}/react', [NewsController::class, 'removeReaction']);
@@ -64,4 +65,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/chat/messages/{id}', [ChatController::class, 'deleteMessage']);
     Route::get('/chat/stats', [ChatController::class, 'getStats']);
     Route::post('/update-last-chat-access', [ChatController::class, 'updateLastChatAccess']);
+    
 });
+
+//venues
+Route::get('/get-venues', [VenueController::class, 'getVenues']);
+Route::post('/search-venue', [VenueController::class, 'searchVenue']);

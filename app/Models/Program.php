@@ -53,4 +53,8 @@ class Program extends Model
     {
         return $this->belongsToMany(ProgramCategory::class, 'program_category_program');
     }
+
+    public function students() {
+        return $this->hasMany(Student::class);
+    }
 }
