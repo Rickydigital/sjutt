@@ -40,6 +40,11 @@ class User extends Authenticatable
         return $this->hasMany(Suggestion::class);
     }
 
+    public function timetables()
+    {
+        return $this->hasMany(Timetable::class, 'lecturer_id');
+    }
+
     public function routeNotificationForMail()
     {
         return $this->email;

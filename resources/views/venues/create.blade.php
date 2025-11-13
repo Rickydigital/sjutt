@@ -38,8 +38,8 @@
                         @enderror
                     </div>
                     <div class="form-group">
-                        <label for="building_id">Building <span class="text-danger">*</span></label>
-                        <select name="building_id" id="building_id" class="form-control select2" required>
+                        <label for="building_id">Building</label>
+                        <select name="building_id" id="building_id" class="form-control select2">
                             <option value="">Select Building</option>
                             @foreach ($buildings as $building)
                                 <option value="{{ $building->id }}"
@@ -91,10 +91,9 @@
                         @enderror
                     </div>
 
-                    <div class=" d-flex flex-row justify-content-end my-2">
-                        <a href="{{ route('venues.index') }}" class="btn btn-outline-danger mx-3 ">Cancel</a>
-                        <button type="submit" class="btn btn-primary">
-                            Save</button>
+                    <div class="d-flex flex-row justify-content-end my-2">
+                        <a href="{{ route('venues.index') }}" class="btn btn-outline-danger mx-3">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save</button>
                     </div>
                 </form>
             </div>

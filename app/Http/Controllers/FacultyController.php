@@ -14,12 +14,21 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class FacultyController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $programs = Program::with(['faculties' => function ($query) {
+        $programId = $request->query('program_id');
+        $query = Program::with(['faculties' => function ($query) {
             $query->with('program')->orderBy('name');
-        }])->orderBy('name')->get();
-        return view('faculties.index', compact('programs'));
+        }])->orderBy('name');
+
+        if ($programId) {
+            $query->where('id', $programId);
+        }
+
+        $programs = $query->paginate(5); // Paginate to show 5 programs per page
+        $allPrograms = Program::orderBy('name')->get(); // For dropdown
+
+        return view('faculties.index', compact('programs', 'allPrograms', 'programId'));
     }
 
     public function create()
@@ -41,7 +50,6 @@ class FacultyController extends Controller
             'program_id' => 'required|exists:programs,id',
             'course_ids' => 'nullable|array',
             'course_ids.*' => 'exists:courses,id',
-            'group_names' => 'nullable|string',
         ]);
 
         $faculty = Faculty::create($request->only([
@@ -55,16 +63,50 @@ class FacultyController extends Controller
             $faculty->courses()->sync($request->course_ids);
         }
 
-        if ($request->group_names) {
-            $groupNames = array_filter(array_map('trim', explode(',', $request->group_names)));
-            $studentCount = $request->total_students_no / max(1, count($groupNames));
-            foreach ($groupNames as $name) {
-                FacultyGroup::create([
-                    'faculty_id' => $faculty->id,
-                    'group_name' => $name,
-                    'student_count' => floor($studentCount),
-                ]);
+        $desired = 40;
+        $total = $request->total_students_no;
+        $num_groups = $total > 0 ? floor($total / $desired) : 0;
+        $remaining = $total - $num_groups * $desired;
+
+        if ($num_groups > 0) {
+            if ($remaining >= $desired / 2) {
+                $num_groups++;
+                for ($i = 0; $i < $num_groups; $i++) {
+                    $count = ($i < $num_groups - 1) ? $desired : $remaining;
+                    $name = $this->generateGroupName($i);
+
+                    FacultyGroup::create([
+                        'faculty_id' => $faculty->id,
+                        'group_name' => $name,
+                        'student_count' => $count,
+                    ]);
+                }
+            } else {
+                $base_count = $desired;
+                $add_extra = $remaining > 0 ? floor($remaining / $num_groups) : 0;
+                $base_count += $add_extra;
+                $remaining -= $add_extra * $num_groups;
+
+                for ($i = 0; $i < $num_groups; $i++) {
+                    $count = $base_count;
+                    if ($i < $remaining) {
+                        $count++;
+                    }
+                    $name = $this->generateGroupName($i);
+
+                    FacultyGroup::create([
+                        'faculty_id' => $faculty->id,
+                        'group_name' => $name,
+                        'student_count' => $count,
+                    ]);
+                }
             }
+        } elseif ($remaining > 0) {
+            FacultyGroup::create([
+                'faculty_id' => $faculty->id,
+                'group_name' => $this->generateGroupName(0),
+                'student_count' => $remaining,
+            ]);
         }
 
         return redirect()->route('faculties.index')->with('success', 'Faculty created successfully.');
@@ -101,16 +143,16 @@ class FacultyController extends Controller
         $faculty->load(['program', 'courses', 'groups']);
         return view('faculties.show', compact('faculty'));
     }
-     
+
     public function edit(Faculty $faculty)
-{
-    return view('faculties.edit', [
-        'faculty' => $faculty,
-        'programs' => Program::all(),
-        'courses' => Course::all(),
-        'lecturers' => User::whereHas('roles', fn($q) => $q->where('name', 'lecturer'))->get(),
-    ]);
-}
+    {
+        return view('faculties.edit', [
+            'faculty' => $faculty,
+            'programs' => Program::all(),
+            'courses' => Course::all(),
+            'lecturers' => User::whereHas('roles', fn($q) => $q->where('name', 'lecturer'))->get(),
+        ]);
+    }
 
     public function update(Request $request, Faculty $faculty)
     {
@@ -121,7 +163,6 @@ class FacultyController extends Controller
             'program_id' => 'required|exists:programs,id',
             'course_ids' => 'nullable|array',
             'course_ids.*' => 'exists:courses,id',
-            'group_names' => 'nullable|string',
         ]);
 
         $faculty->update($request->only([
@@ -133,15 +174,51 @@ class FacultyController extends Controller
 
         $faculty->courses()->sync($request->course_ids ?: []);
 
-        if ($request->group_names) {
+        $desired = 40;
+        $total = $request->total_students_no;
+        $num_groups = $total > 0 ? floor($total / $desired) : 0;
+        $remaining = $total - $num_groups * $desired;
+
+        if ($num_groups > 0 || $remaining > 0) {
             $faculty->groups()->delete();
-            $groupNames = array_filter(array_map('trim', explode(',', $request->group_names)));
-            $studentCount = $request->total_students_no / max(1, count($groupNames));
-            foreach ($groupNames as $name) {
+            if ($num_groups > 0) {
+                if ($remaining >= $desired / 2) {
+                    $num_groups++;
+                    for ($i = 0; $i < $num_groups; $i++) {
+                        $count = ($i < $num_groups - 1) ? $desired : $remaining;
+                        $name = $this->generateGroupName($i);
+
+                        FacultyGroup::create([
+                            'faculty_id' => $faculty->id,
+                            'group_name' => $name,
+                            'student_count' => $count,
+                        ]);
+                    }
+                } else {
+                    $base_count = $desired;
+                    $add_extra = $remaining > 0 ? floor($remaining / $num_groups) : 0;
+                    $base_count += $add_extra;
+                    $remaining -= $add_extra * $num_groups;
+
+                    for ($i = 0; $i < $num_groups; $i++) {
+                        $count = $base_count;
+                        if ($i < $remaining) {
+                            $count++;
+                        }
+                        $name = $this->generateGroupName($i);
+
+                        FacultyGroup::create([
+                            'faculty_id' => $faculty->id,
+                            'group_name' => $name,
+                            'student_count' => $count,
+                        ]);
+                    }
+                }
+            } elseif ($remaining > 0) {
                 FacultyGroup::create([
                     'faculty_id' => $faculty->id,
-                    'group_name' => $name,
-                    'student_count' => floor($studentCount),
+                    'group_name' => $this->generateGroupName(0),
+                    'student_count' => $remaining,
                 ]);
             }
         }
@@ -155,12 +232,6 @@ class FacultyController extends Controller
         return redirect()->route('faculties.index')->with('success', 'Faculty deleted successfully.');
     }
 
-    /**
-     * Get available faculty names for a program.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function getFacultyNames(Request $request)
     {
         $programId = $request->query('program_id');
@@ -191,5 +262,16 @@ class FacultyController extends Controller
     public function export()
     {
         return Excel::download(new FacultiesExport, 'faculties.xlsx');
-}
+    }
+
+    private function generateGroupName($index)
+    {
+        $name = '';
+        $i = $index;
+        while ($i >= 0) {
+            $name = chr(65 + ($i % 26)) . $name;
+            $i = floor($i / 26) - 1;
+        }
+        return 'Group ' . $name;
+    }
 }

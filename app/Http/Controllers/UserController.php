@@ -7,6 +7,13 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Imports\UserImport;
+use App\Models\TimetableSemester;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
@@ -26,15 +33,24 @@ class UserController extends Controller
             return $logoutResponse;
         }
 
-        
-            $search = $request->query('search');
+        $search = $request->query('search');
+        $currentUser = Auth::user();
+
+        if ($currentUser->hasRole('Admin')) {
             $users = User::when($search, function ($query, $search) {
                 return $query->where('name', 'like', "%{$search}%")
                             ->orWhere('email', 'like', "%{$search}%");
             })->paginate(10);
-        
-            return view('users.index', compact('users'));
-        
+        } elseif ($currentUser->hasAnyRole(['Administrator', 'Dean Of Students'])) {
+            $users = User::when($search, function ($query, $search) {
+                return $query->where('name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+            })->role('Lecturer')->paginate(10);
+        } else {
+            $users = User::where('id', 0)->paginate(10);
+        }
+
+        return view('users.index', compact('users', 'search'));
     }
 
     /**
@@ -46,7 +62,15 @@ class UserController extends Controller
             return $logoutResponse;
         }
 
-        $roles = Role::all();
+        $currentUser = Auth::user();
+        $roles = [];
+
+        if ($currentUser->hasRole('Admin')) {
+            $roles = Role::all();
+        } elseif ($currentUser->hasAnyRole(['Administrator', 'Dean Of Students'])) {
+            $roles = Role::where('name', 'Lecturer')->get();
+        }
+
         return view('users.create', compact('roles'));
     }
 
@@ -59,13 +83,19 @@ class UserController extends Controller
             return $logoutResponse;
         }
 
-        $validated = $request->validate([
+        $currentUser = Auth::user();
+        $rules = [
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'role' => 'nullable|exists:roles,id',
             'phone' => 'nullable|string',
             'gender' => 'nullable|in:Male,Female,Other',
-        ]);
+        ];
+
+        if ($currentUser->hasRole('Admin')) {
+            $rules['role'] = 'nullable|exists:roles,id';
+        }
+
+        $validated = $request->validate($rules);
 
         $user = User::create([
             'name' => $validated['name'],
@@ -76,9 +106,11 @@ class UserController extends Controller
             'status' => 'active',
         ]);
 
-        $roleId = $validated['role'];
-        if ($roleId) {
-            $role = Role::find($roleId);
+        if ($currentUser->hasAnyRole(['Administrator', 'Dean Of Students'])) {
+            $defaultRole = Role::where('name', 'Lecturer')->firstOrFail();
+            $user->assignRole($defaultRole);
+        } elseif ($currentUser->hasRole('Admin') && $validated['role']) {
+            $role = Role::find($validated['role']);
             $user->assignRole($role);
         } else {
             $defaultRole = Role::where('name', 'Timetable Officer')->firstOrFail();
@@ -97,7 +129,13 @@ class UserController extends Controller
             return $logoutResponse;
         }
 
-        return view('users.show', compact('user'));
+        $currentUser = Auth::user();
+        if ($currentUser->hasRole('Admin') || 
+            ($currentUser->hasAnyRole(['Administrator', 'Dean Of Students']) && $user->hasRole('Lecturer'))) {
+            return view('users.show', compact('user'));
+        }
+
+        return redirect()->route('users.index')->with('error', 'Unauthorized access.');
     }
 
     /**
@@ -109,8 +147,18 @@ class UserController extends Controller
             return $logoutResponse;
         }
 
-        $roles = Role::all();
+        $currentUser = Auth::user();
+        $roles = [];
         $currentRole = $user->roles->first()->id ?? null;
+
+        if ($currentUser->hasRole('Admin')) {
+            $roles = Role::all();
+        } elseif ($currentUser->hasAnyRole(['Administrator', 'Dean Of Students']) && $user->hasRole('Lecturer')) {
+            $roles = Role::where('name', 'Lecturer')->get();
+        } else {
+            return redirect()->route('users.index')->with('error', 'Unauthorized access.');
+        }
+
         return view('users.edit', compact('user', 'roles', 'currentRole'));
     }
 
@@ -123,20 +171,26 @@ class UserController extends Controller
             return $logoutResponse;
         }
 
-        $validated = $request->validate([
+        $currentUser = Auth::user();
+        $rules = [
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $user->id,
-            'role' => 'required|exists:roles,id',
             'phone' => 'nullable|string',
             'gender' => 'nullable|in:Male,Female,Other',
             'password' => 'nullable|string|min:8',
-        ]);
+        ];
+
+        if ($currentUser->hasRole('Admin')) {
+            $rules['role'] = 'required|exists:roles,id';
+        }
+
+        $validated = $request->validate($rules);
 
         $updateData = [
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'],
-            'gender' => $validated['gender'], 
+            'gender' => $validated['gender'],
         ];
 
         if (!empty($validated['password'])) {
@@ -145,8 +199,13 @@ class UserController extends Controller
 
         $user->update($updateData);
 
-        $role = Role::find($validated['role']);
-        $user->syncRoles([$role]);
+        if ($currentUser->hasAnyRole(['Administrator', 'Dean Of Students'])) {
+            $role = Role::where('name', 'Lecturer')->firstOrFail();
+            $user->syncRoles([$role]);
+        } elseif ($currentUser->hasRole('Admin')) {
+            $role = Role::find($validated['role']);
+            $user->syncRoles([$role]);
+        }
 
         return redirect()->route('users.index')->with('success', 'User updated successfully.');
     }
@@ -176,4 +235,164 @@ class UserController extends Controller
         $user->update(['status' => 'active']);
         return redirect()->route('users.index')->with('success', 'User activated successfully.');
     }
+
+    /**
+     * Import users from an Excel file.
+     */
+    public function import(Request $request)
+    {
+        if ($logoutResponse = $this->authController->checkStatusAndLogout($request)) {
+            return $logoutResponse;
+        }
+
+        if (!Auth::user()->hasRole('Admin')) {
+            return redirect()->route('users.index')->with('error', 'Unauthorized access.');
+        }
+
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls',
+        ]);
+
+        try {
+            Excel::import(new UserImport, $request->file('file'));
+            return redirect()->route('users.index')->with('success', 'Users imported successfully.');
+        } catch (\Exception $e) {
+            Log::error('Failed to import users: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to import users: ' . $e->getMessage());
+        }
+    }
+
+    public function sessionsIndex(Request $request)
+{
+    $semesterId = TimetableSemester::getFirstSemester()?->semester_id;
+
+    if (!$semesterId) {
+        return view('users.sessions', ['users' => collect(), 'search' => '']);
+    }
+
+    $search = $request->query('search', '');
+
+    $users = User::with('roles')
+        ->withCount(['timetables as total_sessions' => fn($q) => $q->where('semester_id', $semesterId)])
+        ->when($search, function ($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+              ->orWhere('email', 'like', "%{$search}%");
+        })
+        ->whereHas('roles', fn($q) => $q->where('name', 'lecturer')) // Only lecturers
+        ->orderByDesc('total_sessions')
+        ->paginate(15)
+        ->withQueryString();
+
+    return view('users.sessions', compact('users', 'semesterId', 'search'));
+}
+
+public function sessionsShow(User $user)
+{
+    $semesterId = TimetableSemester::getFirstSemester()?->semester_id;
+
+    $slots = DB::table('timetables')
+        ->where('lecturer_id', $user->id)
+        ->where('semester_id', $semesterId)
+        ->leftJoin('faculties', 'timetables.faculty_id', '=', 'faculties.id')
+        ->leftJoin('venues', 'timetables.venue_id', '=', 'venues.id')
+        ->select(
+            'timetables.day',
+            DB::raw('TIME_FORMAT(timetables.time_start, "%H:%i") as start'),
+            DB::raw('TIME_FORMAT(timetables.time_end, "%H:%i") as end'),
+            'timetables.course_code',
+            'timetables.activity',
+            'timetables.group_selection',
+            'faculties.name as faculty_name',
+            'venues.name as venue_name',
+            'venues.longform as venue_longform'
+        )
+        ->orderBy('day')
+        ->orderBy('time_start')
+        ->get()
+        ->groupBy(fn($i) => "{$i->day}|{$i->start}|{$i->end}")
+        ->map(function ($group) {
+            $first = $group->first();
+            return [
+                'day' => $first->day,
+                'start' => $first->start,
+                'end' => $first->end,
+                'courses' => $group->pluck('course_code')->unique()->values()->toArray(),
+                'groups' => $group->map(fn($i) => $i->group_selection === 'All Groups' ? 'All Groups' : $i->group_selection)
+                                 ->unique()
+                                 ->implode(', '),
+                'activity' => $group->pluck('activity')->filter()->unique()->implode(' / '),
+                'count' => $group->count(),
+                'faculty' => $group->pluck('faculty_name')->filter()->unique()->implode(' / '),
+                'venue' => $group->pluck('venue_longform')->filter()->unique()->implode(' / '),
+                'venue_code' => $group->pluck('venue_name')->filter()->unique()->implode(' / '),
+            ];
+        })
+        ->values();
+
+    $user->load(['roles']);
+
+    return view('users.sessions-show', compact('user', 'slots', 'semesterId'));
+}
+
+
+public function sessionsPdf(User $user)
+{
+    $semester = TimetableSemester::getFirstSemester();
+
+    $slots = DB::table('timetables')
+        ->where('lecturer_id', $user->id)
+        ->where('semester_id', $semester->semester_id)
+        ->leftJoin('faculties', 'timetables.faculty_id', '=', 'faculties.id')
+        ->leftJoin('venues', 'timetables.venue_id', '=', 'venues.id')
+        ->select(
+            'timetables.day',
+            DB::raw('TIME_FORMAT(timetables.time_start, "%H:%i") as start'),
+            DB::raw('TIME_FORMAT(timetables.time_end, "%H:%i") as end'),
+            'timetables.course_code',
+            'timetables.activity',
+            'timetables.group_selection',
+            'faculties.name as faculty_name',
+            'venues.name as venue_name',
+            'venues.longform as venue_longform'
+        )
+        ->orderBy('day')
+        ->orderBy('time_start')
+        ->get()
+        ->groupBy(fn($i) => "{$i->day}|{$i->start}|{$i->end}")
+        ->map(function ($group) {
+            $first = $group->first();
+            return [
+                'day' => $first->day,
+                'start' => $first->start,
+                'end' => $first->end,
+                'courses' => $group->pluck('course_code')->unique()->values()->toArray(),
+                'groups' => $group->map(fn($i) => $i->group_selection === 'All Groups' ? 'All Groups' : $i->group_selection)
+                                 ->unique()
+                                 ->implode(', '),
+                'activity' => $group->pluck('activity')->filter()->unique()->implode(' / '),
+                'faculty' => $group->pluck('faculty_name')->filter()->unique()->implode(' / '),
+                'venue' => $group->pluck('venue_longform')->filter()->unique()->implode(' / '),
+                'venue_code' => $group->pluck('venue_name')->filter()->unique()->implode(' / '),
+            ];
+        })
+        ->values();
+
+    $user->load(['roles']);
+
+    $pdf = Pdf::loadView('users.pdf.sessions', compact('user', 'slots', 'semester'))
+              ->setPaper('a4', 'portrait')
+              ->setOptions([
+                  'isRemoteEnabled' => true,
+                  'defaultFont'     => 'DejaVu Sans',
+                  'dpi'             => 150,
+                  'isHtml5ParserEnabled' => true,
+                  'margin_top'      => 0,
+                  'margin_right'    => 0,
+                  'margin_bottom'   => 0,
+                  'margin_left'     => 0,
+              ]);
+
+    $filename = "lecturer-schedule-{$user->name}-" . now()->format('Y-m-d') . ".pdf";
+    return $pdf->download($filename);
+}
 }

@@ -55,6 +55,12 @@
                                 </a>
                             </li>
                             @endcan
+
+                            <li>
+                                <a  href="{{ route('user.sessions.index') }}">
+                                    <span class="sub-item">Lecturer Sessions</span>
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 </li>
@@ -81,6 +87,24 @@
                             <li>
                                 <a href="{{ route('venues.index') }}">
                                     <span class="sub-item">Venues</span>
+                                </a>
+                            </li>
+
+                            <li>
+                                <a  href="{{ route('venue.sessions.index') }}">
+                                    <span class="sub-item">Venue Sessions</span>
+                                </a>
+                            </li>
+
+                            {{--  <li>
+                                <a  href="{{ route('venues.summary') }}">
+                                    <span class="sub-item">Venue Summary</span>
+                                </a>
+                            </li>  --}}
+
+                            <li>
+                                <a  href="{{ route('venues.timetable') }}">
+                                    <span class="sub-item">Venue Summary</span>
                                 </a>
                             </li>
                             @endcan

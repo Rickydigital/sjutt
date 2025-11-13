@@ -29,16 +29,17 @@ use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\CrossCatingTimetableController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\TalentController;
+use App\Http\Controllers\TimetableSemesterController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('auth.login');
 });
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('auth');
 
 Route::middleware(['web', 'auth'])->group(function () {
     // Profile
@@ -73,8 +74,13 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/timetable/{timetable}/edit', [TimetableController::class, 'edit'])->name('timetable.edit')->middleware(['permission:view timetables']);
     Route::put('/timetable/{timetable}', [TimetableController::class, 'update'])->name('timetable.update')->middleware(['permission:edit timetables']);
     Route::delete('/timetable/{timetable}', [TimetableController::class, 'destroy'])->name('timetable.destroy')->middleware(['permission:delete timetables']);
-
+    Route::get('/cross-cating-timetable', [CrossCatingTimetableController::class, 'index'])->name('cross-cating.index');
+    Route::post('/cross-cating-timetable/generate/{courseId}', [CrossCatingTimetableController::class, 'generateForCourse'])->name('cross-cating-timetable.generate');
+    Route::post('/timetable-semesters', [TimetableSemesterController::class, 'store'])->name('timetable-semesters.store');
+    Route::put('/timetable-semesters/first', [TimetableSemesterController::class, 'update'])->name('timetable-semesters.update');
+    Route::get('/timetable-semesters/first', [TimetableSemesterController::class, 'show'])->name('timetable-semesters.show');
     // Examination Timetables
+    Route::post('/timetables/generate', [ExaminationTimetableController::class, 'generateTimetable'])->name('timetables.generate');
     Route::get('/timetables/faculty/{program_id}/{year_num}', [ExaminationTimetableController::class, 'getFacultyByProgramYear'])->name('timetables.getFacultyByProgramYear')->middleware(['permission:view examination timetables']);
     Route::get('/timetables/faculty-courses', [ExaminationTimetableController::class, 'getFacultyCourses'])->name('timetables.getFacultyCourses')->middleware(['permission:view examination timetables']);
     Route::get('/timetables/faculty-groups', [ExaminationTimetableController::class, 'getFacultyGroups'])->name('timetables.getFacultyGroups')->middleware(['permission:view examination timetables']);
@@ -148,6 +154,10 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::delete('/courses/{course}', [CourseController::class, 'destroy'])->name('courses.destroy')->middleware(['permission:delete courses']);
 
     // Users
+    Route::get('/user-sessions', [UserController::class, 'sessionsIndex'])->name('user.sessions.index');
+    Route::get('/user-sessions/{user}', [UserController::class, 'sessionsShow'])->name('user.sessions.show');
+    Route::get('/user-sessions/{user}/pdf', [UserController::class, 'sessionsPdf'])->name('user.sessions.pdf');
+    Route::post('users/import', [UserController::class, 'import'])->name('users.import');
     Route::put('/users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate')->middleware(['permission:deactivate users']);
     Route::put('/users/{user}/activate', [UserController::class, 'activate'])->name('users.activate')->middleware(['permission:activate users']);
     Route::get('/users', [UserController::class, 'index'])->name('users.index')->middleware(['permission:view users']);
@@ -206,6 +216,15 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::delete('/programs/{program}', [ProgramController::class, 'destroy'])->name('programs.destroy')->middleware(['permission:delete programs']);
 
     // Venues
+
+    Route::get('/venues/timetable/export', [TimetableController::class, 'exportVenueTimetable'])->name('venues.timetable.export');
+    Route::get('/venues/timetable', [TimetableController::class, 'venuesTimetable'])->name('venues.timetable');
+    Route::get('/venues/summary/pdf', [VenueController::class, 'summaryPdf'])->name('venues.summary.pdf');
+    Route::get('/venues/summary', [VenueController::class, 'summary'])->name('venues.summary');
+    Route::get('/venue-sessions/{venue}/pdf', [VenueController::class, 'sessionsPdf'])->name('venue.sessions.pdf');
+    Route::get('/venue-sessions', [VenueController::class, 'sessionsIndex'])->name('venue.sessions.index');
+    Route::get('/venue-sessions/{venue}', [VenueController::class, 'sessionsShow'])->name('venue.sessions.show');
+    Route::get('venues/availability', [VenueController::class, 'availability'])->name('venues.availability');
     Route::post('/venues/import', [VenueController::class, 'import'])->name('venues.import')->middleware(['permission:import venues']);
     Route::get('/venues/export', [VenueController::class, 'exportVenues'])->name('venues.export')->middleware(['permission:export venues']);
     Route::get('/venues', [VenueController::class, 'index'])->name('venues.index')->middleware(['permission:view venues']);
@@ -263,4 +282,4 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::delete('/enrolled-courses/{enrolled_course}', [EnrolledCourseController::class, 'destroy'])->name('enrolled-courses.destroy')->middleware(['permission:delete enrolled courses']);
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';

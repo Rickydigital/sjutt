@@ -60,7 +60,7 @@ class TimetableImport implements ToModel, WithHeadingRow, WithValidation
 
             // Validate venue capacity
             $studentCount = $this->getStudentCount($faculty, $row['group_selection']);
-            if ($venue->capacity < $studentCount) {
+            if ($venue->capacity + 15 <= $studentCount) {
                 $this->errors[] = "Row {$rowNumber}: Venue capacity ({$venue->capacity}) insufficient for {$studentCount} students.";
                 return null;
             }

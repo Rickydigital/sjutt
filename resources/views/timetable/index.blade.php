@@ -111,7 +111,6 @@
             padding: 5px;
         }
 
-        /* New styles for dropdown fixes */
         .modal-body {
             max-height: 70vh;
             overflow-y: auto;
@@ -142,15 +141,42 @@
             </h1>
             <div>
                 <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#generateTimetableModal">
-                    <i class="fas fa-magic me-1"></i> Generate Timetable
+                    <i class="fas fa-magic me-1"></i> Generate
                 </button>
+                <a href="{{ route('cross-cating.index') }}" class="btn btn-primary me-2">
+                    <i class="fas fa-users me-1"></i> Cross Cating
+                </a>
                 <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#importTimetableModal">
                     <i class="fas fa-download me-1"></i> Import
                 </button>
-                <a href="{{ route('timetable.export') }}" class="btn btn-success">
-                    <i class="fas fa-upload me-1"></i> Export
+
+                   <div class="dropdown d-inline-block">
+    <button class="btn btn-success dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fas fa-upload me-1"></i> Export
+    </button>
+    <ul class="dropdown-menu">
+        @foreach(['First Draft', 'Second Draft', 'Third Draft', 'Fourth Draft', 'Final Draft'] as $draft)
+            <li>
+                <a class="dropdown-item" href="javascript:void(0)" onclick="exportTimetable('{{ $draft }}')">
+                    {{ $draft }}
                 </a>
+            </li>
+        @endforeach
+    </ul>
+</div>
             </div>
+        </div>
+    </div>
+
+    <!-- Timetable Semester Management Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0 text-white">Timetable Semester Management</h5>
+        </div>
+        <div class="card-body">
+            <p>Current Timetable Semester: <span id="current-semester">{{ $timetableSemester ? $timetableSemester->semester->name . ' (' . $timetableSemester->academic_year . ')' : 'None' }}</span></p>
+            <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#addTimetableSemesterModal">Add Timetable Semester</button>
+            <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#editTimetableSemesterModal" {{ $timetableSemester ? '' : 'disabled' }}>Update Timetable Semester</button>
         </div>
     </div>
 
@@ -326,12 +352,6 @@
                                                     <option value="">Select Course</option>
                                                 </select>
                                             </div>
-                                            <div class="col-md-2">
-                                                <input type="number" name="sessions_per_week[]" class="form-control" placeholder="Sessions/Week" min="1" required>
-                                            </div>
-                                            <div class="col-md-2">
-                                                <input type="number" name="hours_per_session[]" class="form-control" placeholder="Hours/Session" min="1" max="3" required>
-                                            </div>
                                             <div class="col-md-3">
                                                 <select name="lecturers[]" class="select2 form-control lecturer-select" required>
                                                     <option value="">Select Lecturer</option>
@@ -372,8 +392,7 @@
     </div>
 
     <!-- Add Timetable Modal -->
-    <div class="modal fade" id="addTimetableModal" tabindex="-1" aria-labelledby="addTimetableModalLabel"
-        aria-hidden="true">
+    <div class="modal fade" id="addTimetableModal" tabindex="-1" aria-labelledby="addTimetableModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -391,31 +410,27 @@
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="modal_time_start" class="form-label">Start Time</label>
-                                <input type="text" name="time_start" id="modal_time_start" class="form-control"
-                                    readonly>
+                                <input type="text" name="time_start" id="modal_time_start" class="form-control" readonly>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="modal_time_end" class="form-label">End Time <span
-                                        class="text-danger">*</span></label>
+                                <label for="modal_time_end" class="form-label">End Time <span class="text-danger">*</span></label>
                                 <select name="time_end" id="modal_time_end" class="form-control" required>
                                     <option value="">Select End Time</option>
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="modal_course_code" class="form-label">Course Code <span
-                                        class="text-danger">*</span></label>
+                                <label for="modal_course_code" class="form-label">Course Code <span class="text-danger">*</span></label>
                                 <select name="course_code" id="modal_course_code" class="select2 form-control" required>
                                     <option value="">Select Course Code</option>
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="modal_lecturer_id" class="form-label">Lecturer <span
-                                        class="text-danger">*</span></label>
+                                <label for="modal_lecturer_id" class="form-label">Lecturer <span class="text-danger">*</span></label>
                                 <select name="lecturer_id" id="modal_lecturer_id" class="select2 form-control" required>
                                     <option value="">Select Lecturer</option>
                                 </select>
                             </div>
-                             <div class="col-md-6 mb-3">
+                            <div class="col-md-6 mb-3">
                                 <label for="modal_activity" class="form-label">Activity <span class="text-danger">*</span></label>
                                 <select name="activity" id="modal_activity" class="select2 form-control" required>
                                     <option value="">Select Activity</option>
@@ -425,8 +440,7 @@
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="modal_venue_id" class="form-label">Venue <span
-                                        class="text-danger">*</span></label>
+                                <label for="modal_venue_id" class="form-label">Venue <span class="text-danger">*</span></label>
                                 <select name="venue_id" id="modal_venue_id" class="select2 form-control" required>
                                     @foreach ($venues as $venue)
                                         <option value="{{ $venue->id }}" data-capacity="{{ $venue->capacity }}">
@@ -436,11 +450,18 @@
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="modal_group_selection" class="form-label">Group Selection <span
-                                        class="text-danger">*</span></label>
-                                <select name="group_selection[]" id="modal_group_selection" class="select2 form-control"
-                                    multiple required>
+                                <label for="modal_group_selection" class="form-label">Group Selection <span class="text-danger">*</span></label>
+                                <select name="group_selection[]" id="modal_group_selection" class="select2 form-control" multiple required>
                                     <option value="All Groups" class="select-all-option">All Groups</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="modal_timetable_semester_id" class="form-label">Timetable Semester <span class="text-danger">*</span></label>
+                                <select name="timetable_semester_id" id="modal_timetable_semester_id" class="select2 form-control" required>
+                                    <option value="">Select Timetable Semester</option>
+                                    @foreach ($timetableSemesters as $semester)
+                                        <option value="{{ $semester->id }}">{{ $semester->semester->name }} ({{ $semester->academic_year }})</option>
+                                    @endforeach
                                 </select>
                             </div>
                         </div>
@@ -453,6 +474,7 @@
             </div>
         </div>
     </div>
+
     <!-- Edit Timetable Modal -->
     <div class="modal fade" id="editTimetableModal" tabindex="-1" aria-labelledby="editTimetableModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -506,7 +528,7 @@
                             <div class="col-md-6 mb-3">
                                 <label for="edit_modal_venue_id" class="form-label">Venue <span class="text-danger">*</span></label>
                                 <select name="venue_id" id="edit_modal_venue_id" class="select2 form-control" required>
-                                    @foreach($venues as $venue)
+                                    @foreach ($venues as $venue)
                                         <option value="{{ $venue->id }}" data-capacity="{{ $venue->capacity }}">
                                             {{ $venue->name }} (Capacity: {{ $venue->capacity }})
                                         </option>
@@ -517,6 +539,15 @@
                                 <label for="edit_modal_group_selection" class="form-label">Group Selection <span class="text-danger">*</span></label>
                                 <select name="group_selection[]" id="edit_modal_group_selection" class="select2 form-control" multiple required>
                                     <option value="All Groups" class="select-all-option">All Groups</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="edit_modal_timetable_semester_id" class="form-label">Timetable Semester <span class="text-danger">*</span></label>
+                                <select name="timetable_semester_id" id="edit_modal_timetable_semester_id" class="select2 form-control" required>
+                                    <option value="">Select Timetable Semester</option>
+                                    @foreach ($timetableSemesters as $semester)
+                                        <option value="{{ $semester->id }}">{{ $semester->semester->name }} ({{ $semester->academic_year }})</option>
+                                    @endforeach
                                 </select>
                             </div>
                         </div>
@@ -548,10 +579,97 @@
                     <p><strong>Groups:</strong> <span id="show_groups"></span></p>
                     <p><strong>Lecturer:</strong> <span id="show_lecturer"></span></p>
                     <p><strong>Faculty:</strong> <span id="show_faculty"></span></p>
+                    <p><strong>Semester:</strong> <span id="show_timetable_semester"></span></p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Timetable Semester Modal -->
+    <div class="modal fade" id="addTimetableSemesterModal" tabindex="-1" aria-labelledby="addTimetableSemesterModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addTimetableSemesterModalLabel">Add Timetable Semester</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="addTimetableSemesterForm" method="POST" action="{{ route('timetable-semesters.store') }}">
+                    @csrf
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="add_semester_id" class="form-label">Semester <span class="text-danger">*</span></label>
+                            <select name="semester_id" id="add_semester_id" class="select2 form-control" required>
+                                <option value="">Select Semester</option>
+                                @foreach ($semesters as $semester)
+                                    <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="add_academic_year" class="form-label">Academic Year <span class="text-danger">*</span></label>
+                            <input type="text" name="academic_year" id="add_academic_year" class="form-control" placeholder="e.g., 2025/2026" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="add_start_date" class="form-label">Start Date <span class="text-danger">*</span></label>
+                            <input type="date" name="start_date" id="add_start_date" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="add_end_date" class="form-label">End Date <span class="text-danger">*</span></label>
+                            <input type="date" name="end_date" id="add_end_date" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Add</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Timetable Semester Modal -->
+    <div class="modal fade" id="editTimetableSemesterModal" tabindex="-1" aria-labelledby="editTimetableSemesterModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editTimetableSemesterModalLabel">Update Timetable Semester</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="editTimetableSemesterForm" method="POST" action="{{ route('timetable-semesters.update') }}">
+                    @csrf
+                    @method('PUT')
+                    <div class="modal-body">
+                        <input type="hidden" name="id" id="edit_semester_id_hidden">
+                        <div class="mb-3">
+                            <label for="edit_semester_id" class="form-label">Semester <span class="text-danger">*</span></label>
+                            <select name="semester_id" id="edit_semester_id" class="select2 form-control" required>
+                                <option value="">Select Semester</option>
+                                @foreach ($semesters as $semester)
+                                    <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_academic_year" class="form-label">Academic Year <span class="text-danger">*</span></label>
+                            <input type="text" name="academic_year" id="edit_academic_year" class="form-control" placeholder="e.g., 2025/2026" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_start_date" class="form-label">Start Date <span class="text-danger">*</span></label>
+                            <input type="date" name="start_date" id="edit_start_date" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_end_date" class="form-label">End Date <span class="text-danger">*</span></label>
+                            <input type="date" name="end_date" id="edit_end_date" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Update</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -571,6 +689,15 @@
                             <label for="import_file" class="form-label">Upload Excel File <span class="text-danger">*</span></label>
                             <input type="file" name="file" id="import_file" class="form-control" accept=".xlsx,.xls,.csv" required>
                         </div>
+                        <div class="mb-3">
+                            <label for="import_timetable_semester_id" class="form-label">Timetable Semester <span class="text-danger">*</span></label>
+                            <select name="timetable_semester_id" id="import_timetable_semester_id" class="select2 form-control" required>
+                                <option value="">Select Timetable Semester</option>
+                                @foreach ($timetableSemesters as $semester)
+                                    <option value="{{ $semester->id }}">{{ $semester->semester->name }} ({{ $semester->academic_year }})</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
@@ -584,19 +711,18 @@
 
 @section('scripts')
     <script>
-        
+    
+    window.exportTimetable = function(draft) {
+            const url = `{{ route('timetable.export') }}?draft=${encodeURIComponent(draft)}`;
+            window.location.href = url;
+        };
         $(document).ready(function() {
-            // Debug: Log faculties data
             const faculties = @json($faculties);
-            console.log('Faculties available:', faculties);
-
-            // Store available courses globally
+            const timetableSemesters = @json($timetableSemesters);
             let availableCourses = [];
 
-            // Initialize Bootstrap tooltips
             $('[data-bs-toggle="tooltip"]').tooltip();
 
-            // Initialize Select2 with dropdown parent
             const initializeSelect2 = (selector, modalId = null) => {
                 $(selector).select2({
                     dropdownParent: modalId ? $(modalId) : $('body'),
@@ -607,7 +733,7 @@
                 });
             };
 
-            // Initialize all Select2 elements
+            // Initialize all Select2
             initializeSelect2('#faculty');
             initializeSelect2('#generate_faculty_id', '#generateTimetableModal');
             initializeSelect2('#generate_venues', '#generateTimetableModal');
@@ -621,61 +747,58 @@
             initializeSelect2('#modal_group_selection', '#addTimetableModal');
             initializeSelect2('#modal_time_end', '#addTimetableModal');
             initializeSelect2('#modal_activity', '#addTimetableModal');
+            initializeSelect2('#modal_timetable_semester_id', '#addTimetableModal');
             initializeSelect2('#edit_modal_course_code', '#editTimetableModal');
             initializeSelect2('#edit_modal_lecturer_id', '#editTimetableModal');
             initializeSelect2('#edit_modal_venue_id', '#editTimetableModal');
             initializeSelect2('#edit_modal_group_selection', '#editTimetableModal');
             initializeSelect2('#edit_modal_time_end', '#editTimetableModal');
             initializeSelect2('#edit_modal_activity', '#editTimetableModal');
+            initializeSelect2('#edit_modal_timetable_semester_id', '#editTimetableModal');
+            initializeSelect2('#add_semester_id', '#addTimetableSemesterModal');
+            initializeSelect2('#edit_semester_id', '#editTimetableSemesterModal');
+            initializeSelect2('#import_timetable_semester_id', '#importTimetableModal');
 
-            // Debug modal events
-            $('#editTimetableModal').on('show.bs.modal', function() {
-                console.log('Edit modal is opening');
-            }).on('shown.bs.modal', function() {
-                console.log('Edit modal fully opened');
-                // Reinitialize Select2 to fix dropdown positioning
-                initializeSelect2('#edit_modal_course_code', '#editTimetableModal');
-                initializeSelect2('#edit_modal_lecturer_id', '#editTimetableModal');
-                initializeSelect2('#edit_modal_venue_id', '#editTimetableModal');
-                initializeSelect2('#edit_modal_group_selection', '#editTimetableModal');
-                initializeSelect2('#edit_modal_time_end', '#editTimetableModal');
-                initializeSelect2('#edit_modal_activity', '#editTimetableModal');
-            });
+            // ————————————————————————
+            // UNIFIED: "All Groups" = Exclusive
+            // ————————————————————————
+            function setupAllGroupsExclusive(selectors) {
+                selectors.forEach(selector => {
+                    $(document).on('select2:select', selector, function (e) {
+                        const val = e.params.data.id;
+                        const $select = $(this);
+                        if (val === 'All Groups') {
+                            $select.val(['All Groups']).trigger('change');
+                        } else {
+                            const current = $select.val() || [];
+                            if (current.includes('All Groups')) {
+                                $select.val(current.filter(v => v !== 'All Groups')).trigger('change');
+                            }
+                        }
+                    });
+                });
+            }
+            setupAllGroupsExclusive([
+                '#modal_group_selection',
+                '#edit_modal_group_selection',
+                '.group-selection'
+            ]);
 
-            // Handle faculty filter change
+            // Faculty filter
             $('#faculty').on('select2:select', function() {
-                console.log('Faculty selected:', $(this).val());
                 $('#facultyFilterForm').submit();
             });
 
-            // Show SweetAlert2 if no faculties
-            if (Object.keys(faculties).length === 0) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'No Faculties',
-                    html: '<div class="text-left">No faculties are available. Please add faculties in the system.</div>',
-                    confirmButtonText: 'OK',
-                    confirmButtonColor: '#6f42c1',
-                    customClass: {
-                        popup: 'rounded-lg shadow-lg',
-                        confirmButton: 'btn btn-primary'
-                    }
-                });
-            }
-
-            // Reindex course selections
+            // Reindex courses
             const reindexCourses = () => {
                 $('.course-selection').each(function(index) {
                     $(this).find('.course-code').attr('name', `courses[${index}]`);
-                    $(this).find('input[name^="sessions_per_week"]').attr('name', `sessions_per_week[${index}]`);
-                    $(this).find('input[name^="hours_per_session"]').attr('name', `hours_per_session[${index}]`);
                     $(this).find('.lecturer-select').attr('name', `lecturers[${index}]`);
                     $(this).find('.group-selection').attr('name', `groups[${index}][]`);
                     $(this).find('.activity-select').attr('name', `activities[${index}]`);
                 });
             };
 
-            // Add new course selection
             $('#add-course').click(function() {
                 const index = $('.course-selection').length;
                 const newCourse = `
@@ -684,14 +807,8 @@
                             <div class="col-md-3">
                                 <select name="courses[${index}]" class="select2 form-control course-code" required>
                                     <option value="">Select Course</option>
-                                    ${availableCourses.map(course => `<option value="${course.course_code}">${course.course_code}</option>`).join('')}
+                                    ${availableCourses.map(c => `<option value="${c.course_code}">${c.course_code}</option>`).join('')}
                                 </select>
-                            </div>
-                            <div class="col-md-2">
-                                <input type="number" name="sessions_per_week[${index}]" class="form-control" placeholder="Sessions/Week" min="1" required>
-                            </div>
-                            <div class="col-md-2">
-                                <input type="number" name="hours_per_session[${index}]" class="form-control" placeholder="Hours/Session" min="1" max="3" required>
                             </div>
                             <div class="col-md-3">
                                 <select name="lecturers[${index}]" class="select2 form-control lecturer-select" required>
@@ -724,7 +841,6 @@
                 initializeSelect2(`.course-selection:last .group-selection`, '#generateTimetableModal');
                 initializeSelect2(`.course-selection:last .activity-select`, '#generateTimetableModal');
 
-                // Populate groups for new course
                 const facultyId = $('#generate_faculty_id').val();
                 if (facultyId) {
                     $.ajax({
@@ -734,19 +850,13 @@
                         success: function(response) {
                             const $groupSelect = $(`.course-selection:last .group-selection`);
                             $groupSelect.empty().append('<option value="All Groups" class="select-all-option">All Groups</option>');
-                            response.groups.forEach(group => {
-                                $groupSelect.append(new Option(group.group_name, group.group_name));
-                            });
+                            response.groups.forEach(g => $groupSelect.append(new Option(g.group_name, g.group_name)));
                             $groupSelect.trigger('change');
-                        },
-                        error: function(xhr) {
-                            showAlert('error', 'Error', 'Failed to load groups for new course.');
                         }
                     });
                 }
             });
 
-            // Remove course selection
             $(document).on('click', '.remove-course', function() {
                 if ($('.course-selection').length > 1) {
                     $(this).closest('.course-selection').remove();
@@ -754,16 +864,13 @@
                 }
             });
 
-            // Fetch courses and groups on faculty change
             $('#generate_faculty_id').on('change', function() {
                 const facultyId = $(this).val();
                 if (!facultyId) {
                     availableCourses = [];
-                    $('.course-code').empty().append('<option value="">Select Course</option>').trigger('change');
-                    $('.group-selection').empty().append('<option value="All Groups" class="select-all-option">All Groups</option>').trigger('change');
+                    $('.course-code, .group-selection').empty().append('<option value="">Select</option>').trigger('change');
                     return;
                 }
-
                 $.ajax({
                     url: '{{ route('timetables.getFacultyCourses') }}',
                     method: 'GET',
@@ -772,163 +879,65 @@
                         availableCourses = response.course_codes;
                         $('.course-code').each(function() {
                             const $select = $(this);
-                            const currentVal = $select.val();
+                            const current = $select.val();
                             $select.empty().append('<option value="">Select Course</option>');
-                            availableCourses.forEach(course => {
-                                $select.append(new Option(course.course_code, course.course_code, false, course.course_code === currentVal));
+                            availableCourses.forEach(c => {
+                                $select.append(new Option(c.course_code, c.course_code, false, c.course_code === current));
                             });
                             $select.trigger('change');
                         });
-
-                        $.ajax({
-                            url: '{{ route('timetables.getFacultyGroups') }}',
-                            method: 'GET',
-                            data: { faculty_id: facultyId },
-                            success: function(response) {
-                                $('.group-selection').each(function() {
-                                    const $select = $(this);
-                                    const currentVals = $select.val() || [];
-                                    $select.empty().append('<option value="All Groups" class="select-all-option">All Groups</option>');
-                                    response.groups.forEach(group => {
-                                        $select.append(new Option(group.group_name, group.group_name, false, currentVals.includes(group.group_name)));
-                                    });
-                                    $select.trigger('change');
-                                });
-                            },
-                            error: function(xhr) {
-                                showAlert('error', 'Error', 'Failed to load groups.');
-                            }
+                    }
+                });
+                $.ajax({
+                    url: '{{ route('timetables.getFacultyGroups') }}',
+                    method: 'GET',
+                    data: { faculty_id: facultyId },
+                    success: function(response) {
+                        $('.group-selection').each(function() {
+                            const $select = $(this);
+                            const current = $select.val() || [];
+                            $select.empty().append('<option value="All Groups" class="select-all-option">All Groups</option>');
+                            response.groups.forEach(g => {
+                                $select.append(new Option(g.group_name, g.group_name, false, current.includes(g.group_name)));
+                            });
+                            $select.trigger('change');
                         });
-                    },
-                    error: function(xhr) {
-                        availableCourses = [];
-                        showAlert('error', 'Error', 'Failed to load courses.');
                     }
                 });
             });
 
-            // Fetch lecturers on course change
             $(document).on('change', '.course-code', function() {
                 const courseCode = $(this).val();
                 const $lecturerSelect = $(this).closest('.course-selection').find('.lecturer-select');
                 $lecturerSelect.empty().append('<option value="">Select Lecturer</option>').trigger('change');
-
-                if (!courseCode) {
-                    $lecturerSelect.prop('disabled', true);
-                    return;
-                }
-
+                if (!courseCode) return;
                 $.ajax({
                     url: '{{ route('timetables.getCourseLecturers') }}',
                     method: 'GET',
                     data: { course_code: courseCode },
                     success: function(response) {
-                        $lecturerSelect.empty().append('<option value="">Select Lecturer</option>');
-                        response.lecturers.forEach(lecturer => {
-                            $lecturerSelect.append(new Option(lecturer.name, lecturer.id));
+                        response.lecturers.forEach(l => {
+                            $lecturerSelect.append(new Option(l.name, l.id));
                         });
                         $lecturerSelect.prop('disabled', response.lecturers.length === 0);
                         $lecturerSelect.trigger('change');
-                    },
-                    error: function(xhr) {
-                        showAlert('error', 'Error', 'Failed to load lecturers.');
                     }
                 });
             });
 
-            // Handle Generate form submission
-            $('#generateTimetableForm').on('submit', function(e) {
-                e.preventDefault();
-                reindexCourses();
-                const $form = $(this);
-                $.ajax({
-                    url: $form.attr('action'),
-                    method: 'POST',
-                    data: $form.serialize(),
-                    success: function(response) {
-                        if (response.proceed && response.warnings) {
-                            Swal.fire({
-                                icon: 'warning',
-                                title: 'Warnings Detected',
-                                html: `<div class="text-left">${response.warnings.join('<br>')}</div>`,
-                                showCancelButton: true,
-                                confirmButtonText: 'Proceed Anyway',
-                                cancelButtonText: 'Cancel',
-                                confirmButtonColor: '#6f42c1',
-                                cancelButtonColor: '#dc3545',
-                                customClass: {
-                                    popup: 'rounded-lg shadow-lg',
-                                    confirmButton: 'btn btn-primary',
-                                    cancelButton: 'btn btn-danger'
-                                }
-                            }).then((result) => {
-                                if (result.isConfirmed) {
-                                    $form.append('<input type="hidden" name="force_proceed" value="1">');
-                                    $form.submit();
-                                }
-                            });
-                        } else {
-                            showAlert('success', 'Success', response.message);
-                            $('#generateTimetableModal').modal('hide');
-                            location.reload();
-                        }
-                    },
-                    error: function(xhr) {
-                        const errors = xhr.responseJSON?.errors || { error: ['Failed to generate timetable.'] };
-                        const errorMessage = Object.values(errors).flat().join('<br>');
-                        showAlert('error', 'Error', errorMessage);
-                    }
-                });
-            });
-
-            // Handle Select All for group selection
-            ['#modal_group_selection', '#edit_modal_group_selection'].forEach(selector => {
-                $(selector).on('change', function() {
-                    const values = $(this).val() || [];
-                    if (values.includes('All Groups')) {
-                        $(this).find('option').not('[value="All Groups"]').prop('selected', true);
-                        $(this).trigger('change');
-                    }
-                });
-            });
-
-            // SweetAlert2 utility
-            const showAlert = (type, title, message) => {
-                Swal.fire({
-                    icon: type,
-                    title: title,
-                    html: `<div class="text-left">${message}</div>`,
-                    confirmButtonText: 'OK',
-                    confirmButtonColor: type === 'error' ? '#dc3545' : '#6f42c1',
-                    customClass: {
-                        popup: 'rounded-lg shadow-lg',
-                        confirmButton: 'btn btn-primary'
-                    }
-                });
-            };
-
-            // Handle "+" click to open Add modal
-            $(document).on('click', '.add-timetable', function(e) {
-                e.preventDefault();
+            // Add Modal: "+" click
+            $(document).on('click', '.add-timetable', function() {
                 const facultyId = $(this).data('faculty');
-                if (!facultyId) {
-                    showAlert('error', 'Error', 'Please select a faculty first.');
-                    return;
-                }
-                const day = $(this).data('day');
-                const timeStart = $(this).data('time');
+                if (!facultyId) return showAlert('error', 'Error', 'Select faculty first.');
 
                 $('#modal_faculty_id').val(facultyId);
-                $('#modal_day').val(day);
-                $('#modal_time_start').val(timeStart);
+                $('#modal_day').val($(this).data('day'));
+                $('#modal_time_start').val($(this).data('time'));
 
                 const timeSlots = @json($timeSlots);
-                const startIndex = timeSlots.indexOf(timeStart);
-                const endOptions = timeSlots.slice(startIndex + 1);
+                const startIndex = timeSlots.indexOf($(this).data('time'));
                 $('#modal_time_end').empty().append('<option value="">Select End Time</option>');
-                endOptions.forEach(time => {
-                    $('#modal_time_end').append(new Option(time, time));
-                });
+                timeSlots.slice(startIndex + 1).forEach(t => $('#modal_time_end').append(new Option(t, t)));
                 initializeSelect2('#modal_time_end', '#addTimetableModal');
 
                 $.ajax({
@@ -937,14 +946,8 @@
                     data: { faculty_id: facultyId },
                     success: function(response) {
                         $('#modal_course_code').empty().append('<option value="">Select Course Code</option>');
-                        response.course_codes.forEach(course => {
-                            $('#modal_course_code').append(new Option(course.course_code, course.course_code));
-                        });
+                        response.course_codes.forEach(c => $('#modal_course_code').append(new Option(c.course_code, c.course_code)));
                         $('#modal_course_code').trigger('change');
-                    },
-                    error: function(xhr) {
-                        console.error('Error fetching courses:', xhr);
-                        showAlert('error', 'Error', 'Failed to load courses.');
                     }
                 });
 
@@ -953,253 +956,193 @@
                     method: 'GET',
                     data: { faculty_id: facultyId },
                     success: function(response) {
-                        $('#modal_group_selection').empty().append('<option value="All Groups" class="select-all-option">All Groups</option>');
-                        response.groups.forEach(group => {
-                            $('#modal_group_selection').append(new Option(group.group_name, group.group_name));
-                        });
-                        $('#modal_group_selection').trigger('change');
-                    },
-                    error: function(xhr) {
-                        console.error('Error fetching groups:', xhr);
-                        showAlert('error', 'Error', 'Failed to load groups.');
+                        const $select = $('#modal_group_selection');
+                        $select.empty().append('<option value="All Groups" class="select-all-option">All Groups</option>');
+                        response.groups.forEach(g => $select.append(new Option(g.group_name, g.group_name)));
+                        $select.val(null).trigger('change');
                     }
                 });
 
                 $('#modal_lecturer_id').empty().append('<option value="">Select Lecturer</option>').trigger('change');
                 $('#modal_activity').val('').trigger('change');
+                $('#modal_timetable_semester_id').val('').trigger('change');
                 $('#addTimetableModal').modal('show');
             });
 
-            // Handle course code change for Add/Edit modals
-            ['#modal_course_code', '#edit_modal_course_code'].forEach(selector => {
-                $(selector).on('change', function() {
-                    const courseCode = $(this).val();
-                    const $lecturerSelect = selector === '#modal_course_code' ? '#modal_lecturer_id' : '#edit_modal_lecturer_id';
-                    $($lecturerSelect).empty().append('<option value="">Select Lecturer</option>').trigger('change');
+            // Edit Modal
+            $(document).on('click', '.edit-timetable', function() {
+                const id = $(this).data('id');
+                $.ajax({
+                    url: '{{ route('timetable.show', ':id') }}'.replace(':id', id),
+                    method: 'GET',
+                    success: function(data) {
+                        $('#editTimetableForm').attr('action', '{{ route('timetable.update', ':id') }}'.replace(':id', id));
+                        $('#edit_modal_id').val(id);
+                        $('#edit_modal_faculty_id').val(data.faculty_id);
+                        $('#edit_modal_day').val(data.day);
+                        $('#edit_modal_time_start').val(data.time_start);
 
-                    if (!courseCode) {
-                        $($lecturerSelect).prop('disabled', true);
-                        return;
+                        const timeSlots = @json($timeSlots);
+                        const startIndex = timeSlots.indexOf(data.time_start);
+                        $('#edit_modal_time_end').empty().append('<option value="">Select End Time</option>');
+                        timeSlots.slice(startIndex + 1).forEach(t => {
+                            $('#edit_modal_time_end').append(new Option(t, t, false, t === data.time_end));
+                        });
+                        initializeSelect2('#edit_modal_time_end', '#editTimetableModal');
+
+                        $.ajax({
+                            url: '{{ route('timetables.getFacultyCourses') }}',
+                            method: 'GET',
+                            data: { faculty_id: data.faculty_id },
+                            success: function(response) {
+                                $('#edit_modal_course_code').empty().append('<option value="">Select Course Code</option>');
+                                response.course_codes.forEach(c => {
+                                    $('#edit_modal_course_code').append(new Option(c.course_code, c.course_code, false, c.course_code === data.course_code));
+                                });
+                                $('#edit_modal_course_code').trigger('change');
+                            }
+                        });
+
+                        if (data.course_code) {
+                            $.ajax({
+                                url: '{{ route('timetables.getCourseLecturers') }}',
+                                method: 'GET',
+                                data: { course_code: data.course_code },
+                                success: function(response) {
+                                    $('#edit_modal_lecturer_id').empty().append('<option value="">Select Lecturer</option>');
+                                    response.lecturers.forEach(l => {
+                                        $('#edit_modal_lecturer_id').append(new Option(l.name, l.id, false, l.id == data.lecturer_id));
+                                    });
+                                    $('#edit_modal_lecturer_id').trigger('change');
+                                }
+                            });
+                        }
+
+                        $.ajax({
+                            url: '{{ route('timetables.getFacultyGroups') }}',
+                            method: 'GET',
+                            data: { faculty_id: data.faculty_id },
+                            success: function(response) {
+                                const $select = $('#edit_modal_group_selection');
+                                $select.empty().append('<option value="All Groups" class="select-all-option">All Groups</option>');
+                                const saved = data.group_selection ? data.group_selection.split(',') : [];
+
+                                response.groups.forEach(g => $select.append(new Option(g.group_name, g.group_name)));
+
+                                if (saved.length === 1 && saved[0] === 'All Groups') {
+                                    $select.val(['All Groups']);
+                                } else {
+                                    $select.val(saved.filter(v => v !== 'All Groups'));
+                                }
+                                $select.trigger('change');
+                            }
+                        });
+
+                        $('#edit_modal_activity').val(data.activity || '').trigger('change');
+                        $('#edit_modal_venue_id').val(data.venue_id || '').trigger('change');
+                        $('#edit_modal_timetable_semester_id').val(data.timetable_semester_id || '').trigger('change');
+
+                        $('#editTimetableModal').modal('show');
                     }
+                });
+            });
 
+            // Course → Lecturer
+            ['#modal_course_code', '#edit_modal_course_code'].forEach(s => {
+                $(s).on('change', function() {
+                    const code = $(this).val();
+                    const target = s === '#modal_course_code' ? '#modal_lecturer_id' : '#edit_modal_lecturer_id';
+                    $(target).empty().append('<option value="">Select Lecturer</option>').trigger('change');
+                    if (!code) return;
                     $.ajax({
                         url: '{{ route('timetables.getCourseLecturers') }}',
                         method: 'GET',
-                        data: { course_code: courseCode },
-                        success: function(response) {
-                            $($lecturerSelect).empty().append('<option value="">Select Lecturer</option>');
-                            response.lecturers.forEach(lecturer => {
-                                $($lecturerSelect).append(new Option(lecturer.name, lecturer.id));
-                            });
-                            $($lecturerSelect).prop('disabled', response.lecturers.length === 0);
-                            $($lecturerSelect).trigger('change');
-                        },
-                        error: function(xhr) {
-                            console.error('Error fetching lecturers:', xhr);
-                            showAlert('error', 'Error', 'Failed to load lecturers.');
+                        data: { course_code: code },
+                        success: function(r) {
+                            r.lecturers.forEach(l => $(target).append(new Option(l.name, l.id)));
+                            $(target).prop('disabled', r.lecturers.length === 0);
+                            $(target).trigger('change');
                         }
                     });
                 });
             });
 
-            // Handle Add/Edit form submission
-            ['#addTimetableForm', '#editTimetableForm'].forEach(formId => {
-                $(formId).on('submit', function(e) {
-                    e.preventDefault();
-                    const $form = $(this);
-                    const venueId = $form.find('[name="venue_id"]').val();
-                    const venueCapacity = parseInt($form.find(`option[value="${venueId}"]`).data('capacity') || 0);
-                    const groups = $form.find('[name="group_selection[]"]').val();
-
-                    if (!groups || groups.length === 0) {
-                        showAlert('error', 'Error', 'Please select at least one group.');
-                        return;
-                    }
-
-                    $.ajax({
-                        url: $form.attr('action'),
-                        method: 'POST',
-                        data: $form.serialize(),
-                        success: function(response) {
-                            showAlert('success', 'Success', response.message);
-                            $form.closest('.modal').modal('hide');
-                            location.reload();
-                        },
-                        error: function(xhr) {
-                            console.error('Form submission error:', xhr);
-                            const errors = xhr.responseJSON?.errors || { error: ['Unknown error occurred.'] };
-                            const errorMessage = Object.values(errors).flat().join('<br>');
-                            showAlert('error', 'Error', errorMessage);
-                        }
-                    });
-                });
-            });
-
-            // Handle Edit timetable click
-                    $(document).on('click', '.edit-timetable', function(e) {
+            
+$('#generateTimetableForm').on('submit', function(e) {
     e.preventDefault();
-    const timetableId = $(this).data('id');
-    console.log('Edit timetable clicked, ID:', timetableId);
+
+    // Disable button to prevent double click
+    const $submitBtn = $(this).find('button[type="submit"]');
+    $submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Generating...');
 
     $.ajax({
-        url: '{{ route('timetable.show', ':id') }}'.replace(':id', timetableId),
-        method: 'GET',
-        success: function(data) {
-            console.log('Timetable data:', JSON.stringify(data, null, 2));
-            $('#editTimetableForm').attr('action', '{{ route('timetable.update', ':id') }}'.replace(':id', timetableId));
-            $('#edit_modal_id').val(timetableId);
-            $('#edit_modal_faculty_id').val(data.faculty_id);
-            $('#edit_modal_day').val(data.day);
-            $('#edit_modal_time_start').val(data.time_start); // Use raw time_start directly
-
-            // Populate time_end
-            const timeSlots = @json($timeSlots);
-            const startIndex = timeSlots.indexOf(data.time_start);
-            $('#edit_modal_time_end').empty().append('<option value="">Select End Time</option>');
-            timeSlots.slice(startIndex + 1).forEach(time => {
-                $('#edit_modal_time_end').append(new Option(time, time, false, time === data.time_end));
+        url: $(this).attr('action'),
+        method: 'POST',
+        data: $(this).serialize(),
+        success: function(response) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                html: `<div class="text-left">${response.message || 'Timetable generated successfully!'}</div>`,
+                confirmButtonColor: '#6f42c1',
+                timer: 5000,
+                timerProgressBar: true
+            }).then(() => {
+                location.reload(); // Reload to see new timetable
             });
-            initializeSelect2('#edit_modal_time_end', '#editTimetableModal');
-
-            // Populate course_code
-            $.ajax({
-                url: '{{ route('timetables.getFacultyCourses') }}',
-                method: 'GET',
-                data: { faculty_id: data.faculty_id },
-                success: function(response) {
-                    $('#edit_modal_course_code').empty().append('<option value="">Select Course Code</option>');
-                    response.course_codes.forEach(course => {
-                        $('#edit_modal_course_code').append(new Option(course.course_code, course.course_code, false, course.course_code === data.course_code));
-                    });
-                    $('#edit_modal_course_code').trigger('change');
-                },
-                error: function(xhr) {
-                    console.error('Error fetching courses:', xhr);
-                    showAlert('error', 'Error', 'Failed to load courses.');
-                }
-            });
-
-            // Populate lecturer_id
-            if (data.course_code) {
-                $.ajax({
-                    url: '{{ route('timetables.getCourseLecturers') }}',
-                    method: 'GET',
-                    data: { course_code: data.course_code },
-                    success: function(response) {
-                        $('#edit_modal_lecturer_id').empty().append('<option value="">Select Lecturer</option>');
-                        response.lecturers.forEach(lecturer => {
-                            $('#edit_modal_lecturer_id').append(new Option(lecturer.name, lecturer.id, false, lecturer.id == data.lecturer_id));
-                        });
-                        $('#edit_modal_lecturer_id').trigger('change');
-                    },
-                    error: function(xhr) {
-                        console.error('Error fetching lecturers:', xhr);
-                        showAlert('error', 'Error', 'Failed to load lecturers.');
-                    }
-                });
-            } else {
-                $('#edit_modal_lecturer_id').empty().append('<option value="">Select Lecturer</option>').trigger('change');
-            }
-
-            // Populate group_selection
-            $.ajax({
-                url: '{{ route('timetables.getFacultyGroups') }}',
-                method: 'GET',
-                data: { faculty_id: data.faculty_id },
-                success: function(response) {
-                    $('#edit_modal_group_selection').empty().append('<option value="All Groups" class="select-all-option">All Groups</option>');
-                    const selectedGroups = data.group_selection ? data.group_selection.split(',') : [];
-                    response.groups.forEach(group => {
-                        $('#edit_modal_group_selection').append(new Option(group.group_name, group.group_name, false, selectedGroups.includes(group.group_name)));
-                    });
-                    $('#edit_modal_group_selection').trigger('change');
-                },
-                error: function(xhr) {
-                    console.error('Error fetching groups:', xhr);
-                    showAlert('error', 'Error', 'Failed to load groups.');
-                }
-            });
-
-            // Populate activity and venue
-            $('#edit_modal_activity').val(data.activity || '').trigger('change');
-            $('#edit_modal_venue_id').val(data.venue_id || '').trigger('change');
-
-            // Show modal
-            console.log('Opening edit modal');
-            const editModal = new bootstrap.Modal(document.getElementById('editTimetableModal'));
-            editModal.show();
         },
         error: function(xhr) {
-            console.error('Error fetching timetable:', xhr);
-            const errorMessage = xhr.responseJSON?.message || 'Failed to load timetable details.';
-            showAlert('error', 'Error', errorMessage);
+            let errorMsg = 'An error occurred while generating the timetable.';
+            if (xhr.responseJSON) {
+                if (xhr.responseJSON.message) {
+                    errorMsg = xhr.responseJSON.message;
+                }
+                if (xhr.responseJSON.errors) {
+                    errorMsg = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+                }
+            }
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Generation Failed',
+                html: `<div class="text-left">${errorMsg}</div>`,
+                confirmButtonColor: '#dc3545'
+            });
+        },
+        complete: function() {
+            $submitBtn.prop('disabled', false).html('Generate');
         }
     });
 });
 
-            // Handle Show timetable click
-            $(document).on('click', '.show-timetable', function(e) {
-                e.preventDefault();
-                const timetableId = $(this).data('id');
-                $.ajax({
-                    url: '{{ route('timetable.show', ':id') }}'.replace(':id', timetableId),
-                    method: 'GET',
-                    success: function(data) {
-                        $('#show_course_code').text(data.course_code || 'N/A');
-                        $('#show_course_name').text(data.name || 'N/A');
-                        $('#show_activity').text(data.activity || 'N/A');
-                        $('#show_day').text(data.day || 'N/A');
-                        $('#show_time_start').text(data.time_start || 'N/A');
-                        $('#show_time_end').text(data.time_end || 'N/A');
-                        $('#show_venue').text(data.venue?.name || 'N/A');
-                        $('#show_venue_capacity').text(data.venue?.capacity || 'N/A');
-                        $('#show_group_details').text(data.group_selection || 'N/A');
-                        $('#show_lecturer').text(data.lecturer?.name || 'N/A');
-                        $('#show_faculty').text(data.faculty?.name || 'N/A');
-                        $('#showTimetableModal').modal('show');
-                    },
-                    error: function(xhr) {
-                        console.error('Error fetching timetable:', xhr);
-                        showAlert('error', 'Error', 'Failed to load timetable details.');
-                    }
+            // Form submissions (Add/Edit)
+            ['#addTimetableForm', '#editTimetableForm'].forEach(f => {
+                $(f).on('submit', function(e) {
+                    e.preventDefault();
+                    $.ajax({
+                        url: $(this).attr('action'),
+                        method: 'POST',
+                        data: $(this).serialize(),
+                        success: function(r) {
+                            showAlert('success', 'Success', r.message);
+                            $(f).closest('.modal').modal('hide');
+                            location.reload();
+                        },
+                        error: function(xhr) {
+                            const msg = Object.values(xhr.responseJSON?.errors || {}).flat().join('<br>');
+                            showAlert('error', 'Error', msg);
+                        }
+                    });
                 });
             });
 
-            // Handle Delete confirmation
-            $(document).on('submit', '.delete-timetable-form', function(e) {
-                e.preventDefault();
-                const $form = $(this);
-                Swal.fire({
-                    title: 'Are you sure?',
-                    text: 'This timetable entry will be deleted permanently.',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#dc3545',
-                    cancelButtonColor: '#6f42c1',
-                    confirmButtonText: 'Yes, delete it!',
-                    customClass: {
-                        popup: 'rounded-lg shadow-lg',
-                        confirmButton: 'btn btn-danger',
-                        cancelButton: 'btn btn-primary'
-                    }
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        $.ajax({
-                            url: $form.attr('action'),
-                            method: 'POST',
-                            data: $form.serialize(),
-                            success: function() {
-                                showAlert('success', 'Success', 'Timetable entry deleted successfully.');
-                                location.reload();
-                            },
-                            error: function(xhr) {
-                                console.error('Error deleting timetable:', xhr);
-                                showAlert('error', 'Error', 'Failed to delete timetable.');
-                            }
-                        });
-                    }
-                });
-            });
+            
+
+            const showAlert = (type, title, msg) => {
+                Swal.fire({ icon: type, title, html: `<div class="text-left">${msg}</div>`, confirmButtonText: 'OK', confirmButtonColor: type === 'error' ? '#dc3545' : '#6f42c1' });
+            };
+            
+
         });
     </script>
-    @endsection
+@endsection

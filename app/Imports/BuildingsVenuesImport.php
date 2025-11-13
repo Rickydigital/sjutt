@@ -24,16 +24,20 @@ class BuildingsVenuesImport implements ToModel, WithHeadingRow
 
     public function model(array $row)
     {
-        if (empty($row['venue_name']) || empty($row['building_name'])) {
-            Log::warning('Skipping row due to missing venue_name or building_name', $row);
+        if (empty($row['venue_name'])) {
+            Log::warning('Skipping row due to missing venue_name', $row);
             return null;
         }
 
-        // Create or find building
-        $building = Building::firstOrCreate(
-            ['name' => $row['building_name']],
-            ['description' => $row['building_description'] ?? null]
-        );
+        // Handle building (nullable)
+        $building_id = null;
+        if (!empty($row['building_name'])) {
+            $building = Building::firstOrCreate(
+                ['name' => $row['building_name']],
+                ['description' => $row['building_description'] ?? null]
+            );
+            $building_id = $building->id;
+        }
 
         // Determine venue type
         $venueType = $row['venue_type'] ?? $this->determineVenueType($row['venue_name']);
@@ -45,7 +49,7 @@ class BuildingsVenuesImport implements ToModel, WithHeadingRow
                 'longform' => $row['venue_longform'] ?? $this->generateLongform($row['venue_name']),
                 'lat' => $row['lat'] ?? null,
                 'lng' => $row['lng'] ?? null,
-                'building_id' => $building->id,
+                'building_id' => $building_id,
                 'capacity' => $row['capacity'] ?? 50, // Default capacity
                 'type' => in_array($venueType, $this->venueTypes) ? $venueType : 'other',
             ]
@@ -64,7 +68,7 @@ class BuildingsVenuesImport implements ToModel, WithHeadingRow
             'chemistry_lab' => ['CH'],
             'medical_lab' => ['ML'],
             'nursing_demo' => ['NU'],
-            'seminar_room' => ['BI'], // Assuming Bishop_H is a seminar room
+            'seminar_room' => ['SR'], // Assuming Bishop_H is a seminar room
         ];
 
         foreach ($venueTypes as $type => $prefixes) {

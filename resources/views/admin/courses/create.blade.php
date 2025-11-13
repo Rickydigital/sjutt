@@ -21,6 +21,7 @@
                         <label for="name">Name <span class="text-danger">*</span></label>
                         <input type="text" name="name" id="name" class="form-control" value="{{ old('name') }}"
                             required>
+                        <small class="text-muted">Maximum 5 words</small>
                         @error('name')
                             <small class="text-danger">{{ $message }}</small>
                         @enderror
@@ -41,8 +42,61 @@
                         @enderror
                     </div>
                     <div class="form-group">
-                        <label for="lecturer_ids">Lecturers</label>
-                        <select name="lecturer_ids[]" id="lecturer_ids" class="form-control select2" multiple>
+                        <label for="hours">Hours <span class="text-danger">*</span></label>
+                        <input type="number" name="hours" id="hours" class="form-control"
+                            value="{{ old('hours') }}" min="1" required>
+                        @error('hours')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                    <div class="form-group">
+                        <label for="practical_hrs">Practical Hours</label>
+                        <input type="number" name="practical_hrs" id="practical_hrs" class="form-control"
+                            value="{{ old('practical_hrs') }}" min="0" step="1">
+                        <small class="text-muted">Optional. Must not exceed total hours.</small>
+                        @error('practical_hrs')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                    <div class="form-group">
+                        <label for="session">Session <span class="text-danger">*</span></label>
+                        <input type="number" name="session" id="session" class="form-control"
+                            value="{{ old('session') }}" min="1" required>
+                        @error('session')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                    <div class="form-group">
+                        <label for="semester_id">Semester <span class="text-danger">*</span></label>
+                        <select name="semester_id" id="semester_id" class="form-control" required>
+                            @foreach ($semesters as $semester)
+                                <option value="{{ $semester->id }}"
+                                    {{ old('semester_id') == $semester->id ? 'selected' : '' }}>
+                                    {{ $semester->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('semester_id')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
+                    </div>
+                    <div class="form-group">
+                        <label class="form-check-label">
+                            <input type="checkbox" name="cross_catering" class="form-check-input" value="1"
+                                {{ old('cross_catering') ? 'checked' : '' }}>
+                            Cross Catering
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-check-label">
+                            <input type="checkbox" name="is_workshop" class="form-check-input" value="1"
+                                {{ old('is_workshop') ? 'checked' : '' }}>
+                            Is Workshop
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="lecturer_ids">Lecturers <span class="text-danger">*</span></label>
+                        <select name="lecturer_ids[]" id="lecturer_ids" class="form-control select2" multiple required>
                             @foreach ($lecturers as $lecturer)
                                 <option value="{{ $lecturer->id }}"
                                     {{ in_array($lecturer->id, old('lecturer_ids', [])) ? 'selected' : '' }}>
@@ -55,8 +109,8 @@
                         @enderror
                     </div>
                     <div class="form-group">
-                        <label for="faculty_ids">Faculties</label>
-                        <select name="faculty_ids[]" id="faculty_ids" class="form-control select2" multiple>
+                        <label for="faculty_ids">Faculties <span class="text-danger">*</span></label>
+                        <select name="faculty_ids[]" id="faculty_ids" class="form-control select2" multiple required>
                             @foreach ($faculties as $faculty)
                                 <option value="{{ $faculty->id }}"
                                     {{ in_array($faculty->id, old('faculty_ids', [])) ? 'selected' : '' }}>
@@ -68,10 +122,9 @@
                             <small class="text-danger">{{ $message }}</small>
                         @enderror
                     </div>
-                    <div class=" d-flex flex-row justify-content-end my-2">
-                        <a href="{{ route('courses.index') }}" class="btn btn-outline-danger ">Cancel</a>
-                        <button type="submit" class="btn btn-primary mx-2">Save
-                            Course</button>
+                    <div class="d-flex flex-row justify-content-end my-2">
+                        <a href="{{ route('courses.index') }}" class="btn btn-outline-danger">Cancel</a>
+                        <button type="submit" class="btn btn-primary mx-2">Save Course</button>
                     </div>
                 </form>
             </div>

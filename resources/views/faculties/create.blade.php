@@ -71,14 +71,7 @@
                             <small class="text-danger">{{ $message }}</small>
                         @enderror
                     </div>
-                    <div class="form-group">
-                        <label for="group_names">Group Names (comma-separated)</label>
-                        <input type="text" name="group_names" id="group_names" class="form-control"
-                            value="{{ old('group_names') }}" placeholder="e.g., Group A, Group B">
-                        @error('group_names')
-                            <small class="text-danger">{{ $message }}</small>
-                        @enderror
-                    </div>
+                   
                     <div class=" d-flex flex-row justify-content-end my-2">
                         <a href="{{ route('faculties.index') }}" class="btn btn-outline-danger">Cancel</a>
                         <button type="submit" class="btn btn-primary mx-2">Save

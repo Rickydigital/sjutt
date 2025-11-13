@@ -22,6 +22,7 @@
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
+                @if (Auth::user()->hasRole('Admin'))
                 <div class="form-group mb-3 col-md-6">
                     <label for="role">Role</label>
                     <select name="role" id="role" class="form-control @error('role') is-invalid @enderror" required>
@@ -35,6 +36,7 @@
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
+                @endif
                 <div class="form-group mb-3 col-md-6">
                     <label for="phone">Phone</label>
                     <input type="text" name="phone" id="phone"
