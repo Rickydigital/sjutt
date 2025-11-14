@@ -99,73 +99,63 @@ class TimetableController extends Controller
         return response()->json(['message' => 'Timetable deleted successfully'], 200);
     }
 
-    /**
-     * Fetch lecture timetables for a specific faculty.
-     */
-    public function getLectureTimetables(Request $request)
-    {
-        $facultyId = $request->query('faculty_id');
 
-        // Validate query parameters
-        if (!$facultyId) {
-            return response()->json(['error' => 'Missing faculty_id'], 400);
-        }
+/**
+ * Fetch lecture timetables for a specific faculty.
+ */
+public function getLectureTimetables(Request $request)
+{
+    $facultyId = $request->query('faculty_id');
 
-        // Check for current timetable semester
-        if (!TimetableSemester::exists()) {
-            return response()->json(['error' => 'No timetable semester configured.'], 422);
-        }
-
-        $timetableSemester = TimetableSemester::getFirstSemester();
-        $semesterId = $timetableSemester->semester_id;
-
-        // Fetch lecture timetables for the faculty and current semester, Monday to Friday
-        $timetables = Timetable::with('lecturer', 'venue')
-            ->where('faculty_id', $facultyId)
-            ->where('semester_id', $semesterId)
-            ->whereIn('day', ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
-            ->orderBy('day')
-            ->orderBy('time_start')
-            ->get();
-
-        // Define days and time slots
-        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-        $timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
-
-        // Initialize structured timetable data
-        $timetableData = [];
-        foreach ($days as $day) {
-            $timetableData[$day] = [];
-            foreach ($timeSlots as $slot) {
-                $timetableData[$day][$slot] = null;
-            }
-        }
-
-        // Populate the structure with timetable entries at their starting time slots
-        foreach ($timetables as $entry) {
-            $startTime = substr($entry->time_start, 0, 5); // Trim to H:i (assuming seconds are 00)
-            $endTime = substr($entry->time_end, 0, 5);
-
-            if (in_array($startTime, $timeSlots)) {
-                $timetableData[$entry->day][$startTime] = [
-                    'id' => $entry->id,
-                    'course_code' => $entry->course_code,
-                    'course_name' => $entry->course_name ?? null,
-                    'activity' => $entry->activity,
-                    'time_start' => $startTime,
-                    'time_end' => $endTime,
-                    'lecturer_id' => $entry->lecturer_id,
-                    'lecturer_name' => $entry->lecturer ? $entry->lecturer->name : 'N/A',
-                    'venue_id' => $entry->venue_id,
-                    'venue_name' => $entry->venue ? $entry->venue->name : 'N/A',
-                    'group_selection' => $entry->group_selection,
-                    'semester_id' => $entry->semester_id,
-                ];
-            }
-        }
-
-        return response()->json(['data' => $timetableData], 200);
+    
+    if (!$facultyId) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'Missing faculty_id'
+        ], 400);
     }
+
+  
+    if (!TimetableSemester::exists()) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'No timetable semester configured.'
+        ], 422);
+    }
+
+    $timetableSemester = TimetableSemester::with('semester')->firstOrFail();
+    $semesterId        = $timetableSemester->semester_id;
+    $semesterName      = $timetableSemester->semester->name ?? 'N/A';
+
+    
+    $timetables = Timetable::with(['lecturer', 'venue', 'course'])
+        ->where('faculty_id', $facultyId)
+        ->where('semester_id', $semesterId)
+        ->whereIn('day', ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
+        ->orderByRaw("FIELD(day, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')")
+        ->orderBy('time_start')
+        ->get();
+
+    
+    $grouped = $timetables->groupBy('day')->map(function ($entries) {
+        return $entries->values(); // re-index to 0,1,2…
+    });
+
+    // Ensure every day exists (even if empty)
+    $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    foreach ($days as $day) {
+        if (!isset($grouped[$day])) {
+            $grouped[$day] = [];
+        }
+    }
+
+ 
+    return response()->json([
+        'success'   => true,
+        'semester'  => $semesterName,
+        'data'      => $grouped
+    ], 200);
+}
 
     public function getExaminationTimetables(Request $request)
     {
