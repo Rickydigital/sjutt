@@ -157,6 +157,78 @@ public function getLectureTimetables(Request $request)
     ], 200);
 }
 
+
+/**
+ * GET /api/venue-timetables?venue_id=5
+ * Returns lecture timetable for a specific venue (like faculty timetable)
+ */
+public function getVenueTimetables(Request $request)
+{
+    $venueId = $request->query('venue_id');
+
+    if (!$venueId) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'Missing venue_id'
+        ], 400);
+    }
+
+    if (!\App\Models\Venue::find($venueId)) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'Venue not found'
+        ], 404);
+    }
+
+    if (!TimetableSemester::exists()) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'No timetable semester configured.'
+        ], 422);
+    }
+
+    $timetableSemester = TimetableSemester::with('semester')->firstOrFail();
+    $semesterId        = $timetableSemester->semester_id;
+    $semesterName      = $timetableSemester->semester->name ?? 'N/A';
+
+    $timetables = Timetable::with(['lecturer', 'faculty', 'course'])
+        ->where('venue_id', $venueId)
+        ->where('semester_id', $semesterId)
+        ->whereIn('day', ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
+        ->orderByRaw("FIELD(day, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')")
+        ->orderBy('time_start')
+        ->get();
+
+    $grouped = $timetables->groupBy('day')->map(function ($entries) {
+        return $entries->map(function ($entry) {
+            return [
+                'id'           => $entry->id,
+                'course_code'  => $entry->course_code,
+                'activity'     => $entry->activity,
+                'faculty'      => $entry->faculty?->name ?? '—',
+                'lecturer'     => $entry->lecturer?->name ?? '—',
+                'time_start'   => $entry->time_start,
+                'time_end'     => $entry->time_end,
+                'duration'     => (strtotime($entry->time_end) - strtotime($entry->time_start)) / 3600 . 'h',
+            ];
+        })->values();
+    });
+
+    $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    foreach ($days as $day) {
+        if (!isset($grouped[$day])) {
+            $grouped[$day] = [];
+        }
+    }
+
+    return response()->json([
+        'success'   => true,
+        'venue_id'  => (int) $venueId,
+        'semester'  => $semesterName,
+        'data'      => $grouped
+    ], 200);
+}
+
     public function getExaminationTimetables(Request $request)
     {
         $facultyId = $request->query('faculty_id');

@@ -5,115 +5,140 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Gallery;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class GalleryController extends Controller
 {
     public function index(Request $request)
     {
         $search = $request->query('search');
-        $galleries = Gallery::when($search, function ($query, $search) {
-            return $query->where('description', 'like', "%{$search}%");
-        })->paginate(10);
+        $filter_creator = $request->query('filter_creator');
 
-        return view('admin.galleries.index', compact('galleries'));
-    }
+        $galleries = Gallery::with('user')
+            ->when($search, fn($q) => $q->where('description', 'like', "%{$search}%"))
+            ->when($filter_creator, fn($q) => $q->where('created_by', $filter_creator))
+            ->latest()
+            ->paginate(10);
 
-    public function create()
-    {
-        return view('admin.galleries.create');
+        $creators = Gallery::select('created_by')
+            ->distinct()
+            ->with('user')
+            ->get()
+            ->pluck('user.name', 'created_by');
+
+        return view('admin.galleries.index', compact('galleries', 'creators'));
     }
 
     public function store(Request $request)
     {
+        if (!Auth::check()) {
+            return back()->with('error', 'You must be logged in.');
+        }
+
         $request->validate([
             'description' => 'required|string|max:1000',
-            'media.*' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048', // Each file must be an image, max 2MB
+            'media.*'     => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
         ], [
             'media.*.required' => 'Please upload at least one image.',
-            'media.*.image' => 'Each file must be a valid image.',
-            'media.*.mimes' => 'Only JPEG, PNG, JPG, and GIF formats are allowed.',
-            'media.*.max' => 'Each image must not exceed 2MB.',
+            'media.*.image'    => 'Each file must be a valid image.',
+            'media.*.mimes'    => 'Only JPEG, PNG, JPG, and GIF are allowed.',
+            'media.*.max'      => 'Each image must not exceed 2MB.',
         ]);
 
-        // Ensure 1 to 10 images are uploaded
         $mediaFiles = $request->file('media') ?? [];
         if (count($mediaFiles) < 1 || count($mediaFiles) > 10) {
-            return back()->withInput()->withErrors(['media' => 'Please upload between 1 and 10 images.']);
+            return back()->withErrors(['media' => 'Please upload between 1 and 10 images.']);
         }
 
         try {
-            // Store images and collect their paths
             $mediaPaths = [];
             foreach ($mediaFiles as $file) {
-                $path = $file->store('gallery', 'public'); // Store in storage/public/gallery
-                $mediaPaths[] = Storage::url($path); // Get URL for the stored image
-            }
-
-            // Create gallery item
-            Gallery::create([
-                'description' => $request->description,
-                'media' => $mediaPaths,
-            ]);
-
-            return redirect()->route('gallery.index')->with('success', 'Gallery item created successfully.');
-        } catch (\Exception $e) {
-            return back()->withInput()->withErrors(['error' => 'Failed to create gallery item: ' . $e->getMessage()]);
-        }
-    }
-
-    public function edit(Gallery $gallery)
-    {
-        return view('admin.galleries.edit', compact('gallery'));
-    }
-
-    public function update(Request $request, Gallery $gallery)
-    {
-        $request->validate([
-            'description' => 'required|string|max:1000',
-            'media.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
-
-        // Handle media updates
-        $mediaPaths = $gallery->media ?? [];
-        if ($request->hasFile('media')) {
-            // Delete old images
-            foreach ($gallery->media as $oldMedia) {
-                $path = str_replace('/storage/', 'public/', $oldMedia);
-                Storage::delete($path);
-            }
-
-            // Store new images
-            $mediaPaths = [];
-            foreach ($request->file('media') as $file) {
                 $path = $file->store('gallery', 'public');
                 $mediaPaths[] = Storage::url($path);
             }
 
-            // Ensure 1 to 10 images
-            if (count($mediaPaths) < 1 || count($mediaPaths) > 10) {
-                return back()->withInput()->withErrors(['media' => 'Please upload between 1 and 10 images.']);
-            }
+            Gallery::create([
+                'description' => $request->description,
+                'media'       => $mediaPaths,
+                'created_by'  => Auth::id(),
+            ]);
+
+            return redirect()->route('gallery.index')->with('success', 'Gallery item created.');
+        } catch (\Exception $e) {
+            Log::error('Gallery creation failed: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Failed to save.');
+        }
+    }
+
+    public function update(Request $request, Gallery $gallery)
+    {
+        if (Auth::id() !== $gallery->created_by && !Auth::user()->hasRole('Admin')) {
+            return back()->with('error', 'Unauthorized.');
         }
 
-        // Update gallery item
-        $gallery->update([
-            'description' => $request->description,
-            'media' => $mediaPaths,
+        $request->validate([
+            'description' => 'required|string|max:1000',
+            'new_media.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
-        return redirect()->route('gallery.index')->with('success', 'Gallery item updated successfully.');
+        try {
+            $mediaPaths = $request->input('keep_images', []);
+
+            if ($request->hasFile('new_media')) {
+                $newFiles = $request->file('new_media');
+                foreach ($newFiles as $file) {
+                    $path = $file->store('gallery', 'public');
+                    $mediaPaths[] = Storage::url($path);
+                }
+            }
+
+            // Delete removed images
+            $oldMedia = $gallery->media ?? [];
+            $removed = array_diff($oldMedia, $mediaPaths);
+            foreach ($removed as $path) {
+                $diskPath = str_replace('/storage/', 'public/', $path);
+                if (Storage::exists($diskPath)) {
+                    Storage::delete($diskPath);
+                }
+            }
+
+            if (count($mediaPaths) < 1 || count($mediaPaths) > 10) {
+                return back()->withErrors(['media' => 'Please have 1–10 images.']);
+            }
+
+            $gallery->update([
+                'description' => $request->description,
+                'media'       => $mediaPaths,
+            ]);
+
+            return redirect()->route('gallery.index')->with('success', 'Gallery updated.');
+        } catch (\Exception $e) {
+            return back()->withInput()->with('error', 'Update failed.');
+        }
     }
 
     public function destroy(Gallery $gallery)
     {
-        // Delete associated images
-        foreach ($gallery->media ?? [] as $media) {
-            $path = str_replace('/storage/', 'public/', $media);
-            Storage::delete($path);
+        if (Auth::id() !== $gallery->created_by && !Auth::user()->hasRole('Admin')) {
+            return back()->with('error', 'Unauthorized.');
         }
 
-        $gallery->delete();
-        return redirect()->route('gallery.index')->with('success', 'Gallery item deleted successfully.');
+        try {
+            foreach ($gallery->media ?? [] as $media) {
+                $path = str_replace('/storage/', 'public/', $media);
+                if (Storage::exists($path)) {
+                    Storage::delete($path);
+                }
+            }
+
+            $gallery->delete();
+
+            return redirect()->route('gallery.index')->with('success', 'Gallery item deleted.');
+        } catch (\Exception $e) {
+            Log::error('Gallery delete failed: ' . $e->getMessage());
+            return back()->with('error', 'Delete failed.');
+        }
     }
 }

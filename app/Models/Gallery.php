@@ -11,12 +11,19 @@ class Gallery extends Model
 
     protected $fillable = [
         'description',
-        'media'
+        'media',
+        'created_by',
     ];
 
     protected $casts = [
         'media' => 'array', 
     ];
+
+
+    public function user()
+{
+    return $this->belongsTo(User::class, 'created_by');
+}
 
     public function likes()
     {

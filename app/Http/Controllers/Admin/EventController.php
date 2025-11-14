@@ -4,112 +4,132 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Event;
+use App\Models\Venue;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class EventController extends Controller
 {
-    /**
-     * Display a listing of the events.
-     */
     public function index(Request $request)
     {
         $search = $request->query('search');
-        $events = Event::when($search, function ($query, $search) {
-            return $query->where('title', 'like', "%{$search}%")
-                        ->orWhere('location', 'like', "%{$search}%")
-                        ->orWhere('event_time', 'like', "%{$search}%");
-        })->paginate(10);
+        $filterCreator = $request->query('filter_creator');
+
+        $events = Event::with('user')
+            ->when($search, fn($q, $s) => $q->where('title', 'like', "%{$s}%")
+                ->orWhere('location', 'like', "%{$s}%"))
+            ->when($filterCreator, fn($q, $id) => $q->where('created_by', $id))
+            ->latest()
+            ->paginate(10);
 
         return view('admin.events.index', compact('events'));
     }
 
-    /**
-     * Show the form for creating a new event.
-     */
-    public function create()
-    {
-        return view('admin.events.create');
-    }
-
-    /**
-     * Store a newly created event in storage.
-     */
     public function store(Request $request)
     {
-        $request->validate([
-            'title' => 'required',
-            'description' => 'required',
-            'location' => 'required',
-            'event_time' => 'required|date',
-            'media' => 'nullable|image|mimes:jpeg,png,jpg,mp4,avi,mov',
-        ]);
-
-        $event = Event::create([
-            'title' => $request->title,
-            'description' => $request->description,
-            'location' => $request->location,
-            'event_time' => $request->event_time,
-            'user_allowed' => $request->user_allowed ?? true,
-            'media' => $request->file('media') ? $request->file('media')->store('event_media', 'public') : null,
-            'created_by' => auth()->id(),
-        ]);
-
-        return redirect()->route('events.index')->with('success', 'Event added successfully');
-    }
-
-    /**
-     * Display the specified event.
-     */
-    public function show(Event $event)
-    {
-        return view('admin.events.show', compact('event'));
-    }
-
-    /**
-     * Show the form for editing the specified event.
-     */
-    public function edit(Event $event)
-    {
-        return view('admin.events.edit', compact('event'));
-    }
-
-    /**
-     * Update the specified event in storage.
-     */
-    public function update(Request $request, Event $event)
-    {
-        $request->validate([
-            'title' => 'required',
-            'description' => 'required',
-            'location' => 'required',
-            'event_time' => 'required|date',
-            'media' => 'nullable|image|mimes:jpeg,png,jpg,mp4,avi,mov',
-        ]);
-
-        if ($request->hasFile('media')) {
-            if ($event->media) Storage::disk('public')->delete($event->media);
-            $event->media = $request->file('media')->store('event_media', 'public');
+        if (!Auth::check()) {
+            return redirect()->route('events.index')->with('error', 'You must be logged in.');
         }
 
-        $event->update([
-            'title' => $request->title,
-            'description' => $request->description,
-            'location' => $request->location,
-            'event_time' => $request->event_time,
-            'user_allowed' => $request->user_allowed ?? true,
+        $request->validate([
+            'title'          => 'required|string|max:255',
+            'description'    => 'required|string',
+            'location_type'  => 'required|in:venue,custom',
+            'venue_id'       => 'required_if:location_type,venue|exists:venues,id',
+            'custom_location' => 'required_if:location_type,custom|string|max:255|nullable',            'start_time'     => 'required|date|after:now',
+            'end_time'       => 'required|date|after:start_time',
+            'media'          => 'nullable|file|mimes:jpeg,png,jpg,mp4,avi,mov|max:20480',
+            'access'         => 'required|array|min:1',
+            'access.*'       => 'in:all,staff,student',   
         ]);
 
-        return redirect()->route('events.index')->with('success', 'Event updated successfully');
+        try {
+            $location = $request->location_type === 'venue'
+                ? Venue::findOrFail($request->venue_id)->name
+                : $request->custom_location;
+
+            $userAllowed = $request->access; // ["all"], ["staff","student"], etc.
+
+            $mediaPath = $request->hasFile('media')
+                ? $request->file('media')->store('event_media', 'public')
+                : null;
+
+            Event::create([
+                'title'        => $request->title,
+                'description'  => $request->description,
+                'location'     => $location,
+                'start_time'   => $request->start_time,
+                'end_time'     => $request->end_time,
+                'user_allowed' => $userAllowed,
+                'media'        => $mediaPath,
+                'created_by'   => Auth::id(),
+            ]);
+
+            return redirect()->route('events.index')->with('success', 'Event created.');
+        } catch (\Exception $e) {
+            Log::error('Event creation failed: ' . $e->getMessage(), $request->all());
+            return back()->withInput()->with('error', 'Failed: ' . $e->getMessage());
+        }
     }
 
-    /**
-     * Remove the specified event from storage.
-     */
+    public function update(Request $request, Event $event)
+    {
+        if (Auth::id() !== $event->created_by && !Auth::user()->hasRole('Admin')) {
+            return back()->with('error', 'Unauthorized.');
+        }
+
+        $request->validate([
+            'title'          => 'required|string|max:255',
+            'description'    => 'required|string',
+            'location_type'  => 'required|in:venue,custom',
+            'venue_id'       => 'required_if:location_type,venue|exists:venues,id',
+            'custom_location'=> 'required_if:location_type,custom|string|max:255',
+            'start_time'     => 'required|date',
+            'end_time'       => 'required|date|after:start_time',
+            'media'          => 'nullable|file|mimes:jpeg,png,jpg,mp4,avi,mov|max:20480',
+            'access'         => 'required|array|min:1',
+            'access.*'       => 'in:all,staff,student',
+        ]);
+
+        try {
+            $location = $request->location_type === 'venue'
+                ? Venue::findOrFail($request->venue_id)->name
+                : $request->custom_location;
+
+            $userAllowed = $request->access;
+
+            if ($request->hasFile('media')) {
+                if ($event->media) Storage::disk('public')->delete($event->media);
+                $event->media = $request->file('media')->store('event_media', 'public');
+            }
+
+            $event->update([
+                'title'        => $request->title,
+                'description'  => $request->description,
+                'location'     => $location,
+                'start_time'   => $request->start_time,
+                'end_time'     => $request->end_time,
+                'user_allowed' => $userAllowed,
+            ]);
+
+            return redirect()->route('events.index')->with('success', 'Event updated.');
+        } catch (\Exception $e) {
+            Log::error('Event update failed: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Update failed: ' . $e->getMessage());
+        }
+    }
+
     public function destroy(Event $event)
     {
+        if (Auth::id() !== $event->created_by && !Auth::user()->hasRole('Admin')) {
+            return back()->with('error', 'Unauthorized.');
+        }
+
         if ($event->media) Storage::disk('public')->delete($event->media);
         $event->delete();
-        return redirect()->route('events.index')->with('success', 'Event deleted successfully');
+
+        return redirect()->route('events.index')->with('success', 'Event deleted.');
     }
 }

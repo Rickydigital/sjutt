@@ -5,21 +5,26 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\News;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 class NewsController extends Controller
 {
       // app/Http/Controllers/NewsController.php
-    public function index(Request $request)
-    {
-        $search = $request->query('search');
-        $news = News::when($search, function ($query, $search) {
-            return $query->where('title', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%");
-        })->paginate(10);
+public function index(Request $request)
+{
+    $search = $request->query('search');
+    $filterCreator = $request->query('filter_creator');
 
-        return view('admin.news.index', compact('news'));
-    }
+    $news = News::with('user')
+        ->when($search, fn($q) => $q->where('title', 'like', "%{$search}%")
+                                   ->orWhere('description', 'like', "%{$search}%"))
+        ->when($filterCreator, fn($q, $id) => $q->where('created_by', $id))
+        ->latest()
+        ->paginate(10);
+
+    return view('admin.news.index', compact('news'));
+}
 
     public function create()
     {
@@ -42,7 +47,7 @@ class NewsController extends Controller
         if ($request->file('video')) {
             $news->video = $request->file('video')->store('news_videos', 'public');
         }
-        $news->created_by = auth()->id();
+        $news->created_by = Auth::id();
         $news->save();
 
         return redirect()->route('news.index')->with('success', 'News added successfully');

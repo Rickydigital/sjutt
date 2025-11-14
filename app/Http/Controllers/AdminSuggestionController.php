@@ -7,25 +7,37 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class AdminSuggestionController extends Controller
 {
-    public function index()
-    {
-        $conversations = Suggestion::select('student_id', \DB::raw('MAX(created_at) as last_message_at'))
-            ->whereNotNull('student_id')
-            ->groupBy('student_id')
-            ->with(['student'])
-            ->orderBy('last_message_at', 'desc')
-            ->paginate(10);
+   public function index()
+{
+    $search = request('search');
+    $status = request('status');
 
-        $conversations->getCollection()->transform(function ($conversation) {
-            $conversation->last_message_at = Carbon::parse($conversation->last_message_at);
-            return $conversation;
-        });
+    $conversations = Suggestion::select('student_id', DB::raw('MAX(created_at) as last_message_at'))
+        ->whereNotNull('student_id')
+        ->when($search, function ($q, $s) {
+            return $q->whereHas('student', fn($sq) => $sq->where('name', 'like', "%{$s}%")
+                ->orWhere('email', 'like', "%{$s}%")
+                ->orWhere('reg_no', 'like', "%{$s}%"));
+        })
+        ->when($status, function ($q, $s) {
+            return $q->whereHas('suggestions', fn($sq) => $sq->where('status', $s));
+        })
+        ->groupBy('student_id')
+        ->with(['student'])
+        ->orderBy('last_message_at', 'desc')
+        ->paginate(10);
 
-        return view('admin.suggestions.index', compact('conversations'));
-    }
+    $conversations->getCollection()->transform(function ($conv) {
+        $conv->last_message_at = Carbon::parse($conv->last_message_at);
+        return $conv;
+    });
+
+    return view('admin.suggestions.index', compact('conversations'));
+}
 
     public function conversation($student_id)
     {

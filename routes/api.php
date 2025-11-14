@@ -13,6 +13,7 @@ use App\Http\Controllers\SuggestionController;
 use App\Http\Controllers\Mobile\CalendarController;
 use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\FirebaseNotificationController;
+use App\Http\Controllers\MobileController;
 
 Route::get('/fee_structures', [FeeStructureController::class, 'index']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -26,17 +27,17 @@ Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/calendar', [CalendarController::class, 'index']);
 
-Route::get('/news', [NewsController::class, 'index']);
-Route::get('/news/latest', [NewsController::class, 'latest']);
-Route::get('/news/{id}', [NewsController::class, 'show']);
+
 Route::get('/venues', [VenueController::class, 'apiIndex']);
 Route::get('/faculties', [NewsController::class, 'getFaculties']);
 Route::get('/courses', [TimetableController::class, 'getAllCourses']);
+Route::get('/venue-timetables', [TimetableController::class, 'getVenueTimetables']);
 Route::get('/timetables/lecture', [TimetableController::class, 'getLectureTimetables']);
 Route::get('/timetables/examination', [TimetableController::class, 'getExaminationTimetables']);
 Route::post('send-notification', [FirebaseNotificationController::class, 'sendNotification']);
-Route::get('/galleries', [GalleryController::class, 'index']);
-Route::get('/galleries/latest', [GalleryController::class, 'latest']);
+Route::get('/gallery', [MobileController::class, 'gallery']);
+Route::get('/news', [MobileController::class, 'news']);
+Route::get('/events', [MobileController::class, 'events']);
 
 Route::middleware('auth:mobile-auth')->group(function (): void {
     Route::post('/news/{id}/comment', [NewsController::class, 'comment']);
@@ -52,9 +53,6 @@ Route::middleware('auth:mobile-auth')->group(function (): void {
     Route::post('/talents/{id}/comment', [TalentController::class, 'comment']);
     Route::get('/my-talents', [TalentController::class, 'myTalents']);
     Route::delete('/talents/{id}', [TalentController::class, 'delete']);
-    Route::get('/events', [EventController::class, 'index']);
-    Route::get('/events/latest', [EventController::class, 'latest']);
-    Route::get('/events/{id}', [EventController::class, 'show']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/profile', [AuthController::class, 'profile']);
     Route::put('/profile', [AuthController::class, 'editProfile']);
