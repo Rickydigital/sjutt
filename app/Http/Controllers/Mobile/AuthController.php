@@ -69,12 +69,12 @@ class AuthController extends Controller
         ], 201);
     }
 
+    //TODO:  remove Logs
     public function requestRegistrationOtp(Request $request)
     {
         try {
             $validator = Validator::make($request->all(), [
                 'email' => 'required|email',
-                // Remove unique constraint for resend, but check existence
                 'first_name' => 'sometimes|string|max:255',
                 'last_name' => 'sometimes|string|max:255',
                 'reg_no' => 'sometimes|string',
@@ -82,6 +82,7 @@ class AuthController extends Controller
                 'faculty_id' => 'sometimes|exists:faculties,id',
                 'password' => 'sometimes|string|min:6',
                 'gender' => 'sometimes|in:male,female,other',
+                'fcm_token' => 'sometimes|string',
             ]);
 
             if ($validator->fails()) {
@@ -109,8 +110,9 @@ class AuthController extends Controller
 
             // Prepare data for storage if new registration
             $data = [];
+            // if the request has a first name then its for registration else its for OTP resend
             if ($request->has('first_name')) {
-                $data = $request->only(['first_name', 'last_name', 'reg_no', 'program_id', 'faculty_id', 'password', 'gender']);
+                $data = $request->only(['first_name', 'last_name', 'reg_no', 'program_id', 'faculty_id', 'password', 'gender', 'fcm_token']);
                 //hash the password
                 $data['password'] = bcrypt($data['password']);
                 Log::info('Prepared OTP data for new registration: ', $data);
@@ -149,7 +151,7 @@ class AuthController extends Controller
                 Log::info('No existing OTP found for email: ' . $email);
                 Otp::updateOrCreate(
                     ['email' => $email],
-                    [
+                    values: [
                         'otp' => $otp,
                         'expires_at' => $expiresAt,
                         'used' => false,
@@ -232,7 +234,7 @@ class AuthController extends Controller
             }
 
             // Validate required fields in data
-            $requiredFields = ['first_name', 'last_name', 'reg_no', 'program_id', 'faculty_id', 'password', 'gender'];
+            $requiredFields = ['first_name', 'last_name', 'reg_no', 'program_id', 'faculty_id', 'password', 'gender', 'fcm_token'];
             foreach ($requiredFields as $field) {
                 if (!isset($data[$field])) {
                     Log::error("Missing $field in OTP data for email: " . $request->email, ['data' => $data]);
@@ -254,6 +256,7 @@ class AuthController extends Controller
                 'email' => $request->email,
                 'password' => $data['password'],
                 'gender' => $data['gender'],
+                'fcm_token' => $data['fcm_token'],
             ]);
 
             Log::info('Student created: ' . $student->id);
