@@ -31,6 +31,7 @@ Route::get('/news/latest', [NewsController::class, 'latest']);
 Route::get('/news/{id}', [NewsController::class, 'show']);
 Route::get('/venues', [VenueController::class, 'apiIndex']);
 Route::get('/faculties', [NewsController::class, 'getFaculties']);
+Route::get('/courses', [TimetableController::class, 'getAllCourses']);
 Route::get('/timetables/lecture', [TimetableController::class, 'getLectureTimetables']);
 Route::get('/timetables/examination', [TimetableController::class, 'getExaminationTimetables']);
 Route::post('send-notification', [FirebaseNotificationController::class, 'sendNotification']);
