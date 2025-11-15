@@ -82,7 +82,7 @@ class EventController extends Controller
                 $mediaType = $this->getMediaType($event->media);
                 if ($mediaType === 'video') {
                     // Assumes event videos are in 'public/events_media'
-                    $mediaUrl = 'events_media/' . basename($event->media);
+                    $mediaUrl = 'event_media/' . basename($event->media);
                 } else {
                     $mediaUrl = $event->media; // Return relative path
                 }

@@ -23,7 +23,7 @@ Route::post('/request-registration-otp', [AuthController::class, 'requestRegistr
 Route::post('/verify-registration-otp', [AuthController::class, 'verifyRegistrationOtp']);
 Route::get('/get-programs', [AuthController::class, 'getPrograms']);
 Route::get('/stream/video/{folder}/{filename}', [VideoController::class, 'stream'])->name('video.stream');
-Route::post('/login', [NewsController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/request-otp', [AuthController::class, 'requestOtp']);
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
