@@ -331,52 +331,66 @@ class NewsController extends Controller
     }
 
     public function login(Request $request)
-    {
-        try {
-            $validator = Validator::make($request->all(), [
-                'reg_no' => 'required|string',
-                'password' => 'required',
-            ]);
-    
-            if ($validator->fails()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-    
-            // Find the student by email
-            $student = Student::where('reg_no', $request->reg_no)->first();
-    
-            // Check if student exists and password is correct
-            if (!$student || !Hash::check($request->password, $student->password)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Invalid credentials',
-                ], 401);
-            }
-    
-            // Generate a Sanctum token
-            $token = $student->createToken('mobile-app')->plainTextToken;
-    
-            return response()->json([
-                'status' => 'success',
-                'message' => 'login successful',
-                'data' => [
-                    'token' => $token,
-                    'student' => $student
-                ]
-            ], 200);
-    
-        } catch (\Exception $e) {
-            Log::error('Login Error: ' . $e->getMessage());
+{
+    try {
+        $validator = Validator::make($request->all(), [
+            'reg_no' => 'required|string',
+            'password' => 'required',
+            'fcm_token' => 'nullable|string', 
+        ]);
+
+        if ($validator->fails()) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Login failed',
-            ], 500);
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
         }
+
+        
+        $student = Student::where('reg_no', $request->reg_no)->first();
+
+        // Check if student exists and password is correct
+        if (!$student || !Hash::check($request->password, $student->password)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid credentials',
+            ], 401);
+        }
+
+       
+        $newToken = $request->input('fcm_token');
+        $oldToken = $student->fcm_token;
+
+        if ($newToken && $newToken !== $oldToken) {
+            $student->fcm_token = $newToken;
+            $student->save();
+            Log::info("FCM token updated for student {$student->id}: {$oldToken} → {$newToken}");
+        } elseif (!$newToken && $oldToken) {
+            Log::warning("App sent no FCM token, but DB has one for student {$student->id}");
+        }
+       
+
+        // Generate Sanctum token
+        $token = $student->createToken('mobile-app')->plainTextToken;
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Login successful',
+            'data' => [
+                'token' => $token,
+                'student' => $student->makeHidden(['fcm_token']) // Hide sensitive field
+            ]
+        ], 200);
+
+    } catch (\Exception $e) {
+        Log::error('Login Error: ' . $e->getMessage());
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Login failed',
+        ], 500);
     }
+}
 
 
         public function storeToken(Request $request)
