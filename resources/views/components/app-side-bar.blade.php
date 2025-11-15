@@ -50,7 +50,7 @@
                             @endcan
                             @can('view students')
                             <li>
-                                <a href="">
+                                <a href="{{ route('students.index') }}">
                                     <span class="sub-item">Students</span>
                                 </a>
                             </li>
@@ -296,6 +296,16 @@
                 </li>
                 @endcan
             </ul>
+
+            {{-- Roles & Permissions (Admin Only) --}}
+                @hasrole('Admin')
+                <li class="nav-item {{ request()->routeIs('roles.*') ? 'active' : '' }}">
+                    <a href="{{ route('roles.index') }}">
+                        <i class="bi bi-shield-lock"></i>
+                        <p>Roles & Permissions</p>
+                    </a>
+                </li>
+                @endhasrole
         </div>
     </div>
 </div>

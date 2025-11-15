@@ -31,6 +31,7 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\CrossCatingTimetableController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\TalentController;
 use App\Http\Controllers\TimetableSemesterController;
 use Illuminate\Support\Facades\Route;
@@ -101,6 +102,23 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::delete('/timetables/{timetable}', [ExaminationTimetableController::class, 'destroy'])->name('timetables.destroy')->middleware(['permission:delete examination timetables']);
     Route::post('/timetable/generate', [TimetableController::class, 'generateTimetable'])->name('timetable.generate');
     Route::post('/timetables/generate', [ExaminationTimetableController::class, 'generateTimetable'])->name('timetables.generate');
+
+    //students
+    Route::middleware(['auth'])->group(function () {
+    Route::resource('roles', RolePermissionController::class)
+         ->except(['show'])
+         ->names([
+             'index'   => 'roles.index',
+             'store'   => 'roles.store',
+             'update'  => 'roles.update',
+             'destroy' => 'roles.destroy',
+         ]);
+
+    // Ajax helper
+    Route::get('roles/{role}/permissions', [RolePermissionController::class, 'permissions'])
+         ->name('roles.permissions');
+});
+    Route::middleware(['auth', 'role:Admin|Administrator|Dean Of Students|Timetable Officer|Lecturer'])->get('/students', [StudentController::class, 'index'])->name('students.index');
 
     // Faculties
     Route::post('/faculties/store-course', [FacultyController::class, 'storeCourse'])->name('faculties.storeCourse')->middleware(['permission:create courses']);

@@ -370,7 +370,7 @@ class NewsController extends Controller
             ], 200);
     
         } catch (\Exception $e) {
-            \Log::error('Login Error: ' . $e->getMessage());
+            Log::error('Login Error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Login failed',
