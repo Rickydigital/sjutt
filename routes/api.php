@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Mobile\CourseController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Mobile\AuthController;
 use App\Http\Controllers\Mobile\ChatController;
@@ -30,7 +31,7 @@ Route::get('/calendar', [CalendarController::class, 'index']);
 
 Route::get('/venues', [VenueController::class, 'apiIndex']);
 Route::get('/faculties', [NewsController::class, 'getFaculties']);
-Route::get('/courses', [TimetableController::class, 'getAllCourses']);
+Route::get('/courses', [CourseController::class, 'getAllCourses']);
 Route::get('/venue-timetables', [TimetableController::class, 'getVenueTimetables']);
 Route::get('/timetables/lecture', [TimetableController::class, 'getLectureTimetables']);
 Route::get('/timetables/examination', [TimetableController::class, 'getExaminationTimetables']);
