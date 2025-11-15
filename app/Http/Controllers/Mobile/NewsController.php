@@ -7,6 +7,7 @@ use App\Models\Faculty;
 use App\Models\News;
 use App\Models\Reaction;
 use App\Models\Comment;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use App\Models\Student;
@@ -34,6 +35,12 @@ class NewsController extends Controller
                     Log::info("Mapped reaction for news {$reaction->news_id}: " . json_encode($mapped));
                     return $mapped;
                 });
+
+                // If there's a video, generate a streaming URL instead of a direct link.
+                if (!empty($item->video_filename)) {
+                    $item->video_url = route('video.stream', ['folder' => 'news_videos', 'filename' => $item->video_filename]);
+                }
+
                 return $item;
             });
     
@@ -74,6 +81,11 @@ class NewsController extends Controller
                 if ($item->image) {
                     $item->image = asset('storage/' . ltrim($item->image, '/')); // e.g., http://192.168.137.15:8000/storage/news_images/...
                 }
+                // If there's a video, generate a streaming URL.
+                if (!empty($item->video_filename)) {
+                    $item->video_url = route('video.stream', ['folder' => 'news_videos', 'filename' => $item->video_filename]);
+                }
+
                 return $item;
             });
     
@@ -331,66 +343,52 @@ class NewsController extends Controller
     }
 
     public function login(Request $request)
-{
-    try {
-        $validator = Validator::make($request->all(), [
-            'reg_no' => 'required|string',
-            'password' => 'required',
-            'fcm_token' => 'nullable|string', 
-        ]);
-
-        if ($validator->fails()) {
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'reg_no' => 'required|string',
+                'password' => 'required',
+            ]);
+    
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+    
+            // Find the student by email
+            $student = Student::where('reg_no', $request->reg_no)->first();
+    
+            // Check if student exists and password is correct
+            if (!$student || !Hash::check($request->password, $student->password)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid credentials',
+                ], 401);
+            }
+    
+            // Generate a Sanctum token
+            $token = $student->createToken('mobile-app')->plainTextToken;
+    
+            return response()->json([
+                'status' => 'success',
+                'message' => 'login successful',
+                'data' => [
+                    'token' => $token,
+                    'student' => $student
+                ]
+            ], 200);
+    
+        } catch (\Exception $e) {
+            \Log::error('Login Error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
+                'message' => 'Login failed',
+            ], 500);
         }
-
-        
-        $student = Student::where('reg_no', $request->reg_no)->first();
-
-        // Check if student exists and password is correct
-        if (!$student || !Hash::check($request->password, $student->password)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid credentials',
-            ], 401);
-        }
-
-       
-        $newToken = $request->input('fcm_token');
-        $oldToken = $student->fcm_token;
-
-        if ($newToken && $newToken !== $oldToken) {
-            $student->fcm_token = $newToken;
-            $student->save();
-            Log::info("FCM token updated for student {$student->id}: {$oldToken} → {$newToken}");
-        } elseif (!$newToken && $oldToken) {
-            Log::warning("App sent no FCM token, but DB has one for student {$student->id}");
-        }
-       
-
-        // Generate Sanctum token
-        $token = $student->createToken('mobile-app')->plainTextToken;
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Login successful',
-            'data' => [
-                'token' => $token,
-                'student' => $student->makeHidden(['fcm_token']) // Hide sensitive field
-            ]
-        ], 200);
-
-    } catch (\Exception $e) {
-        Log::error('Login Error: ' . $e->getMessage());
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Login failed',
-        ], 500);
     }
-}
 
 
         public function storeToken(Request $request)
@@ -475,6 +473,41 @@ class NewsController extends Controller
 
         // Simulate sending reset email (implement actual email logic with Laravel Mail)
         return response()->json(['success' => true, 'message' => 'Reset email sent'], 200);
+    }
+
+    public function getNews(): JsonResponse
+    {
+        $newsItems = News::with(['user', 'reactions', 'comments'])
+            ->select('id', 'title', 'description', 'image', 'video', 'created_by', 'created_at', 'updated_at')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $data = $newsItems->map(function ($news) {
+            // The 'video' column seems to hold the filename.
+            // We will use it to generate a streaming URL.
+            $videoUrl = null;
+            if ($news->video) {
+                $videoUrl = 'news_videos/' . basename($news->video);
+            }
+
+            return [
+                'id'           => $news->id,
+                'title'        => $news->title,
+                'description'  => $news->description,
+                'image'        => $news->image, // Return relative path, e.g., "news_images/image.png"
+                'video'        => $videoUrl,
+                'created_at'   => $news->created_at->toISOString(),
+                'updated_at'   => $news->updated_at->toISOString(),
+                'reactions_count' => $news->reactions->count(),
+                'comments_count'  => $news->comments->count(),
+                'creator'      => $news->user ? $news->user->only('id', 'name', 'email', 'phone', 'status') : null,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $data->values()->toArray(),
+        ]);
     }
     
 }

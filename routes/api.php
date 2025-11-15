@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Mobile\CourseController;
+use App\Http\Controllers\Mobile\VideoController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Mobile\AuthController;
 use App\Http\Controllers\Mobile\ChatController;
@@ -21,6 +22,7 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/request-registration-otp', [AuthController::class, 'requestRegistrationOtp']);
 Route::post('/verify-registration-otp', [AuthController::class, 'verifyRegistrationOtp']);
 Route::get('/get-programs', [AuthController::class, 'getPrograms']);
+Route::get('/stream/video/{folder}/{filename}', [VideoController::class, 'stream'])->name('video.stream');
 Route::post('/login', [NewsController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/request-otp', [AuthController::class, 'requestOtp']);
@@ -36,9 +38,9 @@ Route::get('/venue-timetables', [TimetableController::class, 'getVenueTimetables
 Route::get('/timetables/lecture', [TimetableController::class, 'getLectureTimetables']);
 Route::get('/timetables/examination', [TimetableController::class, 'getExaminationTimetables']);
 Route::post('send-notification', [FirebaseNotificationController::class, 'sendNotification']);
-Route::get('/gallery', [MobileController::class, 'gallery']);
-Route::get('/news', [MobileController::class, 'news']);
-Route::get('/events', [MobileController::class, 'events']);
+Route::get('/gallery', [GalleryController::class, 'getGallery']);
+Route::get('/news', [NewsController::class, 'getNews']);
+Route::get('/events', [EventController::class, 'getEvents']);
 
 Route::middleware('auth:mobile-auth')->group(function (): void {
     Route::post('/news/{id}/comment', [NewsController::class, 'comment']);
