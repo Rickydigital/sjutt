@@ -27,7 +27,7 @@ class CourseController extends Controller {
         }
 
         // Fetch courses with lecturers for the specified faculty
-        $courses = Course::with( 'lecturer' )
+        $courses = Course::with( 'lecturers' )
         ->join( 'course_faculty', 'courses.id', '=', 'course_faculty.course_id' )
         ->where( 'course_faculty.faculty_id', $facultyId )
         ->get();

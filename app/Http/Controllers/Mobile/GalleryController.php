@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Mobile;
 
 use App\Http\Controllers\Controller;
 use App\Models\Gallery;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -60,5 +61,35 @@ class GalleryController extends Controller
             'success' => true,
             'data' => $galleries,
         ], 200);
+    }
+
+    public function getGallery(): JsonResponse
+    {
+        $galleries = Gallery::with(['user', 'likes'])
+            ->select('id', 'description', 'media', 'created_by', 'created_at', 'updated_at')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $data = $galleries->map(function ($gallery) {
+            $media = $gallery->media ?? []; // Already cast to array
+            $likeCount = $gallery->likes->count();
+
+            return [
+                'id'           => $gallery->id,
+                'description'  => $gallery->description,
+                'created_at'   => $gallery->created_at->toISOString(),
+                'updated_at'   => $gallery->updated_at->toISOString(),
+                'creator_id'   => $gallery->created_by,
+                'media_count'  => count($media),
+                'media'        => $media, // Assumes full URLs are stored in DB
+                'likes_count'  => $likeCount,
+                'creator'      => $gallery->user ? $gallery->user->only('id', 'name', 'email', 'phone', 'status') : null,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $data->values()->toArray(),
+        ]);
     }
 }

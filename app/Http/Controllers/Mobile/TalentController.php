@@ -25,7 +25,11 @@ class TalentController extends Controller
                 ->latest()
                 ->get();
     
-            $talents = $talents->map(function ($item) {
+            $talents->transform(function ($item) {
+                // The file_path is already relative, e.g., "talents/video.mp4".
+                // Ensure the video_url for streaming is also relative.
+                $item->video_url = 'talents/' . basename($item->file_path);
+
                 // No need to strip 'public/' since file_path is 'talents/<filename>'
                 $item->likes = $item->likes->map(function ($like) {
                     return [
@@ -65,8 +69,11 @@ class TalentController extends Controller
                 ->latest()
                 ->get();
     
-            $talents = $talents->map(function ($item) {
-                // No need to strip 'public/'
+            $talents->transform(function ($item) {
+                // The file_path is already relative, e.g., "talents/video.mp4".
+                // Ensure the video_url for streaming is also relative.
+                $item->video_url = 'talents/' . basename($item->file_path);
+
                 return $item;
             });
     
