@@ -27,7 +27,7 @@ class MobileAuthMiddleware
         // Return JSON response for unauthorized access
         return response()->json([
             'status' => 'Unauthorized',
-            'message' => 'Invalid OTP data format'
+            'message' => 'You are not authorized to access this resource.'
         ], 401);
     }
 }

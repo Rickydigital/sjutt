@@ -343,11 +343,28 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Logged out successfully'
-        ], 200);
+        $validator = Validator::make($request->all(), [
+            'id' => 'required|integer|exists:students,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $student = Student::find($request->id);
+
+        if ($student) {
+            // This will delete all tokens for the user, logging them out from all devices.
+            $student->tokens()->delete();
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Logged out successfully'
+            ], 200);
+        }
     }
 
     public function profile(Request $request)
@@ -361,40 +378,76 @@ class AuthController extends Controller
 
     public function editProfile(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'reg_no' => 'required|string|unique:students,reg_no,' . $request->user()->id,
-            'year_of_study' => 'required|integer|between:1,4',
-            'email' => 'required|email|unique:students,email,' . $request->user()->id,
-            'gender' => 'required|in:male,female,other',
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'sometimes|exists:students,id',
+            'faculty_id' => 'sometimes|exists:faculties,id',
+            'program_id' => 'sometimes|exists:programs,id',
         ]);
 
-        $student = $request->user();
-        $student->update($request->only('name', 'reg_no', 'year_of_study', 'email', 'gender'));
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+
+        $authenticatedUser = $request->user();
+        $userIdToEdit = $request->input('user_id', $authenticatedUser->id);
+
+        if ($userIdToEdit != $authenticatedUser->id) {
+            // For now, only allow users to edit their own profile.
+            // An admin role check could be added here in the future.
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
+        }
+
+        $studentToEdit = Student::find($userIdToEdit);
+
+        if (!$studentToEdit) {
+            return response()->json(['status' => 'error', 'message' => 'User not found'], 404);
+        }
+
+        $studentToEdit->update($request->only('faculty_id', 'program_id'));
+
         return response()->json([
             'status' => 'success',
-            'message' => 'Profile updated',
-            'data' => $student
+            'message' => 'Profile updated successfully',
+            'data' => $studentToEdit->load(['faculty', 'program'])
         ], 200);
     }
 
     public function changePassword(Request $request)
     {
-        $request->validate([
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'sometimes|exists:students,id',
             'current_password' => 'required|string',
             'new_password' => 'required|string|min:6|confirmed',
         ]);
 
-        $student = $request->user();
-        if (!Hash::check($request->current_password, $student->password)) {
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+
+        $authenticatedUser = $request->user();
+        $userIdToChange = $request->input('user_id', $authenticatedUser->id);
+
+        if ($userIdToChange != $authenticatedUser->id) {
+            // For now, only allow users to change their own password.
+            // An admin role check could be added here in the future to allow password resets.
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
+        }
+
+        $studentToChange = Student::find($userIdToChange);
+
+        if (!$studentToChange) {
+            return response()->json(['status' => 'error', 'message' => 'User not found'], 404);
+        }
+
+        if (!Hash::check($request->current_password, $studentToChange->password)) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Current password incorrect'
             ], 401);
         }
 
-        $student->password = bcrypt($request->new_password);
-        $student->save();
+        $studentToChange->password = bcrypt($request->new_password);
+        $studentToChange->save();
         return response()->json([
             'status' => 'success',
             'message' => 'Password changed'

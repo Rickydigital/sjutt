@@ -31,18 +31,19 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/calendar', [CalendarController::class, 'index']);
 
 
-Route::get('/venues', [VenueController::class, 'apiIndex']);
-Route::get('/faculties', [NewsController::class, 'getFaculties']);
-Route::get('/courses', [CourseController::class, 'getAllCourses']);
-Route::get('/venue-timetables', [TimetableController::class, 'getVenueTimetables']);
-Route::get('/timetables/lecture', [TimetableController::class, 'getLectureTimetables']);
-Route::get('/timetables/examination', [TimetableController::class, 'getExaminationTimetables']);
-Route::post('send-notification', [FirebaseNotificationController::class, 'sendNotification']);
-Route::get('/gallery', [GalleryController::class, 'getGallery']);
-Route::get('/news', [NewsController::class, 'getNews']);
-Route::get('/events', [EventController::class, 'getEvents']);
 
-Route::middleware('auth:mobile-auth')->group(function (): void {
+
+Route::middleware('mobile-auth')->group(function (): void {
+    Route::get('/venues', [VenueController::class, 'apiIndex']);
+    Route::get('/faculties', [NewsController::class, 'getFaculties']);
+    Route::get('/courses', [CourseController::class, 'getAllCourses']);
+    Route::get('/venue-timetables', [TimetableController::class, 'getVenueTimetables']);
+    Route::get('/timetables/lecture', [TimetableController::class, 'getLectureTimetables']);
+    Route::get('/timetables/examination', [TimetableController::class, 'getExaminationTimetables']);
+    Route::post('send-notification', [FirebaseNotificationController::class, 'sendNotification']);
+    Route::get('/gallery', [GalleryController::class, 'getGallery']);
+    Route::get('/news', [NewsController::class, 'getNews']);
+    Route::get('/events', [EventController::class, 'getEvents']);
     Route::post('/news/{id}/comment', [NewsController::class, 'comment']);
     Route::post('/news/{id}/react', [NewsController::class, 'react']);
     Route::delete('/news/{id}/react', [NewsController::class, 'removeReaction']);
@@ -58,8 +59,6 @@ Route::middleware('auth:mobile-auth')->group(function (): void {
     Route::delete('/talents/{id}', [TalentController::class, 'delete']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/profile', [AuthController::class, 'profile']);
-    Route::put('/profile', [AuthController::class, 'editProfile']);
-    Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/store-token', [AuthController::class, 'storeToken']);
     Route::post('/update-online-status', [AuthController::class, 'updateOnlineStatus']);
     Route::get('/users', [ChatController::class, 'getUsers']);
@@ -68,9 +67,13 @@ Route::middleware('auth:mobile-auth')->group(function (): void {
     Route::delete('/chat/messages/{id}', [ChatController::class, 'deleteMessage']);
     Route::get('/chat/stats', [ChatController::class, 'getStats']);
     Route::post('/update-last-chat-access', [ChatController::class, 'updateLastChatAccess']);
-    
+    Route::get('/get-venues', [VenueController::class, 'getVenues']);
+    Route::post('/search-venue', [VenueController::class, 'searchVenue']);
 });
 
-//venues
-Route::get('/get-venues', [VenueController::class, 'getVenues']);
-Route::post('/search-venue', [VenueController::class, 'searchVenue']);
+//!routes protected by default sanctum middleware
+Route::middleware('auth:sanctum')->group(function (): void {
+    Route::put('/edit-profile', [AuthController::class, 'editProfile']);
+    Route::post('/change-password', [AuthController::class, 'changePassword']);
+});
+
