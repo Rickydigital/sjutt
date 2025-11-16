@@ -41,14 +41,19 @@ class Course extends Model
     return $this->hasMany(Timetable::class, 'course_code', 'course_code');
 }
 
-    public function lecturers()
-    {
-        return $this->belongsToMany(User::class, 'course_lecturer', 'course_id', 'user_id')
-                    ->whereHas('roles', function ($query) {
-                        $query->where('name', 'Lecturer');
-                    })
-                    ->select('users.id', 'users.name');
-    }
+    public function lecturers(): BelongsToMany
+{
+    return $this->belongsToMany(
+        User::class,
+        'course_lecturer',
+        'course_id',  
+        'user_id'     
+    )
+    ->whereHas('roles', function ($query) {
+        $query->where('name', 'Lecturer');
+    })
+    ->select('users.id', 'users.name');
+}
 
     public function semester(): BelongsTo
     {
