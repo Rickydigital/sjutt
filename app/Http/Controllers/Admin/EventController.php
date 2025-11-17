@@ -223,9 +223,10 @@ private function sendFcmNotification(array $tokens, string $title, string $body,
         }
 
     } catch (\Throwable $e) {
-        Log::error("Event FCM failed: " . $e->getMessage(), [
-            'trace' => $e->getTraceAsString()
-        ]);
+    Log::error("Event FCM send failed: " . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+        'tokens' => $tokens
+    ]);
     }
 }
 
