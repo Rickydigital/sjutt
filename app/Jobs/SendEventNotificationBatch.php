@@ -1,5 +1,4 @@
 <?php
-// app/Jobs/SendEventNotificationBatch.php
 
 namespace App\Jobs;
 
@@ -19,6 +18,7 @@ class SendEventNotificationBatch implements ShouldQueue
 
     public $tries = 3;
     public $timeout = 300;
+    public $backoff = [10, 30, 60];
 
     protected array $tokens;
     protected string $title;
@@ -27,7 +27,7 @@ class SendEventNotificationBatch implements ShouldQueue
 
     public function __construct(array $tokens, string $title, string $body, ?string $image = null)
     {
-        $this->tokens = array_values(array_filter($tokens));
+        $this->tokens = array_values(array_unique(array_filter($tokens)));
         $this->title  = $title;
         $this->body   = $body;
         $this->image  = $image;
@@ -36,13 +36,13 @@ class SendEventNotificationBatch implements ShouldQueue
     public function handle(): void
     {
         if (empty($this->tokens)) {
-            Log::info("SendEventNotificationBatch: No tokens.");
+            Log::info("SendEventNotificationBatch: No tokens to send.");
             return;
         }
 
         $credentials = config('firebase.credentials');
         if (!$credentials || !file_exists($credentials)) {
-            Log::error("Firebase credentials missing: " . ($credentials ?? 'null'));
+            Log::error("Firebase credentials missing or invalid: " . ($credentials ?? 'null'));
             return;
         }
 
@@ -66,24 +66,39 @@ class SendEventNotificationBatch implements ShouldQueue
             $success = $report->successes()->count();
             $failed  = $report->failures()->count();
 
-            Log::info("Event FCM Batch: {$success} sent, {$failed} failed", [
+            Log::info("Event FCM Batch: {$success} success, {$failed} failed", [
                 'title' => $this->title,
+                'token_count' => count($this->tokens),
             ]);
 
-            $invalid = [];
-            foreach ($report->failures() as $failure) {
+            $invalidTokens = [];
+            foreach ($report->failures() as $index => $failure) {
                 $token = $failure->target()->value();
-                if ($token) $invalid[] = $token;
+                $error = $failure->error();
+
+                Log::warning("FCM Failure #{$index}", [
+                    'token' => $token,
+                    'reason' => $error?->getReason() ?? 'unknown',
+                    'message' => $error?->getMessage() ?? 'No message',
+                    'code' => $error?->getCode() ?? 'N/A',
+                ]);
+
+                if ($token && in_array($error?->getReason(), ['UNREGISTERED', 'INVALID_REGISTRATION', 'NOT_FOUND'])) {
+                    $invalidTokens[] = $token;
+                }
             }
 
-            if (!empty($invalid)) {
-                Student::whereIn('fcm_token', $invalid)->update(['fcm_token' => null]);
-                Log::info("Cleaned " . count($invalid) . " invalid tokens (event).");
+            if (!empty($invalidTokens)) {
+                $cleaned = Student::whereIn('fcm_token', $invalidTokens)->update(['fcm_token' => null]);
+                Log::info("Cleaned {$cleaned} invalid FCM tokens for event: {$this->title}");
             }
 
         } catch (\Throwable $e) {
-            Log::error("Event FCM Batch failed: " . $e->getMessage());
-            throw $e;
+            Log::error("Event FCM Batch failed: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'title' => $this->title,
+            ]);
+            throw $e; // Let Laravel retry
         }
     }
 }

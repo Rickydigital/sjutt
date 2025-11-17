@@ -70,11 +70,11 @@ class EventController extends Controller
                 'created_by'   => Auth::id(),
             ]);
 
-            // SEND NOTIFICATION
-            $this->sendEventNotification($event, $userAllowed, $mediaPath);
+            // SEND NOTIFICATION VIA QUEUE
+            $this->dispatchEventNotification($event, $userAllowed, $mediaPath);
 
             return redirect()->route('events.index')
-                ->with('success', 'Event created and notification sent!');
+                ->with('success', 'Event created and notification queued!');
         } catch (\Exception $e) {
             Log::error('Event creation failed: ' . $e->getMessage(), $request->all());
             return back()->withInput()->with('error', 'Failed: ' . $e->getMessage());
@@ -88,7 +88,7 @@ class EventController extends Controller
         }
 
         $request->validate([
-            'title'           => 'requiredrequired|string|max:255',
+            'title'           => 'required|string|max:255', // Fixed: was 'requiredrequired'
             'description'     => 'required|string',
             'location_type'   => 'required|in:venue,custom',
             'venue_id'        => 'required_if:location_type,venue|exists:venues,id',
@@ -147,88 +147,42 @@ class EventController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────
-    // SEND PUSH NOTIFICATION TO ELIGIBLE USERS
+    // DISPATCH NOTIFICATION BATCHES TO QUEUE
     // ──────────────────────────────────────────────────────────────
-    private function sendEventNotification(Event $event, array $access, ?string $mediaPath): void
-{
-    $title = $event->title;
-    $body  = Str::limit(strip_tags($event->description), 100);
-    $image = $mediaPath ? Storage::url($mediaPath) : null;
+    private function dispatchEventNotification(Event $event, array $access, ?string $mediaPath): void
+    {
+        $title = $event->title;
+        $body  = Str::limit(strip_tags($event->description), 100);
+        $image = $mediaPath ? Storage::url($mediaPath) : null;
 
-    $query = Student::whereNotNull('fcm_token');
+        $query = Student::whereNotNull('fcm_token');
 
-    // Filter by access if not "all"
-    if (!in_array('all', $access)) {
-        $allowedRoles = [];
-        if (in_array('student', $access)) $allowedRoles[] = 'student';
-        if (in_array('staff', $access))   $allowedRoles[] = 'staff';
+        // Filter by access if not "all"
+        if (!in_array('all', $access)) {
+            $allowedRoles = [];
+            if (in_array('student', $access)) $allowedRoles[] = 'student';
+            if (in_array('staff', $access))   $allowedRoles[] = 'staff';
 
-        $query->whereHas('roles', fn($q) => $q->whereIn('name', $allowedRoles));
-    }
-
-    $chunkSize = 500;
-
-    $query->select('fcm_token')
-          ->chunk($chunkSize, function ($students) use ($title, $body, $image) {
-              $tokens = $students->pluck('fcm_token')->all();
-              if (empty($tokens)) {
-                  Log::info("No FCM tokens found for event '{$title}'");
-                  return;
-              }
-
-              $this->sendFcmNotification($tokens, $title, $body, $image);
-          });
-}
-
-private function sendFcmNotification(array $tokens, string $title, string $body, ?string $image = null): void
-{
-    $credentials = config('firebase.credentials');
-    if (!$credentials || !file_exists($credentials)) {
-        Log::error("Firebase credentials missing or invalid: " . ($credentials ?? 'null'));
-        return;
-    }
-
-    try {
-        $factory = (new \Kreait\Firebase\Factory)->withServiceAccount($credentials);
-        $messaging = $factory->createMessaging();
-
-        $message = \Kreait\Firebase\Messaging\CloudMessage::new()
-            ->withNotification([
-                'title' => $title,
-                'body'  => $body,
-                'image' => $image,
-            ])
-            ->withData([
-                'type' => 'event',
-                'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
-            ]);
-
-        $report = $messaging->sendMulticast($message, $tokens);
-
-        Log::info("Event FCM sent: {$report->successes()->count()} success, {$report->failures()->count()} failed", [
-            'title' => $title,
-            'token_count' => count($tokens),
-        ]);
-
-        // Remove invalid tokens
-        $invalidTokens = [];
-        foreach ($report->failures() as $failure) {
-            $token = $failure->target()->value();
-            if ($token) $invalidTokens[] = $token;
+            $query->whereHas('roles', fn($q) => $q->whereIn('name', $allowedRoles));
         }
 
-        if (!empty($invalidTokens)) {
-            Student::whereIn('fcm_token', $invalidTokens)->update(['fcm_token' => null]);
-            Log::info("Cleaned " . count($invalidTokens) . " invalid FCM tokens.");
-        }
+        $chunkSize = 500;
 
-    } catch (\Throwable $e) {
-    Log::error("Event FCM send failed: " . $e->getMessage(), [
-        'trace' => $e->getTraceAsString(),
-        'tokens' => $tokens
-    ]);
+        $query->select('id', 'fcm_token')
+              ->chunkById($chunkSize, function ($students) use ($title, $body, $image) {
+                  $tokens = $students->pluck('fcm_token')
+                      ->filter(fn($t) => is_string($t) && strlen($t) > 50)
+                      ->unique()
+                      ->values()
+                      ->all();
+
+                  if (empty($tokens)) {
+                      Log::info("No valid FCM tokens for event: {$title}");
+                      return;
+                  }
+
+                  SendEventNotificationBatch::dispatch($tokens, $title, $body, $image);
+                  Log::info("Dispatched FCM batch for event: {$title}", ['token_count' => count($tokens)]);
+              });
     }
-}
-
-
 }
