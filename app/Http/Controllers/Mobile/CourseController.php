@@ -15,28 +15,26 @@ class CourseController extends Controller {
         //
     }
 
-    public function getAllCourses( Request $request ) {
-        $facultyId = $request->query( 'faculty_id' );
+    public function getAllCourses(Request $request)
+{
+    $facultyId = $request->query('faculty_id');
 
-        // Validate query parameters
-        if ( !$facultyId ) {
-            return response()->json( [
-                'success' => false,
-                'error' => 'Missing faculty_id'
-            ], 400 );
-        }
+    if (!$facultyId) {
+        return response()->json([
+            'success' => false,
+            'error' => 'Missing faculty_id'
+        ], 400);
+    }
 
-        // Fetch courses with lecturers for the specified faculty
-        $courses = Course::with( 'lecturers' )
-        ->join( 'course_faculty', 'courses.id', '=', 'course_faculty.course_id' )
-        ->where( 'course_faculty.faculty_id', $facultyId )
+    $courses = Course::with('lecturers')
+        ->whereHas('faculties', fn($q) => $q->where('faculty_id', $facultyId))
         ->get();
 
-        return response()->json( [
-            'success' => true,
-            'data' => $courses
-        ], 200 );
-    }
+    return response()->json([
+        'success' => true,
+        'data' => $courses
+    ]);
+}
 
     /**
     * Store a newly created resource in storage.

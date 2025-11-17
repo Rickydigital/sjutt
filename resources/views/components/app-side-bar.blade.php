@@ -295,9 +295,8 @@
                     </a>
                 </li>
                 @endcan
-            </ul>
 
-            {{-- Roles & Permissions (Admin Only) --}}
+                 {{-- Roles & Permissions (Admin Only) --}}
                 @hasrole('Admin')
                 <li class="nav-item {{ request()->routeIs('roles.*') ? 'active' : '' }}">
                     <a href="{{ route('roles.index') }}">
@@ -306,6 +305,9 @@
                     </a>
                 </li>
                 @endhasrole
+            </ul>
+
+           
         </div>
     </div>
 </div>

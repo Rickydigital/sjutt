@@ -31,7 +31,9 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     
     ->withSchedule(function (Illuminate\Console\Scheduling\Schedule $schedule) {
-        $schedule->command('timetables:notify')->everyMinute();
+        $schedule->command('timetables:notify')
+         ->everyThirtyMinutes()
+         ->between('07:00', '20:00');
         $schedule->job(new SendCalendarNotifications)->dailyAt('07:00');
     })
     ->create();

@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Faq;
 use Illuminate\Http\Request;
 
-class FaqController extends Controller
+class FAQController extends Controller
 {
     public function index(Request $request)
     {

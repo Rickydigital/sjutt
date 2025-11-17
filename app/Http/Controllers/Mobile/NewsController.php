@@ -35,12 +35,6 @@ class NewsController extends Controller
                     Log::info("Mapped reaction for news {$reaction->news_id}: " . json_encode($mapped));
                     return $mapped;
                 });
-
-                // If there's a video, generate a streaming URL instead of a direct link.
-                if (!empty($item->video_filename)) {
-                    $item->video_url = route('video.stream', ['folder' => 'news_videos', 'filename' => $item->video_filename]);
-                }
-
                 return $item;
             });
     
@@ -104,41 +98,7 @@ class NewsController extends Controller
         }
     }
     
-    public function show($id)
-    {
-        try {
-            $news = News::with(['user', 'reactions', 'comments.commentable'])->findOrFail($id);
-            $news->reactions = $news->reactions->map(function ($reaction) {
-                $mapped = [
-                    'id' => $reaction->id,
-                    'type' => $reaction->type,
-                    'user_id' => (int) $reaction->reactable_id, // Cast to ensure integer
-                    'news_id' => $reaction->news_id
-                ];
-                Log::info("Mapped reaction for news {$reaction->news_id}: " . json_encode($mapped));
-                return $mapped;
-            });
-    
-            return response()->json([
-                'success' => true,
-                'message' => 'News retrieved successfully',
-                'data' => $news
-            ], 200);
-        } catch (ModelNotFoundException $e) {
-            Log::error("News {$id} not found");
-            return response()->json([
-                'success' => false,
-                'message' => 'News not found'
-            ], 404);
-        } catch (\Exception $e) {
-            Log::error("Failed to retrieve news {$id}: {$e->getMessage()}");
-            return response()->json([
-                'success' => false,
-                'message' => 'An error occurred',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
+   
       
     public function comment(Request $request, $id) {
         $request->validate(['comment' => 'required|string|max:500']);
@@ -454,8 +414,8 @@ class NewsController extends Controller
             'new_password' => 'required|string|min:6|confirmed',
         ]);
 
-        $student = $request->user();
-        if (!Hash::check($request->current_password, $student->password)) {
+        $student = Student::find($request->user()->id);
+        if (!$student || !Hash::check($request->current_password, $student->password)) {
             return response()->json(['success' => false, 'message' => 'Current password incorrect'], 401);
         }
 
