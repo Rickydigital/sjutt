@@ -6,12 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Event;
 use App\Models\Venue;
 use App\Models\Student;
-use App\Jobs\SendEventNotificationBatch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Kreait\Firebase\Factory;
+use Kreait\Firebase\Messaging\CloudMessage;
 
 class EventController extends Controller
 {
@@ -70,11 +71,11 @@ class EventController extends Controller
                 'created_by'   => Auth::id(),
             ]);
 
-            // SEND NOTIFICATION VIA QUEUE
-            $this->dispatchEventNotification($event, $userAllowed, $mediaPath);
+            // SEND NOTIFICATION SYNC
+            $this->sendEventNotification($event, $userAllowed, $mediaPath);
 
             return redirect()->route('events.index')
-                ->with('success', 'Event created and notification queued!');
+                ->with('success', 'Event created and notification sent!');
         } catch (\Exception $e) {
             Log::error('Event creation failed: ' . $e->getMessage(), $request->all());
             return back()->withInput()->with('error', 'Failed: ' . $e->getMessage());
@@ -147,9 +148,9 @@ class EventController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────
-    // DISPATCH NOTIFICATION BATCHES TO QUEUE
+    // SEND PUSH NOTIFICATION TO ELIGIBLE USERS (SYNC, CHUNKED)
     // ──────────────────────────────────────────────────────────────
-    private function dispatchEventNotification(Event $event, array $access, ?string $mediaPath): void
+    private function sendEventNotification(Event $event, array $access, ?string $mediaPath): void
     {
         $title = $event->title;
         $body  = Str::limit(strip_tags($event->description), 100);
@@ -169,7 +170,7 @@ class EventController extends Controller
         $chunkSize = 500;
 
         $query->select('id', 'fcm_token')
-              ->chunkById($chunkSize, function ($students) use ($title, $body, $image) {
+              ->chunk($chunkSize, function ($students) use ($title, $body, $image) {
                   $tokens = $students->pluck('fcm_token')
                       ->filter(fn($t) => is_string($t) && strlen($t) > 50)
                       ->unique()
@@ -181,8 +182,70 @@ class EventController extends Controller
                       return;
                   }
 
-                  SendEventNotificationBatch::dispatch($tokens, $title, $body, $image);
-                  Log::info("Dispatched FCM batch for event: {$title}", ['token_count' => count($tokens)]);
+                  $this->sendFcmNotification($tokens, $title, $body, $image);
               });
+    }
+
+    private function sendFcmNotification(array $tokens, string $title, string $body, ?string $image = null): void
+    {
+        $credentials = config('firebase.credentials');
+        if (!$credentials || !file_exists($credentials)) {
+            Log::error("Firebase credentials missing or invalid: " . ($credentials ?? 'null'));
+            return;
+        }
+
+        try {
+            $factory = (new Factory)->withServiceAccount($credentials);
+            $messaging = $factory->createMessaging();
+
+            $message = CloudMessage::new()
+                ->withNotification([
+                    'title' => $title,
+                    'body'  => $body,
+                    'image' => $image,
+                ])
+                ->withData([
+                    'type' => 'event',
+                    'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                ]);
+
+            $report = $messaging->sendMulticast($message, $tokens);
+
+            $success = $report->successes()->count();
+            $failed  = $report->failures()->count();
+
+            Log::info("Event FCM sent: {$success} success, {$failed} failed", [
+                'title' => $title,
+                'token_count' => count($tokens),
+            ]);
+
+            $invalidTokens = [];
+            foreach ($report->failures() as $index => $failure) {
+                $token = $failure->target()->value();
+                $error = $failure->error();
+
+                Log::warning("FCM Failure #{$index}", [
+                    'token' => $token,
+                    'reason' => $error?->getReason() ?? 'unknown',
+                    'message' => $error?->getMessage() ?? 'No message',
+                    'code' => $error?->getCode() ?? 'N/A',
+                ]);
+
+                if ($token && in_array($error?->getReason(), ['UNREGISTERED', 'INVALID_REGISTRATION', 'NOT_FOUND'])) {
+                    $invalidTokens[] = $token;
+                }
+            }
+
+            if (!empty($invalidTokens)) {
+                $cleaned = Student::whereIn('fcm_token', $invalidTokens)->update(['fcm_token' => null]);
+                Log::info("Cleaned {$cleaned} invalid FCM tokens for event: {$title}");
+            }
+
+        } catch (\Throwable $e) {
+            Log::error("Event FCM send failed: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'title' => $title,
+            ]);
+        }
     }
 }
