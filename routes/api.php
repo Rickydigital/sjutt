@@ -47,7 +47,6 @@ Route::middleware('mobile-auth')->group(function (): void {
     Route::post('/news/{id}/comment', [NewsController::class, 'comment']);
     Route::post('/news/{id}/react', [NewsController::class, 'react']);
     Route::delete('/news/{id}/react', [NewsController::class, 'removeReaction']);
-    Route::post('/suggestions', [SuggestionController::class, 'store']);
     Route::get('/suggestions', [SuggestionController::class, 'index']);
     Route::delete('/suggestions/{id}', [SuggestionController::class, 'delete']);
     Route::post('/verify-password', [SuggestionController::class, 'verifyPassword']);
@@ -75,5 +74,6 @@ Route::middleware('mobile-auth')->group(function (): void {
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::put('/edit-profile', [AuthController::class, 'editProfile']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
+    Route::post('/suggestions', [SuggestionController::class, 'store']);
 });
 

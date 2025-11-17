@@ -196,6 +196,7 @@ class AuthController extends Controller
                 Otp::updateOrCreate(
                     ['email' => $email],
                     [
+                        'data' => $jsonData,
                         'otp' => $otp,
                         'expires_at' => $expiresAt,
                         'used' => false,
