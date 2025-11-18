@@ -245,104 +245,92 @@ class AuthController extends Controller
         }
     }
 
-    public function verifyRegistrationOtp(Request $request)
-    {
-        try {
-            $request->validate([
-                'email' => 'required|email',
-                'otp' => 'required|string|size:6',
-            ]);
+   public function verifyRegistrationOtp(Request $request)
+{
+    try {
+        $request->validate([
+            'email' => 'required|email',
+            'otp' => 'required|string|size:6',
+        ]);
 
-            Log::info('Verifying OTP for email: ' . $request->email);
+        $otpRecord = Otp::where('email', $request->email)
+            ->where('otp', $request->otp)
+            ->where('used', false)
+            ->where('expires_at', '>', Carbon::now())
+            ->first();
 
-            $otpRecord = Otp::where('email', $request->email)
-                ->where('otp', $request->otp)
-                ->where('used', false)
-                ->where('expires_at', '>', Carbon::now())
-                ->first();
-            Log::info('Retrieved OTP record: ', $otpRecord ? $otpRecord->toArray() : []);
-
-            if (!$otpRecord) {
-                Log::warning('Invalid or expired OTP for email: ' . $request->email);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Invalid or expired OTP'
-                ], 400);
-            }
-
-            //if the otp is valid
-            $data = json_decode($otpRecord->data, true);
-            Log::info('Decoded OTP data: ', ['data' => $data]);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                Log::error('JSON decode error: ' . json_last_error_msg(), ['raw_data' => $otpRecord->data]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Invalid OTP data format'
-                ], 400);
-            }
-
-            //if data is invalid
-            if (!$data || !is_array($data) || empty($data)) {
-                Log::error('Invalid or empty OTP data for email: ' . $request->email, ['data' => $otpRecord->data]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Invalid OTP data'
-                ], 400);
-            }
-
-            // Validate required fields in data
-            $requiredFields = ['first_name', 'last_name', 'reg_no', 'program_id', 'faculty_id', 'password', 'gender', 'fcm_token'];
-            foreach ($requiredFields as $field) {
-                if (!isset($data[$field])) {
-                    Log::error("Missing $field in OTP data for email: " . $request->email, ['data' => $data]);
-                    //if any field is missing
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => "Registration failed please register again"
-                    ], 400);
-                }
-            }
-
-            // Register the user
-            $student = Student::create([
-                'first_name' => $data['first_name'],
-                'last_name' => $data['last_name'],
-                'reg_no' => $data['reg_no'],
-                'program_id' => $data['program_id'],
-                'faculty_id' => $data['faculty_id'],
-                'email' => $request->email,
-                'password' => $data['password'],
-                'gender' => $data['gender'],
-                'fcm_token' => $data['fcm_token'],
-            ]);
-
-            Log::info('Student created: ' . $student->id);
-
-            $token = $student->createToken('mobile-app')->plainTextToken;
-
-            // Mark OTP as used
-            $otpRecord->update(['used' => true]);
-
-            // Load faculty relationship safely
-            $studentWithFaculty = $student->load(['faculty' => function ($query) {
-                $query->select('id', 'name');
-            }]);
-
-            Log::info('OTP verification successful for email: ' . $request->email);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Registration successful',
-                'data' => ['token' => $token, 'student' => $studentWithFaculty]
-            ], 201);
-        } catch (\Exception $e) {
-            Log::error('Verify registration OTP failed: ' . $e->getMessage(), ['exception' => $e]);
+        if (!$otpRecord) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Server error: ' . $e->getMessage()
-            ], 500);
+                'message' => 'Invalid or expired OTP'
+            ], 400);
         }
+
+        $data = json_decode($otpRecord->data, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid registration data'
+            ], 400);
+        }
+
+        // Check if reg_no already exists
+        $existingStudent = Student::where('reg_no', $data['reg_no'])->first();
+
+        if ($existingStudent) {
+            $otpRecord->update(['used' => true]); // prevent OTP reuse
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Reg No already taken. You can reset your password with your registered email or contact your Administrator.'
+            ], 422);
+        }
+
+        // Optional: also protect against email already registered
+        if (Student::where('email', $request->email)->exists()) {
+            $otpRecord->update(['used' => true]);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Reg No already taken. You can reset your password with your registered email or contact your Administrator.'
+            ], 422);
+        }
+
+        // Create new student
+        $student = Student::create([
+            'first_name'  => $data['first_name'],
+            'last_name'   => $data['last_name'],
+            'reg_no'      => $data['reg_no'],
+            'program_id'  => $data['program_id'],
+            'faculty_id'  => $data['faculty_id'],
+            'email'       => $request->email,
+            'password'    => $data['password'],
+            'gender'      => $data['gender'],
+            'fcm_token'   => $data['fcm_token'] ?? null,
+        ]);
+
+        $token = $student->createToken('mobile-app')->plainTextToken;
+        $otpRecord->update(['used' => true]);
+
+        $studentWithFaculty = $student->load(['faculty' => fn($q) => $q->select('id', 'name')]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Registration successful',
+            'data' => [
+                'token'   => $token,
+                'student' => $studentWithFaculty
+            ]
+        ], 201);
+
+    } catch (\Exception $e) {
+        Log::error('Verify registration OTP failed: ' . $e->getMessage(), ['exception' => $e]);
+
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Reg No already taken. You can reset your password with your registered email or contact your Administrator.'
+        ], 500);
     }
+}
 
     public function logout(Request $request)
     {
