@@ -10,7 +10,7 @@ class CreateStudentsTable extends Migration
     {
         Schema::create('students', function (Blueprint $table) {
             $table->id();
-            $table->string('reg_no')->unique(); // Registration number
+            $table->string('reg_no')->unique(); 
             $table->integer('year_of_study')->unsigned(); // 1, 2, 3, or 4
             $table->string('faculty');
             $table->string('email')->unique();

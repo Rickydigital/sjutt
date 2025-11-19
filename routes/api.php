@@ -18,9 +18,6 @@ use App\Http\Controllers\FirebaseNotificationController;
 use App\Http\Controllers\MobileController;
 
 Route::get('/fee_structures', [FeeStructureController::class, 'index']);
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/request-registration-otp', [AuthController::class, 'requestRegistrationOtp']);
-Route::post('/verify-registration-otp', [AuthController::class, 'verifyRegistrationOtp']);
 Route::get('/get-programs', [AuthController::class, 'getPrograms']);
 Route::get('/stream/video/{folder}/{filename}', [VideoController::class, 'stream'])->name('video.stream');
 Route::post('/login', [AuthController::class, 'login']);
@@ -34,6 +31,9 @@ Route::get('/calendar', [CalendarController::class, 'index']);
 
 
 Route::middleware('mobile-auth')->group(function (): void {
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/request-registration-otp', [AuthController::class, 'requestRegistrationOtp']);
+    Route::post('/verify-registration-otp', [AuthController::class, 'verifyRegistrationOtp']);
     Route::get('/venues', [VenueController::class, 'apiIndex']);
     Route::get('/faculties', [NewsController::class, 'getFaculties']);
     Route::get('/courses', [CourseController::class, 'getAllCourses']);

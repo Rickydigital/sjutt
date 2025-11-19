@@ -21,58 +21,44 @@ use Illuminate\Support\Facades\Validator;
 class AuthController extends Controller
 {
     public function login(Request $request)
-    {
-        try {
-            $validator = Validator::make($request->all(), [
-                'reg_no' => 'required|string',
-                'password' => 'required',
-                'fcm_token' => 'sometimes|string',
-            ]);
-    
-            if ($validator->fails()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-    
-            // Find the student by email
-            $student = Student::where('reg_no', $request->reg_no)->first();
-    
-            // Check if student exists and password is correct
-            if (!$student || !Hash::check($request->password, $student->password)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Invalid credentials',
-                ], 401);
-            }
-    
-            // Generate a Sanctum token
-            $token = $student->createToken('mobile-app')->plainTextToken;
+{
+    $request->validate([
+        'reg_no' => 'required|string',
+        'password' => 'required|string',
+        'fcm_token' => 'sometimes|string',
+    ]);
 
-            //update the fcm token
-            if ($request->has('fcm_token')) {
-                $student->update(['fcm_token' => $request->fcm_token]);
-            }
-    
-            return response()->json([
-                'status' => 'success',
-                'message' => 'login successful',
-                'data' => [
-                    'token' => $token,
-                    'student' => $student
-                ]
-            ], 200);
-    
-        } catch (\Exception $e) {
-            \Log::error('Login Error: ' . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Login failed',
-            ], 500);
-        }
+    $student = Student::where('reg_no', $request->reg_no)->first();
+
+    if (!$student || !Hash::check($request->password, $student->password)) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Invalid credentials',
+        ], 401);
     }
+
+    // Update FCM token
+    if ($request->filled('fcm_token')) {
+        $student->update(['fcm_token' => $request->fcm_token]);
+    }
+
+    $token = $student->createToken('mobile-app')->plainTextToken;
+
+    // Check if profile is incomplete
+    $isComplete = $student->status === 'Active'
+        && $student->program_id
+        && $student->faculty_id
+        && $student->phone;
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Login successful',
+        'token' => $token,
+        'student' => $student->load('faculty', 'program'),
+        'profile_complete' => $isComplete,
+        'requires_update' => !$isComplete,
+    ]);
+}
 
     public function getPrograms()
     {
@@ -84,252 +70,165 @@ class AuthController extends Controller
         ], 200);
     }
 
-    public function register(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'reg_no' => 'required|string|unique:students,reg_no',
-            'faculty_id' => 'required|exists:faculties,id',
-            'program_id' => 'required|exists:programs,id',
-            'email' => 'required|email|unique:students,email',
-            'password' => 'required|string|min:6',
-            'gender' => 'required|in:male,female,other',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        $student = Student::create([
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'reg_no' => $request->reg_no,
-            'faculty_id' => $request->faculty_id,
-            'program_id' => $request->program_id,
-            'email' => $request->email,
-            'password' => bcrypt($request->password),
-            'gender' => $request->gender,
-        ]);
-
-        $token = $student->createToken('mobile-app')->plainTextToken;
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Registration successful',
-            'data' => ['token' => $token, 'student' => $student->load('faculty')]
-        ], 201);
-    }
-
-    //TODO:  remove Logs
-    public function requestRegistrationOtp(Request $request)
-    {
-        try {
-            $validator = Validator::make($request->all(), [
-                'email' => 'required|email',
-                'first_name' => 'sometimes|string|max:255',
-                'last_name' => 'sometimes|string|max:255',
-                'reg_no' => 'sometimes|string',
-                'program_id' => 'sometimes|exists:programs,id',
-                'faculty_id' => 'sometimes|exists:faculties,id',
-                'password' => 'sometimes|string|min:6',
-                'gender' => 'sometimes|in:male,female,other',
-                'fcm_token' => 'sometimes|string',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            Log::info('Received OTP request data: ', $request->all());
-
-            $email = $request->email;
-
-            // Check if email exists in students or has a pending OTP
-            // $student = Student::where('email', $email)->exists();
-            // if (!$student && !$request->has(['first_name', 'last_name', 'reg_no', 'program_id', 'faculty_id', 'password', 'gender'])) {
-            //     Log::warning('Email not found and no registration data provided: ' . $email);
-            //     //if the user says he want to resend otp but he didnt request it at first
-            //     return response()->json([
-            //         'status' => 'error',
-            //         'message' => 'Email not found or invalid registration data'
-            //     ], 404);
-            // }
-
-            // Prepare data for storage if new registration
-            $data = [];
-            // if the request has a first name then its for registration else its for OTP resend
-            if ($request->has('first_name')) {
-                $data = $request->only(['first_name', 'last_name', 'reg_no', 'program_id', 'faculty_id', 'password', 'gender', 'fcm_token']);
-                //hash the password
-                $data['password'] = bcrypt($data['password']);
-                Log::info('Prepared OTP data for new registration: ', $data);
-            } else {
-                // For resend, use existing data or minimal info
-                $data = ['email' => $email];
-                Log::info('Prepared OTP data for resend: ', $data);
-            }
-
-            $jsonData = json_encode($data);
-            
-            //if json encoding fails
-            if ($jsonData === false) {
-                Log::error('JSON encoding failed: ' . json_last_error_msg(), ['data' => $data]);
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Failed to encode registration data'
-                ], 500);
-            }
-            Log::info('Encoded JSON data: ', ['jsonData' => $jsonData]);
-
-            // Generate 6-digit OTP
-            $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-            $expiresAt = Carbon::now()->addMinutes(5);
-
-            if(Otp::where('email', $email)->exists()) {
-                Otp::updateOrCreate(
-                    ['email' => $email],
-                    [
-                        'data' => $jsonData,
-                        'otp' => $otp,
-                        'expires_at' => $expiresAt,
-                        'used' => false,
-                    ]
-                );
-            } else {
-                Log::info('No existing OTP found for email: ' . $email);
-                Otp::updateOrCreate(
-                    ['email' => $email],
-                    values: [
-                        'otp' => $otp,
-                        'expires_at' => $expiresAt,
-                        'used' => false,
-                        'data' => $jsonData,
-                    ]
-                );
-            }
-            Log::info('Stored/Updated OTP record for email: ' . $email);
-
-            // Send OTP via email
-            try {
-                Mail::to($email)->send(new OtpMail($otp));
-                Log::info('Registration OTP email sent to: ' . $email);
-            } catch (\Exception $e) {
-                Log::error('Failed to send registration OTP email to ' . $email . ': ' . $e->getMessage());
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Failed to send OTP. Please try again.'
-                ], 500);
-            }
-
-            //if everything goes well
-            return response()->json([
-                'status' => 'success',
-                'message' => 'OTP sent successfully',
-                'data' => ['email' => $email]
-            ], 200);
-        } catch (\Exception $e) {
-            Log::error('Request registration OTP failed: ' . $e->getMessage(), ['exception' => $e]);
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Server error'
-            ], 500);
-        }
-    }
-
-   public function verifyRegistrationOtp(Request $request)
+public function register(Request $request)
 {
-    try {
-        $request->validate([
-            'email' => 'required|email',
-            'otp' => 'required|string|size:6',
-        ]);
+    $request->validate([
+        'student_id' => 'required|exists:students,id',
+        'email'      => 'required|email',
+        'phone'      => 'required|string|max:20',
+        'gender'     => 'required|in:male,female',
+        'password'   => 'required|string|min:6|confirmed',
+        'faculty_id' => 'required|exists:faculties,id',
+        'program_id' => 'required|exists:programs,id',
+        'status'     => 'required|in:Active,Alumni',
+    ]);
 
-        $otpRecord = Otp::where('email', $request->email)
-            ->where('otp', $request->otp)
-            ->where('used', false)
-            ->where('expires_at', '>', Carbon::now())
-            ->first();
+    $student = Student::findOrFail($request->student_id);
 
-        if (!$otpRecord) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid or expired OTP'
-            ], 400);
-        }
-
-        $data = json_decode($otpRecord->data, true);
-        if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid registration data'
-            ], 400);
-        }
-
-        // Check if reg_no already exists
-        $existingStudent = Student::where('reg_no', $data['reg_no'])->first();
-
-        if ($existingStudent) {
-            $otpRecord->update(['used' => true]); // prevent OTP reuse
-
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Reg No already taken. You can reset your password with your registered email or contact your Administrator.'
-            ], 422);
-        }
-
-        // Optional: also protect against email already registered
-        if (Student::where('email', $request->email)->exists()) {
-            $otpRecord->update(['used' => true]);
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Reg No already taken. You can reset your password with your registered email or contact your Administrator.'
-            ], 422);
-        }
-
-        // Create new student
-        $student = Student::create([
-            'first_name'  => $data['first_name'],
-            'last_name'   => $data['last_name'],
-            'reg_no'      => $data['reg_no'],
-            'program_id'  => $data['program_id'],
-            'faculty_id'  => $data['faculty_id'],
-            'email'       => $request->email,
-            'password'    => $data['password'],
-            'gender'      => $data['gender'],
-            'fcm_token'   => $data['fcm_token'] ?? null,
-        ]);
-
-        $token = $student->createToken('mobile-app')->plainTextToken;
-        $otpRecord->update(['used' => true]);
-
-        $studentWithFaculty = $student->load(['faculty' => fn($q) => $q->select('id', 'name')]);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Registration successful',
-            'data' => [
-                'token'   => $token,
-                'student' => $studentWithFaculty
-            ]
-        ], 201);
-
-    } catch (\Exception $e) {
-        Log::error('Verify registration OTP failed: ' . $e->getMessage(), ['exception' => $e]);
-
+    if ($student->status === 'Active' && $student->phone && $student->email) {
         return response()->json([
             'status'  => 'error',
-            'message' => 'Reg No already taken. You can reset your password with your registered email or contact your Administrator.'
-        ], 500);
+            'message' => 'Profile already completed'
+        ], 400);
     }
+
+    if (Student::where('email', $request->email)->where('id', '!=', $student->id)->exists()) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Email already taken'
+        ], 422);
+    }
+
+    $student->update([
+        'email'      => $request->email,
+        'phone'      => $request->phone,
+        'gender'     => $request->gender,
+        'password'   => bcrypt($request->password),
+        'faculty_id' => $request->faculty_id,
+        'program_id' => $request->program_id,
+        'status'     => $request->status,
+    ]);
+
+    $token = $student->createToken('mobile-app')->plainTextToken;
+
+    return response()->json([
+        'status'           => 'success',
+        'message'          => 'Profile completed successfully',
+        'token'            => $token,
+        'student'          => $student->fresh()->load('faculty', 'program'),
+        'profile_complete' => true,
+        'user_type'        => $request->status
+    ], 201);
+}
+
+   
+public function requestRegistrationOtp(Request $request)
+{
+    $request->validate([
+        'student_id' => 'required|exists:students,id',
+        'email'      => 'required|email',
+        'phone'      => 'required|string|max:20',
+        'gender'     => 'required|in:male,female',
+        'password'   => 'required|string|min:6',
+        'faculty_id' => 'required|exists:faculties,id',
+        'program_id' => 'required|exists:programs,id',
+        'status'     => 'required|in:Active,Alumni',
+    ]);
+
+    $student = Student::findOrFail($request->student_id);
+
+    if ($student->status === 'Active' && $student->phone && $student->email) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Profile already completed'
+        ], 400);
+    }
+
+    if (Student::where('email', $request->email)->where('id', '!=', $student->id)->exists()) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Email already in use'
+        ], 422);
+    }
+
+    $data = [
+        'student_id' => $student->id,
+        'email'      => $request->email,
+        'phone'      => $request->phone,
+        'gender'     => $request->gender,
+        'password'   => bcrypt($request->password),
+        'faculty_id' => $request->faculty_id,
+        'program_id' => $request->program_id,
+        'status'     => $request->status,
+    ];
+
+    $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+
+    Otp::updateOrCreate(
+        ['email' => $request->email],
+        [
+            'otp'        => $otp,
+            'data'       => json_encode($data),
+            'expires_at' => now()->addMinutes(10),
+            'used'       => false,
+        ]
+    );
+
+    Mail::to($request->email)->send(new OtpMail($otp));
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'OTP sent to your email',
+        'email'   => $request->email
+    ]);
+}
+
+
+public function verifyRegistrationOtp(Request $request)
+{
+    $request->validate([
+        'email' => 'required|email',
+        'otp'   => 'required|string|size:6',
+    ]);
+
+    $otpRecord = Otp::where('email', $request->email)
+        ->where('otp', $request->otp)
+        ->where('used', false)
+        ->where('expires_at', '>', now())
+        ->first();
+
+    if (!$otpRecord) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Invalid or expired OTP'
+        ], 400);
+    }
+
+    $data = json_decode($otpRecord->data, true);
+    $student = Student::findOrFail($data['student_id']);
+
+    $student->update([
+        'email'      => $data['email'],
+        'phone'      => $data['phone'],
+        'gender'     => $data['gender'],
+        'password'   => $data['password'],
+        'faculty_id' => $data['faculty_id'],
+        'program_id' => $data['program_id'],
+        'status'     => $data['status'],
+    ]);
+
+    $otpRecord->update(['used' => true]);
+
+    $token = $student->createToken('mobile-app')->plainTextToken;
+
+    return response()->json([
+        'status'           => 'success',
+        'message'          => 'Account activated successfully!',
+        'token'            => $token,
+        'student'          => $student->load('faculty', 'program'),
+        'profile_complete' => true,
+        'user_type'        => $data['status']
+    ], 201);
 }
 
     public function logout(Request $request)

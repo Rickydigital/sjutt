@@ -4,19 +4,19 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class AddFcmTokenToStudentsTable extends Migration
+return new class extends Migration
 {
     public function up()
     {
         Schema::table('students', function (Blueprint $table) {
-            $table->string('fcm_token')->nullable()->after('password');
+            $table->string('phone', 20)->nullable()->after('email');
         });
     }
 
-    public function down(): void
+    public function down()
     {
         Schema::table('students', function (Blueprint $table) {
-            $table->dropColumn('fcm_token');
+            $table->dropColumn('phone');
         });
     }
-}
+};

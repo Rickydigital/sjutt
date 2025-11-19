@@ -24,7 +24,15 @@ class Student extends Authenticatable
         'fcm_token',
         'can_upload',
         'last_chat_access_at',
+        'status',
+        'phone',
     ];
+
+    protected $casts = [
+    'can_upload' => 'boolean',
+    'is_online'  => 'boolean',
+    'status'     => 'string',
+];
 
     public function faculty() {
         return $this->belongsTo(Faculty::class);
@@ -62,5 +70,6 @@ class Student extends Authenticatable
     {
         return $this->hasMany(Suggestion::class);
     }
+
 
 }

@@ -118,7 +118,17 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('roles/{role}/permissions', [RolePermissionController::class, 'permissions'])
          ->name('roles.permissions');
 });
+
+       
+    Route::get('/students/export/excel', [StudentController::class, 'exportExcel'])->name('students.export.excel');
+    Route::get('/students/export/attendance-pdf', [StudentController::class, 'exportAttendancePdf'])
+     ->name('students.export.attendance.pdf');
+    Route::post('/students/import', [StudentController::class, 'import'])
+    ->name('students.import');
     Route::middleware(['auth', 'role:Admin|Administrator|Dean Of Students|Timetable Officer|Lecturer'])->get('/students', [StudentController::class, 'index'])->name('students.index');
+    Route::post('/students', [StudentController::class, 'store'])->name('students.store');
+    Route::put('/students/{student}', [StudentController::class, 'update'])->name('students.update');
+    Route::patch('/students/{student}/password', [StudentController::class, 'resetPassword'])->name('students.reset-password');
 
     // Faculties
     Route::post('/faculties/store-course', [FacultyController::class, 'storeCourse'])->name('faculties.storeCourse')->middleware(['permission:create courses']);
