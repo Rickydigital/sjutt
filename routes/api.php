@@ -33,6 +33,7 @@ Route::get('/calendar', [CalendarController::class, 'index']);
 Route::middleware('mobile-auth')->group(function (): void {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/request-registration-otp', [AuthController::class, 'requestRegistrationOtp']);
+    Route::post('/resend-registration-otp', [AuthController::class, 'resendRegistrationOtp']);
     Route::post('/verify-registration-otp', [AuthController::class, 'verifyRegistrationOtp']);
     Route::get('/venues', [VenueController::class, 'apiIndex']);
     Route::get('/faculties', [NewsController::class, 'getFaculties']);

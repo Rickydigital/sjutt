@@ -50,8 +50,8 @@ public function index(Request $request)
     if ($request->filled('faculty_id')) $query->where('faculty_id', $request->faculty_id);
     if ($request->filled('program_id')) $query->where('program_id', $request->program_id);
     if ($request->filled('status')) {
-    if ($request->status === 'Deactive') {
-        $query->where('status', 'Deactive');
+    if ($request->status === 'Inactive') {
+        $query->where('status', 'Inactive');
     } else {
         $query->where('status', $request->status);
     }
@@ -121,7 +121,7 @@ public function index(Request $request)
         'gender'      => 'required|in:male,female',
         'faculty_id'  => 'required|exists:faculties,id',
         'program_id'  => 'required|exists:programs,id',
-        // 'status'      => 'required|in:Active,Deactive,Alumni',
+        // 'status'      => 'required|in:Active,Inactive,Alumni',
     ]);
 
     $student->update([

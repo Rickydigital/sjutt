@@ -27,7 +27,7 @@ class StudentsExport implements FromCollection, WithHeadings
                 'Faculty'     => $student->faculty?->name ?? '—',
                 'Program'     => $student->program?->name ?? '—',
                 'Gender'      => ucfirst($student->gender),
-                'Status'      => $student->status === 'Deactive' ? 'Not Activated' : $student->status,
+                'Status'      => $student->status === 'Inactive' ? 'Not Activated' : $student->status,
             ];
         });
     }
