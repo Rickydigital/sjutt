@@ -67,7 +67,7 @@
                 <select x-model="status" @change="applyFilters()" class="form-select form-select-sm">
                     <option value="">All Status</option>
                     <option value="Active" {{ request('status')=='Active'?'selected':'' }}>Active</option>
-                    <option value="Deactive" {{ request('status')=='Deactive'?'selected':'' }}>Not Activated</option>
+                    <option value="Inactive" {{ request('status')=='Inactive'?'selected':'' }}>Not Activated</option>
                     <option value="Alumni" {{ request('status')=='Alumni'?'selected':'' }}>Alumni</option>
                 </select>
             </div>
@@ -123,7 +123,7 @@
                             @php
                                 $statusInfo = match($student->status) {
                                     'Active'   => ['label' => 'Active',        'class' => 'bg-success'],
-                                    'Deactive' => ['label' => 'Not Activated', 'class' => 'bg-danger'],
+                                    'Inactive' => ['label' => 'Not Activated', 'class' => 'bg-danger'],
                                     'Alumni'   => ['label' => 'Alumni',        'class' => 'bg-secondary'],
                                     default    => ['label' => 'Unknown',       'class' => 'bg-warning']
                                 };
@@ -210,7 +210,7 @@
                                                 <label>Status *</label>
                                                 <select name="status" class="form-select" required>
                                                     <option value="Active" {{ $student->status === 'Active' ? 'selected' : '' }}>Active</option>
-                                                    <option value="Deactive" {{ $student->status === 'Deactive' ? 'selected' : '' }}>Not Activated</option>
+                                                    <option value="Inactive" {{ $student->status === 'Inactive' ? 'selected' : '' }}>Not Activated</option>
                                                     <option value="Alumni" {{ $student->status === 'Alumni' ? 'selected' : '' }}>Alumni</option>
                                                 </select>
                                             </div>
@@ -366,7 +366,7 @@
                             <select name="status" class="form-select">
                                 <option value="">All Status</option>
                                 <option value="Active">Active</option>
-                                <option value="Deactive">Not Activated</option>
+                                <option value="Inactive">Not Activated</option>
                                 <option value="Alumni">Alumni</option>
                             </select>
                         </div>
