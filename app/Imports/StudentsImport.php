@@ -82,20 +82,22 @@ class StudentsImport implements ToCollection, WithHeadingRow, WithChunkReading, 
     }
 
     private function getEmail($regNo, $email)
-    {
-        $email = trim($email ?? '');
+{
+    $email = trim($email ?? '');
 
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $clean = str_replace('/', '-', $regNo);
-            return "temp.{$clean}@student.sjut.ac.tz";
-        }
+    // IGNORE real emails completely → always use temp
+    $clean = str_replace('/', '-', $regNo);
+    return "temp.{$clean}@student.sjut.ac.tz";
+}
 
-        return strtolower($email);
-    }
+   private function getGender($gender)
+{
+    $g = strtoupper(trim($gender ?? ''));
 
-    private function getGender($gender)
-    {
-        $g = trim($gender ?? '');
-        return $g === 'Male' ? 'male' : ($g === 'Female' ? 'female' : null);
-    }
+    return match ($g) {
+        'M', 'MALE'     => 'male',
+        'F', 'FEMALE'   => 'female',
+        default         => null,
+    };
+}
 }
