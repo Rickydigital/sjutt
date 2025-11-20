@@ -228,8 +228,31 @@
                         </div>
                     </div>
 
-                    <!-- Reset Password Modal stays the same -->
-                    <div class="modal fade" id="resetPasswordModal{{ $student->id }}" tabindex="-1"> ... </div>
+                    <!-- RESET PASSWORD MODAL -->
+                    <div class="modal fade" id="resetPasswordModal{{ $student->id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <form action="{{ route('students.reset-password', $student) }}" method="POST">
+                                @csrf @method('PATCH')
+                                <div class="modal-content">
+                                    <div class="modal-header bg-danger text-white">
+                                        <h5>Reset Password</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body text-center">
+                                        <p><strong>{{ $student->first_name }} {{ $student->last_name }}</strong><br>
+                                           <code>{{ $student->reg_no }}</code></p>
+                                        <div class="alert alert-info">
+                                            Password will be reset to: <strong>sjut123456</strong>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-danger">Reset Password</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                     @endforeach
                 </tbody>
             </table>
