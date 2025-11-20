@@ -8,83 +8,65 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use App\Notifications\NewMessageNotification;
 
-class SuggestionController extends Controller
-{
-    public function store(Request $request)
-    {
+class SuggestionController extends Controller {
+    public function store( Request $request ) {
         try {
-            Log::info('Starting suggestion store', ['input' => $request->all()]);
+            Log::info( 'Starting suggestion store', [ 'input' => $request->all() ] );
 
-            $request->validate([
+            $request->validate( [
                 'message' => 'required|string|max:1000',
-                'is_anonymous' => 'required|boolean',
-                'password' => 'required|string',
-            ]);
+            ] );
 
-            $student = $request->user();
-            if (!$student) {
-                Log::error('No authenticated user found');
-                return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
-            }
-
-            if (!Hash::check($request->password, $student->password)) {
-                Log::warning("Invalid password attempt for student {$student->id} ({$student->email})");
-                return response()->json(['success' => false, 'message' => 'Invalid password'], 403);
-            }
-
-            $suggestion = Suggestion::create([
-                'student_id' => $student->id,
+            $suggestion = Suggestion::create( [
+                'student_id' => null,
                 'user_id' => null,
                 'sender_type' => 'student',
                 'message' => $request->message,
-                'is_anonymous' => $request->is_anonymous,
+                'is_anonymous' => true,
                 'status' => 'Received',
-            ]);
+            ] );
 
-            Log::info("Suggestion created with sender_type: {$suggestion->sender_type}");
+            $admins = \App\Models\User::role( 'admin' )->get();
 
-            $admins = \App\Models\User::role('admin')->get();
-
-            foreach ($admins as $admin) {
+            foreach ( $admins as $admin ) {
                 try {
-                    $admin->notify(new NewMessageNotification($suggestion));
-                    Log::info("Notification sent to admin {$admin->id} ({$admin->email})");
-                } catch (\Exception $e) {
-                    Log::error("Failed to notify admin {$admin->id}: {$e->getMessage()}");
+                    $admin->notify( new NewMessageNotification( $suggestion ) );
+                    Log::info( "Notification sent to admin {$admin->id} ({$admin->email})" );
+                } catch ( \Exception $e ) {
+                    Log::error( "Failed to notify admin {$admin->id}: {$e->getMessage()}" );
                 }
             }
 
-            Log::info("Notified {$admins->count()} admins for suggestion #{$suggestion->id}");
+            // Log::info( "Notified {$admins->count()} admins for suggestion #{$suggestion->id}" );
 
-            return response()->json(['success' => true, 'suggestion' => $suggestion]);
-        } catch (\Exception $e) {
-            Log::error('Suggestion store failed', [
+            return response()->json( [ 'status' => 'success', 'message' => 'Suggestion sent successfully' ] );
+        } catch ( \Exception $e ) {
+            Log::error( 'Suggestion store failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json(['success' => false, 'message' => 'Server error'], 500);
+            ] );
+            return response()->json( [ 'status' => 'error', 'message' => 'There was an error, please try again later' ], 500 );
         }
     }
 
-    public function index(Request $request)
-    {
+    public function index( Request $request ) {
         try {
             $student = $request->user();
-            if (!$student) {
-                Log::error('No authenticated user found');
-                return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+            if ( !$student ) {
+                Log::error( 'No authenticated user found' );
+                return response()->json( [ 'success' => false, 'message' => 'Unauthorized' ], 401 );
             }
-    
-            $suggestions = Suggestion::where(function ($query) use ($student) {
-                $query->where('student_id', $student->id) // Messages related to the student
-                      ->where(function ($subQuery) {
-                          $subQuery->where('sender_type', 'student') // Student's own messages
+
+            $suggestions = Suggestion::where( function ( $query ) use ( $student ) {
+                $query->where( 'student_id', $student->id ) // Messages related to the student
+                ->where( function ( $subQuery ) {
+                    $subQuery->where( 'sender_type', 'student' ) // Student's own messages
                                    ->orWhere('sender_type', 'admin'); // Admin replies to the student
                       });
             })
             ->orWhere(function ($query) use ($student) {
                 $query->where('is_anonymous', true) // Anonymous messages from others
-                      ->where('student_id', '!=', $student->id)
+                      ->where('student_id', ' != ', $student->id)
                       ->where('sender_type', 'student');
             })
             ->where(function ($query) use ($student) {
@@ -141,7 +123,7 @@ class SuggestionController extends Controller
             }
 
             $request->validate([
-                'delete_type' => 'required|in:for_me,for_all',
+                'delete_type' => 'required|in:for_me, for_all',
             ]);
 
             $suggestion = Suggestion::find($id);
@@ -174,7 +156,7 @@ class SuggestionController extends Controller
             }
         } catch (\Exception $e) {
             Log::error("Error deleting suggestion #$id: {$e->getMessage()}");
-            return response()->json(['success' => false, 'message' => 'Server error'], 500);
+            return response()->json(['success' => false, 'message' => 'Server error' ], 500 );
+                }
+            }
         }
-    }
-}
