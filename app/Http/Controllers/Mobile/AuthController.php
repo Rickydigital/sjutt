@@ -483,25 +483,134 @@ class AuthController extends Controller {
             ], 200 );
         }
 
-        public function resetPassword( Request $request ) {
-            $request->validate( [
-                'email' => 'required|email',
-                'password' => 'required|string|min:6',
-            ] );
+        // 1. Request Reset Password OTP → stores pending password reset in `data`
+public function forgetPassword(Request $request)
+{
+    $request->validate(['email' => 'required|email']);
 
-            $student = Student::where( 'email', $request->email )->first();
-            if ( !$student ) {
-                return response()->json( [
-                    'status' => 'error',
-                    'message' => 'Email not found'
-                ], 404 );
-            }
+    $student = Student::where('email', $request->email)->first();
 
-            $student->password = bcrypt( $request->password );
-            $student->save();
-            return response()->json( [
-                'status' => 'success',
-                'message' => 'Password reset successfully'
-            ], 200 );
-        }
+    // ALWAYS generic message → no email enumeration
+    if ($student) {
+        $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        // EXACT same logic as registration: store purpose + student_id in `data`
+        Otp::updateOrCreate(
+            ['email' => $request->email],
+            [
+                'otp'        => $otp,
+                'data'       => json_encode([
+                    'purpose'     => 'reset_password',
+                    'student_id'  => $student->id,
+                ]),
+                'expires_at' => now()->addMinutes(10),
+                'used'       => false,
+            ]
+        );
+
+        Mail::to($request->email)->send(new OtpMail($otp));
+    }
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'If an account with that email exists, an OTP has been sent.'
+    ]);
+}
+
+// 2. Verify OTP → same as verifyRegistrationOtp()
+public function verifyResetPasswordOtp(Request $request)
+{
+    $request->validate([
+        'email' => 'required|email',
+        'otp'   => 'required|string|size:6',
+    ]);
+
+    $otpRecord = Otp::where('email', $request->email)
+        ->where('otp', $request->otp)
+        ->where('used', false)
+        ->where('expires_at', '>', now())
+        ->first();
+
+    if (!$otpRecord) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Invalid OTP or email.'
+        ], 400);
+    }
+
+    $data = json_decode($otpRecord->data, true);
+
+    // Must be a password reset OTP
+    if (!isset($data['purpose']) || $data['purpose'] !== 'reset_password') {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Invalid OTP purpose.'
+        ], 400);
+    }
+
+    $student = Student::findOrFail($data['student_id']);
+
+    // Mark OTP as used
+    $otpRecord->update(['used' => true]);
+
+    // Issue temporary 15-minute token
+    $tempToken = $student->createToken('reset-password-temp', ['*'], now()->addMinutes(15))
+        ->plainTextToken;
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'OTP verified successfully.',
+        'data'    => [
+            'token'   => $tempToken,
+            'student' => [
+                'id'         => $student->id,
+                'firstName'  => $student->first_name ?? $student->firstName ?? '',
+                'lastName'   => $student->last_name ?? $student->lastName ?? '',
+                'regNo'      => $student->reg_no,
+                'email'      => $student->email,
+                'phone'      => $student->phone,
+                'gender'     => $student->gender,
+                'status'     => $student->status,
+                'programId'  => $student->program_id,
+                'facultyId'  => $student->faculty_id,
+            ]
+        ]
+    ]);
+}
+
+// 3. Reset Password → protected by temp token
+public function resetPassword(Request $request)
+{
+    $request->validate([
+        'password'              => 'required|string|min:8|confirmed',
+        'password_confirmation' => 'required',
+    ]);
+
+    $student = $request->user(); // from sanctum
+
+    if (!$student) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Unauthorized or token expired.'
+        ], 401);
+    }
+
+    // Update password
+    $student->password = bcrypt($request->password);
+    $student->save();
+
+    // Delete ONLY the temporary reset token
+    $student->tokens()->where('name', 'reset-password-temp')->delete();
+
+    // Issue fresh permanent login token
+    $newToken = $student->createToken('mobile-app')->plainTextToken;
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'Password reset successfully.',
+        'data'    => [
+            'token' => $newToken
+        ]
+    ]);
+}
     }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\News;
 use App\Models\Student;
 use App\Jobs\SendNewsNotificationBatch;
+use App\Jobs\SendNewsNotificationJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -34,34 +35,36 @@ class NewsController extends Controller
         return view('admin.news.create');
     }
 
-    public function store(Request $request)
-    {
-        $request->validate([
-            'title'       => 'required|string|max:255',
-            'description' => 'required|string',
-            'image'       => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-            'video'       => 'nullable|mimes:mp4,avi,mov|max:51200',
-        ]);
+   public function store(Request $request)
+{
+    $request->validate([
+        'title'       => 'required|string|max:255',
+        'description' => 'required|string',
+        'image'       => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+        'video'       => 'nullable|mimes:mp4,avi,mov|max:51200',
+    ]);
 
-        $news = new News($request->only(['title', 'description']));
+    $news = new News($request->only(['title', 'description']));
 
-        if ($request->hasFile('image')) {
-            $news->image = $request->file('image')->store('news_images', 'public');
-        }
-        if ($request->hasFile('video')) {
-            $news->video = $request->file('video')->store('news_videos', 'public');
-        }
-
-        $news->created_by = Auth::id();
-        $news->save();
-
-        // Send notification to ALL students
-        $this->sendNewsToAllStudents($news);
-
-        return redirect()->route('news.index')
-            ->with('success', 'News added and notification dispatched!');
+    if ($request->hasFile('image')) {
+        $news->image = $request->file('image')->store('news_images', 'public');
+    }
+    if ($request->hasFile('video')) {
+        $news->video = $request->file('video')->store('news_videos', 'public');
     }
 
+    $news->created_by = Auth::id();
+    $news->save();
+
+    // FIRE AND FORGET — INSTANT RESPONSE!
+    SendNewsNotificationJob::dispatchAfterResponse(
+        $news,
+        $news->image ? Storage::url($news->image) : null
+    );
+
+    return redirect()->route('news.index')
+        ->with('success', 'News posted successfully! Notification is being sent...');
+}
     public function edit(News $news)
     {
         return view('admin.news.edit', compact('news'));

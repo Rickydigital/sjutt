@@ -22,6 +22,7 @@ class Event extends Model
 
     protected $casts = [
         'start_time' => 'datetime',
+        'location'     => 'array',
         'end_time'   => 'datetime',
         'user_allowed' => 'array'
     ];

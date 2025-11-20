@@ -51,34 +51,33 @@ class MobileController extends Controller
 
 public function events(): JsonResponse
 {
-    $now = Carbon::now(); 
+    $now = Carbon::now();
 
     $events = Event::with('user')
-        ->where('end_time', '>', $now) 
-        ->select('id', 'title', 'description', 'location', 'start_time', 'end_time', 'user_allowed', 'media', 'created_by', 'created_at', 'updated_at')
-        ->orderBy('start_time', 'asc') 
+        ->where('end_time', '>', $now)
+        ->select('id', 'title', 'description', 'location', 'start_time', 'end_time', 'user_allowed', 'media', 'created_by', 'created_at')
+        ->orderBy('start_time', 'asc')
         ->get();
 
     $data = $events->map(function ($event) {
         $mediaUrl = $event->media ? asset('storage/' . $event->media) : null;
 
         return [
-            'id'            => $event->id,
-            'title'         => $event->title,
-            'description'   => $event->description,
-            'location'      => $event->location,
-            'start_time'    => $event->start_time->toISOString(),
-            'end_time'      => $event->end_time->toISOString(),
-            'user_allowed'  => $event->user_allowed,
-            'media'         => $mediaUrl,
-            'media_type'    => $event->media ? $this->getMediaType($event->media) : null,
-            'created_at'    => $event->created_at->toISOString(),
-            'updated_at'    => $event->updated_at->toISOString(),
-            'creator'       => [
+            'id'           => $event->id,
+            'title'        => $event->title,
+            'description'  => $event->description,
+            'location'     => $event->location ?? [], 
+            'start_time'   => $event->start_time->toISOString(),
+            'end_time'     => $event->end_time->toISOString(),
+            'user_allowed' => $event->user_allowed ?? [],
+            'media'        => $mediaUrl,
+            'media_type'   => $mediaUrl ? $this->getMediaType($event->media) : null,
+            'created_at'   => $event->created_at->toISOString(),
+            'creator'      => [
                 'id'     => $event->user?->id,
                 'name'   => $event->user?->name ?? 'Unknown',
                 'email'  => $event->user?->email,
-                'phone'  => $event->user?->phone,
+                'phone'  => $event->user?->phone ?? null,
                 'status' => $event->user?->status ?? 'active',
             ],
         ];
@@ -86,6 +85,7 @@ public function events(): JsonResponse
 
     return response()->json([
         'success' => true,
+        'message' => 'Events fetched successfully',
         'data'    => $data->values()->toArray(),
     ]);
 }

@@ -26,7 +26,9 @@ Route::post('/request-otp', [AuthController::class, 'requestOtp']);
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/calendar', [CalendarController::class, 'index']);
-
+Route::post('/forget-password', [AuthController::class, 'forgetPassword']);
+Route::post('/verify-reset-password-otp', [AuthController::class, 'verifyResetPasswordOtp']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']) ->middleware('auth:sanctum');
 
 
 

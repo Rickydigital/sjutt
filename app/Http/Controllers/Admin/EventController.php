@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendEventNotificationJob;
 use App\Models\Event;
 use App\Models\Venue;
 use App\Models\Student;
@@ -22,8 +23,10 @@ class EventController extends Controller
         $filterCreator = $request->query('filter_creator');
 
         $events = Event::with('user')
-            ->when($search, fn($q, $s) => $q->where('title', 'like', "%{$s}%")
-                ->orWhere('location', 'like', "%{$s}%"))
+            ->when($search, function ($q, $s) {
+                return $q->where('title', 'like', "%{$s}%")
+                         ->orWhereJsonContains('location', $s); // Works with JSON array
+            })
             ->when($filterCreator, fn($q, $id) => $q->where('created_by', $id))
             ->latest()
             ->paginate(10);
@@ -41,8 +44,9 @@ class EventController extends Controller
             'title'           => 'required|string|max:255',
             'description'     => 'required|string',
             'location_type'   => 'required|in:venue,custom',
-            'venue_id'        => 'required_if:location_type,venue|exists:venues,id',
-            'custom_location' => 'required_if:location_type,custom|string|max:255|nullable',
+            'venue_ids'       => 'required_if:location_type,venue|array|min:1',
+            'venue_ids.*'     => 'exists:venues,id',
+            'custom_location' => 'required_if:location_type,custom|string|max:255',
             'start_time'      => 'required|date|after:now',
             'end_time'        => 'required|date|after:start_time',
             'media'           => 'nullable|file|mimes:jpeg,png,jpg,mp4,avi,mov|max:20480',
@@ -51,11 +55,21 @@ class EventController extends Controller
         ]);
 
         try {
-            $location = $request->location_type === 'venue'
-                ? Venue::findOrFail($request->venue_id)->name
-                : $request->custom_location;
+            // Handle multiple venues or custom location
+            $locations = [];
 
-            $userAllowed = $request->access;
+            if ($request->location_type === 'venue' && $request->venue_ids) {
+                $locations = Venue::whereIn('id', $request->venue_ids)
+                    ->pluck('name')
+                    ->toArray();
+            } elseif ($request->location_type === 'custom') {
+                $locations = [$request->custom_location];
+            }
+
+            if (empty($locations)) {
+                return back()->withInput()->with('error', 'Please select at least one venue or enter a custom location.');
+            }
+
             $mediaPath = $request->hasFile('media')
                 ? $request->file('media')->store('event_media', 'public')
                 : null;
@@ -63,22 +77,25 @@ class EventController extends Controller
             $event = Event::create([
                 'title'        => $request->title,
                 'description'  => $request->description,
-                'location'     => $location,
+                'location'     => $locations, // ← Stored as JSON array automatically
                 'start_time'   => $request->start_time,
                 'end_time'     => $request->end_time,
-                'user_allowed' => $userAllowed,
+                'user_allowed' => $request->access,
                 'media'        => $mediaPath,
                 'created_by'   => Auth::id(),
             ]);
 
-            // SEND NOTIFICATION SYNC
-            $this->sendEventNotification($event, $userAllowed, $mediaPath);
+            SendEventNotificationJob::dispatchAfterResponse(
+                $event,
+                $request->access,
+                $mediaPath ? Storage::url($mediaPath) : null
+            );
 
             return redirect()->route('events.index')
-                ->with('success', 'Event created and notification sent!');
+                ->with('success', 'Event created successfully!');
         } catch (\Exception $e) {
             Log::error('Event creation failed: ' . $e->getMessage(), $request->all());
-            return back()->withInput()->with('error', 'Failed: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Failed to create event: ' . $e->getMessage());
         }
     }
 
@@ -89,10 +106,11 @@ class EventController extends Controller
         }
 
         $request->validate([
-            'title'           => 'required|string|max:255', // Fixed: was 'requiredrequired'
+            'title'           => 'required|string|max:255',
             'description'     => 'required|string',
             'location_type'   => 'required|in:venue,custom',
-            'venue_id'        => 'required_if:location_type,venue|exists:venues,id',
+            'venue_ids'       => 'required_if:location_type,venue|array|min:1',
+            'venue_ids.*'     => 'exists:venues,id',
             'custom_location' => 'required_if:location_type,custom|string|max:255',
             'start_time'      => 'required|date',
             'end_time'        => 'required|date|after:start_time',
@@ -102,11 +120,19 @@ class EventController extends Controller
         ]);
 
         try {
-            $location = $request->location_type === 'venue'
-                ? Venue::findOrFail($request->venue_id)->name
-                : $request->custom_location;
+            $locations = [];
 
-            $userAllowed = $request->access;
+            if ($request->location_type === 'venue' && $request->venue_ids) {
+                $locations = Venue::whereIn('id', $request->venue_ids)
+                    ->pluck('name')
+                    ->toArray();
+            } elseif ($request->location_type === 'custom') {
+                $locations = [$request->custom_location];
+            }
+
+            if (empty($locations)) {
+                return back()->withInput()->with('error', 'Please select at least one venue or enter a custom location.');
+            }
 
             if ($request->hasFile('media')) {
                 if ($event->media) {
@@ -118,14 +144,14 @@ class EventController extends Controller
             $event->update([
                 'title'        => $request->title,
                 'description'  => $request->description,
-                'location'     => $location,
+                'location'     => $locations, // ← JSON array
                 'start_time'   => $request->start_time,
                 'end_time'     => $request->end_time,
-                'user_allowed' => $userAllowed,
+                'user_allowed' => $request->access,
             ]);
 
             return redirect()->route('events.index')
-                ->with('success', 'Event updated.');
+                ->with('success', 'Event updated successfully.');
         } catch (\Exception $e) {
             Log::error('Event update failed: ' . $e->getMessage());
             return back()->withInput()->with('error', 'Update failed: ' . $e->getMessage());
@@ -148,7 +174,7 @@ class EventController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────
-    // SEND PUSH NOTIFICATION TO ELIGIBLE USERS (SYNC, CHUNKED)
+    // SEND PUSH NOTIFICATION (unchanged)
     // ──────────────────────────────────────────────────────────────
     private function sendEventNotification(Event $event, array $access, ?string $mediaPath): void
     {
@@ -158,7 +184,6 @@ class EventController extends Controller
 
         $query = Student::whereNotNull('fcm_token');
 
-        // Filter by access if not "all"
         if (!in_array('all', $access)) {
             $allowedRoles = [];
             if (in_array('student', $access)) $allowedRoles[] = 'student';
@@ -167,20 +192,15 @@ class EventController extends Controller
             $query->whereHas('roles', fn($q) => $q->whereIn('name', $allowedRoles));
         }
 
-        $chunkSize = 500;
-
         $query->select('id', 'fcm_token')
-              ->chunk($chunkSize, function ($students) use ($title, $body, $image) {
+              ->chunk(500, function ($students) use ($title, $body, $image) {
                   $tokens = $students->pluck('fcm_token')
                       ->filter(fn($t) => is_string($t) && strlen($t) > 50)
                       ->unique()
                       ->values()
                       ->all();
 
-                  if (empty($tokens)) {
-                      Log::info("No valid FCM tokens for event: {$title}");
-                      return;
-                  }
+                  if (empty($tokens)) return;
 
                   $this->sendFcmNotification($tokens, $title, $body, $image);
               });
@@ -220,16 +240,9 @@ class EventController extends Controller
             ]);
 
             $invalidTokens = [];
-            foreach ($report->failures() as $index => $failure) {
+            foreach ($report->failures() as $failure) {
                 $token = $failure->target()->value();
                 $error = $failure->error();
-
-                Log::warning("FCM Failure #{$index}", [
-                    'token' => $token,
-                    'reason' => $error?->getReason() ?? 'unknown',
-                    'message' => $error?->getMessage() ?? 'No message',
-                    'code' => $error?->getCode() ?? 'N/A',
-                ]);
 
                 if ($token && in_array($error?->getReason(), ['UNREGISTERED', 'INVALID_REGISTRATION', 'NOT_FOUND'])) {
                     $invalidTokens[] = $token;
@@ -237,15 +250,10 @@ class EventController extends Controller
             }
 
             if (!empty($invalidTokens)) {
-                $cleaned = Student::whereIn('fcm_token', $invalidTokens)->update(['fcm_token' => null]);
-                Log::info("Cleaned {$cleaned} invalid FCM tokens for event: {$title}");
+                Student::whereIn('fcm_token', $invalidTokens)->update(['fcm_token' => null]);
             }
-
         } catch (\Throwable $e) {
-            Log::error("Event FCM send failed: " . $e->getMessage(), [
-                'trace' => $e->getTraceAsString(),
-                'title' => $title,
-            ]);
+            Log::error("Event FCM send failed: " . $e->getMessage(), ['title' => $title]);
         }
     }
 }
