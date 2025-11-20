@@ -39,7 +39,7 @@ class ImportStudentsCommand extends Command
         $this->newLine(2);
         $this->components->info("IMPORT COMPLETED SUCCESSFULLY!");
         $this->table(
-            ['Status', 'Count'],
+            ['Status', 'Count'],   
             [
                 ['Total rows processed', $total],
                 ['Successfully imported', $import->imported],
