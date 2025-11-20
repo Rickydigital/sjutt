@@ -3,119 +3,63 @@
 namespace App\Http\Controllers;
 
 use App\Models\Suggestion;
-use App\Models\Student;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class AdminSuggestionController extends Controller
 {
-   public function index()
-{
-    $search = request('search');
-    $status = request('status');
-
-    $conversations = Suggestion::select('student_id', DB::raw('MAX(created_at) as last_message_at'))
-        ->whereNotNull('student_id')
-        ->when($search, function ($q, $s) {
-            return $q->whereHas('student', fn($sq) => $sq->where('name', 'like', "%{$s}%")
-                ->orWhere('email', 'like', "%{$s}%")
-                ->orWhere('reg_no', 'like', "%{$s}%"));
-        })
-        ->when($status, function ($q, $s) {
-            return $q->whereHas('suggestions', fn($sq) => $sq->where('status', $s));
-        })
-        ->groupBy('student_id')
-        ->with(['student'])
-        ->orderBy('last_message_at', 'desc')
-        ->paginate(10);
-
-    $conversations->getCollection()->transform(function ($conv) {
-        $conv->last_message_at = Carbon::parse($conv->last_message_at);
-        return $conv;
-    });
-
-    return view('admin.suggestions.index', compact('conversations'));
-}
-
-    public function conversation($student_id)
+    public function index()
     {
-        try {
-            $student = Student::findOrFail($student_id);
-            $suggestions = Suggestion::where('student_id', $student_id)
-                ->with([
-                    'student' => function ($query) {
-                        $query->select('id', 'name', 'email');
-                    },
-                    'user' => function ($query) {
-                        $query->select('id', 'name', 'email');
-                    }
-                ])
-                ->orderBy('created_at', 'asc')
-                ->get();
-    
-            // Log suggestions for debugging
-            Log::debug("Suggestions for student_id {$student_id}", [
-                'count' => $suggestions->count(),
-                'suggestions' => $suggestions->map(function ($suggestion) {
-                    return [
-                        'id' => $suggestion->id,
-                        'sender_type' => $suggestion->sender_type,
-                        'student_id' => $suggestion->student_id,
-                        'user_id' => $suggestion->user_id,
-                        'message' => $suggestion->message,
-                    ];
-                })->toArray(),
-            ]);
-    
-            // Update status to 'Viewed' for student messages
-            Suggestion::where('student_id', $student_id)
-                ->where('sender_type', 'student')
-                ->where('status', 'Received')
-                ->update(['status' => 'Viewed']);
-    
-            $hasNonAnonymous = Suggestion::where('student_id', $student_id)
-                ->where('sender_type', 'student')
-                ->where('is_anonymous', false)
-                ->exists();
-            $conversationTitle = $hasNonAnonymous ? "Conversation with {$student->name}" : "Anonymous Conversation";
-    
-            return view('admin.suggestions.conversation', compact('suggestions', 'student', 'conversationTitle'));
-        } catch (\Exception $e) {
-            Log::error("Error loading conversation for student_id {$student_id}: {$e->getMessage()}");
-            return redirect()->route('admin.suggestions.index')->with('error', 'Unable to load conversation.');
-        }
+        // Stats
+        $total = Suggestion::count();
+        $received = Suggestion::where('status', 'Received')->count();
+        $viewed = Suggestion::where('status', 'Viewed')->count();
+        $processed = Suggestion::where('status', 'Processed')->count();
+
+        // Custom sorting: Received first, then Viewed, then Processed → latest first
+        $suggestions = Suggestion::query()
+            ->selectRaw('*, 
+                CASE 
+                    WHEN status = "Received" THEN 1
+                    WHEN status = "Viewed" THEN 2
+                    WHEN status = "Processed" THEN 3
+                    ELSE 4 
+                END as status_order')
+            ->orderBy('status_order')
+            ->orderBy('created_at', 'desc')
+            ->paginate(15);
+
+        return view('admin.suggestions.index', compact(
+            'suggestions', 'total', 'received', 'viewed', 'processed'
+        ));
     }
 
-    public function replyToStudent(Request $request, $student_id)
+    public function markViewed($id)
     {
-        try {
-            $request->validate(['message' => 'required|string|max:1000']);
-            $admin = $request->user();
-
-            if (!$admin) {
-                Log::error('No authenticated admin found');
-                return redirect()->route('admin.suggestions.conversation', $student_id)
-                    ->with('error', 'Unauthorized');
-            }
-
-            $suggestion = Suggestion::create([
-                'student_id' => $student_id,
-                'user_id' => $admin->id,
-                'sender_type' => 'admin',
-                'message' => $request->message,
-                'is_anonymous' => false,
-                'status' => 'Processed',
-            ]);
-
-            Log::info("Reply #{$suggestion->id} sent by admin {$admin->id} to student {$student_id}");
-            return redirect()->route('admin.suggestions.conversation', $student_id)
-                ->with('success', 'Reply sent');
-        } catch (\Exception $e) {
-            Log::error("Error sending reply to student {$student_id}: {$e->getMessage()}");
-            return redirect()->route('admin.suggestions.conversation', $student_id)
-                ->with('error', 'Failed to send reply.');
+        $suggestion = Suggestion::findOrFail($id);
+        if ($suggestion->status === 'Received') {
+            $suggestion->update(['status' => 'Viewed']);
         }
+        return response()->json(['success' => true]);
+    }
+
+    public function markProcessed($id)
+    {
+        $suggestion = Suggestion::findOrFail($id);
+        if ($suggestion->status !== 'Processed') {
+            $suggestion->update(['status' => 'Processed']);
+        }
+        return response()->json(['success' => true]);
+    }
+
+    public function getMessage($id)
+    {
+        $msg = Suggestion::findOrFail($id);
+        return response()->json([
+            'id' => $msg->id,
+            'message' => $msg->message,
+            'status' => $msg->status,
+            'created_at' => $msg->created_at->format('d M Y, h:i A'),
+            'is_anonymous' => $msg->is_anonymous
+        ]);
     }
 }

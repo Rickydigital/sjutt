@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Suggestion extends Model
 {
     protected $fillable = [
-        'student_id', 'user_id', 'sender_type', 'message', 'is_anonymous', 'status', 'deleted_for'
+        'sender_type', 'message', 'is_anonymous', 'status',
     ];
 
     protected $casts = [

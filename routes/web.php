@@ -265,8 +265,14 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     // Suggestions
     Route::get('/suggestions', [AdminSuggestionController::class, 'index'])->name('admin.suggestions.index')->middleware(['permission:view suggestions']);
-    Route::get('/suggestions/conversation/{student_id}', [AdminSuggestionController::class, 'conversation'])->name('admin.suggestions.conversation')->middleware(['permission:view suggestions']);
-    Route::post('/suggestions/reply/{student_id}', [AdminSuggestionController::class, 'replyToStudent'])->name('admin.suggestions.reply')->middleware(['permission:reply suggestions']);
+    Route::get('/admin-suggestions/{id}/message', [AdminSuggestionController::class, 'getMessage'])
+        ->name('admin.suggestions.message');
+
+    Route::post('/admin-suggestions/{id}/viewed', [AdminSuggestionController::class, 'markViewed'])
+        ->name('admin.suggestions.viewed');
+
+    Route::post('/admin-suggestions/{id}/processed', [AdminSuggestionController::class, 'markProcessed'])
+        ->name('admin.suggestions.processed');
 
     // Calendar
     Route::get('/calendar/export', [CalendarController::class, 'export'])->name('calendar.export')->middleware(['permission:export calendar']);
