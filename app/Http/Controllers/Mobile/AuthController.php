@@ -564,15 +564,15 @@ public function verifyResetPasswordOtp(Request $request)
             'token'   => $tempToken,
             'student' => [
                 'id'         => $student->id,
-                'firstName'  => $student->first_name ?? $student->firstName ?? '',
-                'lastName'   => $student->last_name ?? $student->lastName ?? '',
-                'regNo'      => $student->reg_no,
+                'first_name'  => $student->first_name ?? $student->firstName ?? '',
+                'last_name'   => $student->last_name ?? $student->lastName ?? '',
+                'reg_no'      => $student->reg_no,
                 'email'      => $student->email,
                 'phone'      => $student->phone,
                 'gender'     => $student->gender,
                 'status'     => $student->status,
-                'programId'  => $student->program_id,
-                'facultyId'  => $student->faculty_id,
+                'program_id'  => $student->program_id,
+                'faculty_id'  => $student->faculty_id,
             ]
         ]
     ]);
