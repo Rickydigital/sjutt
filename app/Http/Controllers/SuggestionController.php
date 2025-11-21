@@ -23,8 +23,8 @@ class SuggestionController extends Controller {
                 'sender_type' => 'student',
                 'message' => $request->message,
                 'is_anonymous' => true,
-                'status' => 'Received',
-            ] );
+                'status' => 'Received', 
+            ] ); 
 
             $admins = \App\Models\User::role( 'admin' )->get();
 
