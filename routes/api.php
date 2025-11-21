@@ -28,7 +28,7 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/calendar', [CalendarController::class, 'index']);
 Route::post('/forget-password', [AuthController::class, 'forgetPassword']);
 Route::post('/verify-reset-password-otp', [AuthController::class, 'verifyResetPasswordOtp']);
-Route::post('/reset-password', [AuthController::class, 'resetPassword']) ->middleware('auth:sanctum');
+
 
 
 
@@ -78,5 +78,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::put('/edit-profile', [AuthController::class, 'editProfile']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/suggestions', [SuggestionController::class, 'store']);
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 });
 
