@@ -133,7 +133,7 @@
                             @can('view faculties')
                             <li>
                                 <a href="{{ route('faculties.index') }}">
-                                    <span class="sub-item">Faculties</span>
+                                    <span class="sub-item">Classes</span>
                                 </a>
                             </li>
                             @endcan
