@@ -613,4 +613,26 @@ public function resetPassword(Request $request)
         ]
     ]);
 }
+    public function updateFcmToken(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required|exists:students,id',
+            'fcm_token' => 'required|string',
+        ]);
+
+        $student = Student::find($request->user_id);
+
+        if ($student) {
+            $student->update(['fcm_token' => $request->fcm_token]);
+            return response()->json([
+                'success' => true,
+                'message' => 'FCM token updated successfully.'
+            ], 200);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'User not found.'
+        ], 404);
+    }
     }
