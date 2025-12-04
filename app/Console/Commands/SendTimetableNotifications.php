@@ -3,152 +3,108 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Models\Timetable;
-use App\Models\ExaminationTimetable;
-use App\Models\Student;
-use Kreait\Firebase\Factory;
-use Kreait\Firebase\Messaging\CloudMessage;
-use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use App\Models\Timetable;
+use App\Models\Student;
+use Illuminate\Support\Facades\Log;
+use Kreait\Laravel\Firebase\Facades\Firebase;
+use Kreait\Firebase\Messaging\CloudMessage;
+use Kreait\Firebase\Messaging\Notification;
 
 class SendTimetableNotifications extends Command
 {
-    protected $signature = 'timetables:notify';
-    protected $description = 'Send notifications for upcoming lecture and examination timetables';
+    protected $signature = 'timetable:notify';
+    protected $description = 'Send FCM notifications 30 minutes before class starts';
 
     public function handle()
     {
         $now = Carbon::now('Africa/Dar_es_Salaam');
-        $this->info("Current time: " . $now->toDateTimeString());
+        $this->info("Running timetable:notify at " . $now->format('Y-m-d H:i:s'));
 
-        // Skip lecture notifications on Sundays (exams can still run)
-        if ($now->isSunday()) {
-            $this->info("Today is Sunday, skipping lecture notifications");
-            Log::info("Skipped lecture notifications on Sunday: " . $now->toDateTimeString());
-        }
+        $today = $now->format('l');
+        $currentTime = $now->format('H:i:s');
+        $in30Minutes = $now->copy()->addMinutes(30)->format('H:i:s');
 
-        $credentials = config('firebase.credentials');
-        if (!$credentials || !file_exists($credentials)) {
-            $this->error("Firebase credentials invalid or file not found: " . ($credentials ?? 'null'));
-            Log::error("Firebase credentials invalid or file not found: " . ($credentials ?? 'null'));
-            return;
-        }
-
-        $factory = (new Factory)->withServiceAccount($credentials);
-        $messaging = $factory->createMessaging();
-
-        // ================================================================
-        // 1. LECTURE TIMETABLES
-        // ================================================================
-        if (! $now->isSunday()) {
-            $todayDay     = $now->format('l');               // e.g. "Monday"
-            $currentTime  = $now->format('H:i:s');
-            $upcomingTime = $now->copy()->addMinutes(30)->format('H:i:s');
-
-            $upcomingTimetables = Timetable::where('day', $todayDay)
-                ->where('time_start', '>', $currentTime)
-                ->where('time_start', '<', $upcomingTime)
-                ->get();
-
-            $this->info("Found {$upcomingTimetables->count()} upcoming lecture timetables for $todayDay");
-
-            foreach ($upcomingTimetables as $timetable) {
-                $this->info("Processing timetable {$timetable->id}: {$timetable->course_code} at {$timetable->time_start}");
-                Log::info("Timetable ID={$timetable->id}, Course={$timetable->course_code}, Start={$timetable->time_start}, Venue={$timetable->venue->name}");
-
-                // ONLY faculty_id is used
-                $students = Student::where('faculty_id', $timetable->faculty_id)
-                    ->whereNotNull('fcm_token')
-                    ->get();
-
-                $this->info("Found {$students->count()} students for timetable {$timetable->id}");
-
-                foreach ($students as $student) {
-                    $message = CloudMessage::withTarget('token', $student->fcm_token)
-                        ->withNotification([
-                            'title' => 'Upcoming Lecture',
-                            'body'  => "{$timetable->course_code} - {$timetable->activity} at "
-                                      . Carbon::parse($timetable->time_start)->format('H:i')
-                                      . " in {$timetable->venue->name}",
-                        ]);
-
-                    try {
-                        $messaging->send($message);
-                        $this->info("Lecture notification sent to student {$student->id}");
-                        Log::info("Sent lecture to {$student->id}: {$timetable->course_code}");
-                    } catch (\Exception $e) {
-                        $this->error("Failed lecture notification to {$student->id}: {$e->getMessage()}");
-                        Log::error("Lecture error for {$student->id}: {$e->getMessage()}");
-                    }
-                }
-            }
-        }
-
-        // ================================================================
-        // 2. EXAMINATION TIMETABLES
-        // ================================================================
-        $upcomingExams = ExaminationTimetable::where('exam_date', '>=', $now->toDateString())
+        // Find ALL classes starting in the next 30 minutes
+        $sessions = Timetable::with(['course', 'venue', 'lecturer', 'faculty'])
+            ->where('day', $today)
+            ->whereTime('time_start', '>', $currentTime)
+            ->whereTime('time_start', '<=', $in30Minutes)
+            ->currentSemester()
             ->get();
 
-        $this->info("Found {$upcomingExams->count()} upcoming exams");
+        if ($sessions->isEmpty()) {
+            $this->info('No classes starting in the next 30 minutes.');
+            return 0;
+        }
 
-        foreach ($upcomingExams as $exam) {
-            $examDateTime   = Carbon::parse("{$exam->exam_date} {$exam->start_time}", 'Africa/Dar_es_Salaam');
-            $oneDayBefore   = $examDateTime->copy()->subDay();
-            $oneHourBefore  = $examDateTime->copy()->subHour();
+        $this->info("Found {$sessions->count()} class(es) starting soon!");
 
-            $this->info("Processing exam {$exam->id}: {$exam->course_code} on {$exam->exam_date} at {$exam->start_time}");
+        $messaging = Firebase::messaging();
 
-            // ONLY faculty_id is used
-            $students = Student::where('faculty_id', $exam->faculty_id)
+        foreach ($sessions as $session) {
+            $start = Carbon::parse($session->time_start)->format('H:i');
+            $courseName = $session->course?->course_name ?? $session->course_code;
+            $venue = $session->venue?->name ?? 'TBA';
+            $lecturer = $session->lecturer?->name ?? 'Not assigned';
+            $group = $session->group_selection;
+
+            $title = "Class in 30 mins: {$courseName}";
+
+            // Build body — add group if exists
+            $bodyLines = [
+                $session->activity,
+                "{$start} - {$session->time_end}",
+                "Room: {$venue}",
+                "Lecturer: {$lecturer}",
+            ];
+
+            if ($group && $group !== 'All' && !empty(trim($group))) {
+                array_unshift($bodyLines, "Group: {$group}"); // Show group at the top
+            }
+
+            $body = implode("\n", $bodyLines);
+
+            // Send to ALL active students in this faculty
+            $tokens = Student::where('faculty_id', $session->faculty_id)
+                ->where('status', 'active')
                 ->whereNotNull('fcm_token')
-                ->get();
+                ->where('fcm_token', '!=', '')
+                ->pluck('fcm_token')
+                ->chunk(500);
 
-            $this->info("Found {$students->count()} students for exam {$exam->id}");
+            $totalSent = 0;
 
-            foreach ($students as $student) {
-                // ---- 1 DAY BEFORE ----
-                if ($oneDayBefore->isToday()
-                    && $now->diffInMinutes($oneDayBefore, false) <= 60
-                    && $now->isBefore($oneDayBefore)) {
+            foreach ($tokens as $tokenChunk) {
+                $notification = Notification::create($title, $body);
+                $message = CloudMessage::new()
+                    ->withNotification($notification)
+                    ->withData([
+                        'type' => 'timetable_reminder',
+                        'course_code' => $session->course_code,
+                        'time_start' => $session->time_start,
+                        'venue' => $venue,
+                        'group' => $group ?? '',
+                    ])
+                    ->withDefaultSounds();
 
-                    $message = CloudMessage::withTarget('token', $student->fcm_token)
-                        ->withNotification([
-                            'title' => 'Exam Reminder: 1 Day Away',
-                            'body'  => "{$exam->course_code} exam is tomorrow, {$exam->exam_date}, at {$exam->start_time} in {$exam->venue->name}",
-                        ]);
+                try {
+                    $report = $messaging->sendMulticast($message, $tokenChunk->toArray());
+                    $totalSent += $report->successes()->count();
 
-                    try {
-                        $messaging->send($message);
-                        $this->info("1-day exam notification sent to student {$student->id}");
-                        Log::info("Sent 1-day exam to {$student->id}: {$exam->course_code}");
-                    } catch (\Exception $e) {
-                        $this->error("Failed 1-day exam notification: {$e->getMessage()}");
-                        Log::error("1-day exam error for {$student->id}: {$e->getMessage()}");
+                    foreach ($report->invalidTokens() as $invalid) {
+                        Log::warning("Invalid FCM token: {$invalid}");
                     }
-                }
-
-                // ---- 1 HOUR BEFORE ----
-                if ($examDateTime->isToday()
-                    && $now->diffInMinutes($oneHourBefore, false) <= 60
-                    && $now->isBefore($oneHourBefore)) {
-
-                    $message = CloudMessage::withTarget('token', $student->fcm_token)
-                        ->withNotification([
-                            'title' => 'Exam Reminder: 1 Hour Away',
-                            'body'  => "{$exam->course_code} exam starts at {$exam->start_time} today in {$exam->venue->name}",
-                        ]);
-
-                    try {
-                        $messaging->send($message);
-                        $this->info("1-hour exam notification sent to student {$student->id}");
-                        Log::info("Sent 1-hour exam to {$student->id}: {$exam->course_code}");
-                    } catch (\Exception $e) {
-                        $this->error("Failed 1-hour exam notification: {$e->getMessage()}");
-                        Log::error("1-hour exam error for {$student->id}: {$e->getMessage()}");
-                    }
+                } catch (\Exception $e) {
+                    Log::error("FCM Error: " . $e->getMessage());
                 }
             }
+
+            $groupText = $group && $group !== 'All' ? " [{$group}]" : '';
+            $this->info("Reminder sent: {$courseName} at {$start}{$groupText} → {$totalSent} students");
         }
+
+        $this->info('All timetable notifications sent successfully!');
+        return 0;
     }
 }

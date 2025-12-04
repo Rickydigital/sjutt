@@ -35,69 +35,56 @@ class EventController extends Controller
     }
 
     public function store(Request $request)
-    {
-        if (!Auth::check()) {
-            return redirect()->route('events.index')->with('error', 'You must be logged in.');
-        }
+{
+    $request->validate([
+        'title'           => 'required|string|max:255',
+        'description'     => 'required|string',
+        'location_type'   => 'required|in:venue,custom',
+        'venue_ids'       => 'required_if:location_type,venue|array|min:1',
+        'venue_ids.*'     => 'exists:venues,id',
+        'custom_location' => 'required_if:location_type,custom|string|max:255',
+        'start_time'      => 'required|date|after:now',
+        'end_time'        => 'required|date|after:start_time',
+        'media'           => 'nullable|file|mimes:jpeg,png,jpg,mp4,avi,mov|max:20480',
+        'access'          => 'required|array|min:1',
+        'access.*'        => 'in:all,staff,student',
+    ]);
 
-        $request->validate([
-            'title'           => 'required|string|max:255',
-            'description'     => 'required|string',
-            'location_type'   => 'required|in:venue,custom',
-            'venue_ids'       => 'required_if:location_type,venue|array|min:1',
-            'venue_ids.*'     => 'exists:venues,id',
-            'custom_location' => 'required_if:location_type,custom|string|max:255',
-            'start_time'      => 'required|date|after:now',
-            'end_time'        => 'required|date|after:start_time',
-            'media'           => 'nullable|file|mimes:jpeg,png,jpg,mp4,avi,mov|max:20480',
-            'access'          => 'required|array|min:1',
-            'access.*'        => 'in:all,staff,student',
-        ]);
+    $locations = [];
 
-        try {
-            // Handle multiple venues or custom location
-            $locations = [];
-
-            if ($request->location_type === 'venue' && $request->venue_ids) {
-                $locations = Venue::whereIn('id', $request->venue_ids)
-                    ->pluck('name')
-                    ->toArray();
-            } elseif ($request->location_type === 'custom') {
-                $locations = [$request->custom_location];
-            }
-
-            if (empty($locations)) {
-                return back()->withInput()->with('error', 'Please select at least one venue or enter a custom location.');
-            }
-
-            $mediaPath = $request->hasFile('media')
-                ? $request->file('media')->store('event_media', 'public')
-                : null;
-
-            $event = Event::create([
-                'title'        => $request->title,
-                'description'  => $request->description,
-                'location'     => $locations, // ← Stored as JSON array automatically
-                'start_time'   => $request->start_time,
-                'end_time'     => $request->end_time,
-                'user_allowed' => $request->access,
-                'media'        => $mediaPath,
-                'created_by'   => Auth::id(),
-            ]);
-
-            SendEventNotificationJob::dispatchAfterResponse(
-                $event,
-                $request->access,
-                $mediaPath ? Storage::url($mediaPath) : null
-            );
-
-            return redirect()->route('events.index')
-                ->with('success', 'Event created successfully!');
-        } catch (\Exception $e) {
-            Log::error('Event creation failed: ' . $e->getMessage(), $request->all());
-            return back()->withInput()->with('error', 'Failed to create event: ' . $e->getMessage());
-        }
+    if ($request->location_type === 'venue' && $request->venue_ids) {
+        $locations = Venue::whereIn('id', $request->venue_ids)->pluck('name')->toArray();
+    } elseif ($request->location_type === 'custom') {
+        $locations = [$request->custom_location];
     }
+
+    if (empty($locations)) {
+        return back()->withInput()->with('error', 'Please select a location.');
+    }
+
+    $mediaPath = $request->hasFile('media')
+        ? $request->file('media')->store('event_media', 'public')
+        : null;
+
+    $event = Event::create([
+        'title'        => $request->title,
+        'description'  => $request->description,
+        'location'     => $locations,
+        'start_time'   => $request->start_time,
+        'end_time'     => $request->end_time,
+        'user_allowed' => $request->access,
+        'media'        => $mediaPath,
+        'created_by'   => Auth::id(),
+    ]);
+
+    $imageUrl = $mediaPath ? asset('storage/' . $mediaPath) : null;
+
+    // MAGIC: Sends AFTER response — admin sees redirect instantly
+    SendEventNotificationJob::dispatch($event, $request->access, $imageUrl)->afterResponse();
+
+    return redirect()->route('events.index')
+        ->with('success', 'Event created successfully! Students are being notified...');
+}
 
     public function update(Request $request, Event $event)
     {
@@ -176,84 +163,5 @@ class EventController extends Controller
     // ──────────────────────────────────────────────────────────────
     // SEND PUSH NOTIFICATION (unchanged)
     // ──────────────────────────────────────────────────────────────
-    private function sendEventNotification(Event $event, array $access, ?string $mediaPath): void
-    {
-        $title = $event->title;
-        $body  = Str::limit(strip_tags($event->description), 100);
-        $image = $mediaPath ? Storage::url($mediaPath) : null;
 
-        $query = Student::whereNotNull('fcm_token');
-
-        if (!in_array('all', $access)) {
-            $allowedRoles = [];
-            if (in_array('student', $access)) $allowedRoles[] = 'student';
-            if (in_array('staff', $access))   $allowedRoles[] = 'staff';
-
-            $query->whereHas('roles', fn($q) => $q->whereIn('name', $allowedRoles));
-        }
-
-        $query->select('id', 'fcm_token')
-              ->chunk(500, function ($students) use ($title, $body, $image) {
-                  $tokens = $students->pluck('fcm_token')
-                      ->filter(fn($t) => is_string($t) && strlen($t) > 50)
-                      ->unique()
-                      ->values()
-                      ->all();
-
-                  if (empty($tokens)) return;
-
-                  $this->sendFcmNotification($tokens, $title, $body, $image);
-              });
-    }
-
-    private function sendFcmNotification(array $tokens, string $title, string $body, ?string $image = null): void
-    {
-        $credentials = config('firebase.credentials');
-        if (!$credentials || !file_exists($credentials)) {
-            Log::error("Firebase credentials missing or invalid: " . ($credentials ?? 'null'));
-            return;
-        }
-
-        try {
-            $factory = (new Factory)->withServiceAccount($credentials);
-            $messaging = $factory->createMessaging();
-
-            $message = CloudMessage::new()
-                ->withNotification([
-                    'title' => $title,
-                    'body'  => $body,
-                    'image' => $image,
-                ])
-                ->withData([
-                    'type' => 'event',
-                    'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
-                ]);
-
-            $report = $messaging->sendMulticast($message, $tokens);
-
-            $success = $report->successes()->count();
-            $failed  = $report->failures()->count();
-
-            Log::info("Event FCM sent: {$success} success, {$failed} failed", [
-                'title' => $title,
-                'token_count' => count($tokens),
-            ]);
-
-            $invalidTokens = [];
-            foreach ($report->failures() as $failure) {
-                $token = $failure->target()->value();
-                $error = $failure->error();
-
-                if ($token && in_array($error?->getReason(), ['UNREGISTERED', 'INVALID_REGISTRATION', 'NOT_FOUND'])) {
-                    $invalidTokens[] = $token;
-                }
-            }
-
-            if (!empty($invalidTokens)) {
-                Student::whereIn('fcm_token', $invalidTokens)->update(['fcm_token' => null]);
-            }
-        } catch (\Throwable $e) {
-            Log::error("Event FCM send failed: " . $e->getMessage(), ['title' => $title]);
-        }
-    }
 }

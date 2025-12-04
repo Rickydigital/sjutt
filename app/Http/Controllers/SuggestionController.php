@@ -26,7 +26,7 @@ class SuggestionController extends Controller {
                 'status' => 'Received', 
             ] ); 
 
-            $admins = \App\Models\User::role( 'admin' )->get();
+            $admins = \App\Models\User::role( 'Dean Of Students' )->get();
 
             foreach ( $admins as $admin ) {
                 try {
@@ -61,7 +61,7 @@ class SuggestionController extends Controller {
                 $query->where( 'student_id', $student->id ) // Messages related to the student
                 ->where( function ( $subQuery ) {
                     $subQuery->where( 'sender_type', 'student' ) // Student's own messages
-                                   ->orWhere('sender_type', 'admin'); // Admin replies to the student
+                                   ->orWhere('sender_type', 'Dean Of Students'); // Admin replies to the student
                       });
             })
             ->orWhere(function ($query) use ($student) {

@@ -26,7 +26,7 @@ public function index(Request $request)
     $user = Auth::user();
 
     $query = Student::with(['faculty', 'program'])
-        ->select('id', 'first_name', 'last_name', 'reg_no', 'email', 'gender', 'faculty_id', 'program_id', 'status');
+        ->select('id', 'first_name', 'last_name', 'reg_no', 'email', 'gender', 'faculty_id', 'program_id', 'status', 'phone');
 
     // Your existing role filtering logic...
     if ($user->hasRole('Lecturer')) {
