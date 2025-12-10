@@ -43,7 +43,12 @@ return [
 
         'api' => [
             'driver' => 'sanctum',
-            'provider' => 'students', // Default to students for API
+            'provider' => 'students', 
+        ],
+
+        'staff-api' => [
+            'driver'   => 'sanctum',
+            'provider' => 'users',
         ],
     ],
 

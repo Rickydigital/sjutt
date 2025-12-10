@@ -15,6 +15,7 @@ use App\Http\Controllers\SuggestionController;
 use App\Http\Controllers\Mobile\CalendarController;
 use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\FirebaseNotificationController;
+use App\Http\Controllers\Mobile\StaffAuthController;
 use App\Http\Controllers\MobileController;
 
 Route::get('/fee_structures', [FeeStructureController::class, 'index']);
@@ -28,6 +29,12 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/calendar', [CalendarController::class, 'index']);
 Route::post('/forget-password', [AuthController::class, 'forgetPassword']);
 Route::post('/verify-reset-password-otp', [AuthController::class, 'verifyResetPasswordOtp']);
+
+//staff
+Route::post('/staff/login', [StaffAuthController::class, 'login']);
+Route::post('/staff/forget-password', [StaffAuthController::class, 'forgetPassword']);
+Route::post('/staff/verify-reset-password-otp', [StaffAuthController::class, 'verifyResetPasswordOtp']);
+
 
 
 
@@ -44,6 +51,8 @@ Route::middleware('mobile-auth')->group(function (): void {
     Route::get('/venue-timetables', [TimetableController::class, 'getVenueTimetables']);
     Route::get('/timetables/lecture', [TimetableController::class, 'getLectureTimetables']);
     Route::get('/timetables/examination', [TimetableController::class, 'getExaminationTimetables']);
+    Route::get('/lecturer-timetable', [TimetableController::class, 'getLecturerTimetables']);
+    Route::get('/course-students', [TimetableController::class, 'getCourseStudents']);
     Route::post('send-notification', [FirebaseNotificationController::class, 'sendNotification']);
     Route::get('/gallery', [GalleryController::class, 'getGallery']);
     Route::get('/news', [NewsController::class, 'getNews']);
@@ -82,3 +91,18 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 });
 
+//staff guard from auth configuration
+
+Route::middleware('auth:staff-api')->group(function () {
+    Route::get('/staff/profile', [StaffAuthController::class, 'profile']);
+    Route::post('/staff/edit-profile', [StaffAuthController::class, 'editProfile']);
+    Route::post('/staff/change-password', [StaffAuthController::class, 'changePassword']);
+    Route::post('/staff/store-token', [StaffAuthController::class, 'storeToken']);
+    Route::post('/staff/update-online-status', [StaffAuthController::class, 'updateOnlineStatus']);
+    Route::post('/staff/logout', [StaffAuthController::class, 'logout']);
+    Route::post('/staff/reset-password', [StaffAuthController::class, 'resetPassword']);
+    Route::post('/staff/request-phone-otp', [StaffAuthController::class, 'requestPhoneVerificationOtp']);
+    Route::post('/staff/verify-phone-otp', [StaffAuthController::class, 'verifyPhoneOtp']);
+    Route::post('/staff/resend-phone-otp', [StaffAuthController::class, 'resendPhoneOtp']);
+
+});

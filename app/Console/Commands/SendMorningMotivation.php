@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Student;
-use Kreait\Laravel\Firebase\Facades\Firebase;
+use Kreait\Firebase\Factory;                    
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
 use Carbon\Carbon;
@@ -15,7 +15,7 @@ class SendMorningMotivation extends Command
     protected $signature = 'motivation:morning';
     protected $description = 'Send beautiful morning greeting + Bible & Quran verse to all active students';
 
-    // Beautiful Bible & Quran verses (feel free to expand)
+    // Beautiful Bible & Quran verses
     private $bibleVerses = [
         "Philippians 4:13 → I can do all things through Christ who strengthens me.",
         "Joshua 1:9 → Be strong and courageous. Do not be afraid; do not be discouraged, for the Lord your God will be with you wherever you go.",
@@ -48,7 +48,27 @@ class SendMorningMotivation extends Command
 
     public function handle()
     {
-        $today = Carbon::now()->format('l'); // Monday, Tuesday...
+        // Use the same working method as your timetable command
+        $credentialsPath = storage_path('app/firebase-credentials.json');
+
+        if (!file_exists($credentialsPath)) {
+            $this->error('Firebase credentials file not found at: ' . $credentialsPath);
+            Log::error('Firebase credentials file missing for morning motivation');
+            return 1;
+        }
+
+        try {
+            $messaging = (new Factory)
+                ->withServiceAccount($credentialsPath)
+                ->createMessaging();
+        } catch (\Exception $e) {
+            $this->error('Failed to initialize Firebase: ' . $e->getMessage());
+            Log::error('Firebase init failed: ' . $e->getMessage());
+            return 1;
+        }
+
+        $today = Carbon::now('Africa/Dar_es_Salaam')->format('l');
+
         $dayNameSwahili = [
             'Monday'    => 'Jumatatu',
             'Tuesday'   => 'Jumanne',
@@ -60,27 +80,27 @@ class SendMorningMotivation extends Command
         ][$today] ?? $today;
 
         $greeting = match ($today) {
-            'Monday'    => "Happy Monday! 🌅 Let's start the week strong!",
-            'Friday'    => "Alhamdulillah it's Friday! 🕌 May your Jumu'ah be blessed!",
-            'Sunday'    => "Blessed Sunday! 🙏 Rest, reflect, and recharge.",
-            default     => "Good Morning! ☀️ Have a wonderful {$dayNameSwahili}!",
+            'Monday'    => "Happy Monday! Let's start the week strong!",
+            'Friday'    => "Alhamdulillah it's Friday! May your Jumu'ah be blessed!",
+            'Sunday'    => "Blessed Sunday! Rest, reflect, and recharge.",
+            default     => "Good Morning! Have a wonderful {$dayNameSwahili}!",
         };
 
         $bible = $this->bibleVerses[array_rand($this->bibleVerses)];
         $quran = $this->quranVerses[array_rand($this->quranVerses)];
         $motivation = $this->motivationalQuotes[array_rand($this->motivationalQuotes)];
 
-        $title = "Good Morning, Warrior! 🌟";
-        $body = "{$greeting}\n\n" .
-                "📖 {$bible}\n\n" .
-                "🕌 {$quran}\n\n" .
-                "💪 {$motivation}\n\n" .
-                "You're destined for greatness today! Go shine! ✨";
+        $title = "Good Morning, Warrior!";
+        $body  = "{$greeting}\n\n" .
+                 "{$bible}\n\n" .
+                 "{$quran}\n\n" .
+                 "{$motivation}\n\n" .
+                 "You're destined for greatness today! Go shine!";
 
         $students = Student::where('status', 'active')
             ->whereNotNull('fcm_token')
             ->where('fcm_token', '!=', '')
-            ->select('first_name', 'fcm_token')
+            ->select('fcm_token')
             ->get();
 
         if ($students->isEmpty()) {
@@ -88,9 +108,8 @@ class SendMorningMotivation extends Command
             return 0;
         }
 
-        $tokens = $students->pluck('fcm_token')->filter()->values()->chunk(500); // FCM limit: 500 per request
+        $tokens = $students->pluck('fcm_token')->filter()->chunk(500);
 
-        $messaging = Firebase::messaging();
         $notification = Notification::create($title, $body);
 
         $message = CloudMessage::new()
@@ -109,16 +128,18 @@ class SendMorningMotivation extends Command
                 $totalSuccess += $report->successes()->count();
 
                 foreach ($report->invalidTokens() as $invalidToken) {
-                    // Optional: Clean invalid tokens
+                    Log::warning("Invalid FCM token removed: {$invalidToken}");
+                    // Optional: clean it from DB
                     // Student::where('fcm_token', $invalidToken)->update(['fcm_token' => null]);
-                    Log::warning("Invalid FCM token: {$invalidToken}");
                 }
             } catch (\Exception $e) {
-                Log::error('Morning motivation FCM failed: ' . $e->getMessage());
+                Log::error('Morning motivation batch failed: ' . $e->getMessage());
             }
         }
 
-        $this->info("Morning motivation sent to {$totalSuccess} students! 🌞");
+        $this->info("Morning motivation sent to {$totalSuccess} students!");
+        Log::info("Morning motivation sent successfully to {$totalSuccess} students.");
+
         return 0;
     }
 }

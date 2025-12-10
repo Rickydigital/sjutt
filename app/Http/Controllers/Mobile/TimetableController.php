@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Mobile;
 
 use App\Http\Controllers\Controller;
+use App\Models\Course;
 use App\Models\Timetable;
 use App\Models\ExaminationTimetable;
+use App\Models\Student;
 use App\Models\TimetableSemester;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class TimetableController extends Controller
@@ -145,7 +148,7 @@ public function getLectureTimetables(Request $request)
     $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     foreach ($days as $day) {
         if (!isset($grouped[$day])) {
-            $grouped[$day] = [];
+            $grouped[$day] = collect([]);
         }
     }
 
@@ -217,7 +220,7 @@ public function getVenueTimetables(Request $request)
     $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     foreach ($days as $day) {
         if (!isset($grouped[$day])) {
-            $grouped[$day] = [];
+            $grouped[$day] = collect([]);
         }
     }
 
@@ -246,4 +249,154 @@ public function getVenueTimetables(Request $request)
 
         return response()->json(['data' => $timetables], 200);
     }
+
+ public function getLecturerTimetables(Request $request)
+{
+    $lecturerId = $request->query('lecturer_id');
+
+    if (!$lecturerId) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'Missing lecturer_id'
+        ], 400);
+    }
+
+    $lecturer = User::find($lecturerId);
+
+    if (!$lecturer || !$lecturer->hasRole('Lecturer')) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'Lecturer not found'
+        ], 404);
+    }
+
+    if (!TimetableSemester::exists()) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'No timetable semester configured.'
+        ], 422);
+    }
+
+    $timetableSemester = TimetableSemester::with('semester')->firstOrFail();
+    $semesterId        = $timetableSemester->semester_id;
+    $semesterName      = $timetableSemester->semester->name ?? 'N/A';
+
+    $timetables = Timetable::with(['faculty', 'venue', 'course'])
+        ->where('lecturer_id', $lecturerId)
+        ->where('semester_id', $semesterId)
+        ->whereIn('day', ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
+        ->orderByRaw("FIELD(day, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')")
+        ->orderBy('time_start')
+        ->get();
+
+    // Group by day → then by time slot + venue + course
+    $groupedByDay = $timetables->groupBy('day');
+
+    $finalData = collect();
+
+    foreach ($groupedByDay as $day => $dayEntries) {
+        $slots = $dayEntries->groupBy(function ($item) {
+            return $item->time_start . '|' . $item->time_end . '|' . $item->venue_id . '|' . $item->course_code . '|' . $item->activity;
+        })->map(function ($group) {
+            $first = $group->first();
+
+            // Collect all unique faculties
+            $faculties = $group->pluck('faculty.name')->filter()->unique()->values();
+
+            return [
+                'course_code'     => $first->course_code,
+                'course_name'     => $first->course?->name ?? '—',
+                'activity'        => $first->activity,
+                'venue'           => $first->venue?->longform ?? $first->venue?->name ?? '—',
+                'venue_code'      => $first->venue?->name ?? '—',
+                'time_start'      => substr($first->time_start, 0, 5), // "08:00"
+                'time_end'        => substr($first->time_end, 0, 5),   // "10:00"
+                'duration'        => (strtotime($first->time_end) - strtotime($first->time_start)) / 3600 . 'h',
+                'faculties'       => $faculties->implode(' / '),       // e.g., "FANAS 1 / BAEd 1 / BATh 1"
+                'faculty_count'   => $faculties->count(),
+                'group_selection' => $group->first()->group_selection ?? 'All Groups',
+            ];
+        })->values();
+
+        $finalData[$day] = $slots;
+    }
+
+    // Ensure all days exist (even if empty)
+    $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    foreach ($days as $day) {
+        if (!isset($finalData[$day])) {
+            $finalData[$day] = [];
+        }
+    }
+
+    return response()->json([
+        'success'       => true,
+        'lecturer_id'   => (int) $lecturerId,
+        'lecturer_name' => $lecturer->name,
+        'semester'      => $semesterName,
+        'data'          => $finalData
+    ], 200);
+}
+
+public function getCourseStudents(Request $request)
+{
+    $courseCode = $request->query('course_code');
+
+    if (!$courseCode) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'Missing course_code parameter'
+        ], 400);
+    }
+
+    // Find the course
+    $course = Course::with('faculties')->where('course_code', $courseCode)->first();
+
+    if (!$course) {
+        return response()->json([
+            'success' => false,
+            'error'   => 'Course not found'
+        ], 404);
+    }
+
+    // Get all faculty IDs that offer this course
+    $facultyIds = $course->faculties->pluck('id')->toArray();
+
+    if (empty($facultyIds)) {
+        return response()->json([
+            'success' => true,
+            'course_code' => $course->course_code,
+            'course_name' => $course->name,
+            'total_students' => 0,
+            'students' => []
+        ], 200);
+    }
+
+    // Fetch all students in those faculties
+    $students = Student::with(['faculty', 'program'])
+        ->whereIn('faculty_id', $facultyIds)
+        ->select('id', 'first_name', 'last_name', 'reg_no', 'faculty_id', 'program_id', 'gender', 'phone')
+        ->orderBy('last_name')
+        ->orderBy('first_name')
+        ->get()
+        ->map(function ($student) {
+            return [
+                'id'         => $student->id,
+                'full_name'  => trim("{$student->first_name} {$student->last_name}"),
+                'reg_no'     => $student->reg_no,
+                'faculty'    => $student->faculty?->name ?? '—',
+                'program'    => $student->program?->name ?? '—',
+                'gender'     => $student->gender,
+                'phone'      => $student->phone,
+            ];
+        });
+
+    return response()->json([
+        'success'         => true,
+        'course_code'     => $course->course_code,
+        'course_name'     => $course->name ?? '—',
+        'total_students'  => $students->count(),
+        'students'        => $students
+    ], 200);
+}
 }

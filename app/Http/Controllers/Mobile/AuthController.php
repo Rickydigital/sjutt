@@ -167,7 +167,7 @@ class AuthController extends Controller {
             ]
         );
 
-        Mail::to( $request->email )->send( new OtpMail( $otp ) );
+        Mail::to( $request->email )->send( new OtpMail( $otp, 'Verify Your Account') );
 
         return response()->json( [
             'status'  => 'success',
@@ -199,7 +199,7 @@ class AuthController extends Controller {
         ] );
 
         //send response
-        Mail::to( $request->email )->send( new OtpMail( $otp ) );
+        Mail::to( $request->email )->send( new OtpMail( $otp, 'Verify Your Account Resent Code' ) );
 
         return response()->json( [
             'status' => 'success',
@@ -440,7 +440,7 @@ class AuthController extends Controller {
 
             // Send OTP via email
             try {
-                Mail::to( $email )->send( new OtpMail( $otp ) );
+                Mail::to( $email )->send( new OtpMail( $otp, 'Your Requested OTP' ) );
                 Log::info( 'Password reset OTP email sent to: ' . $email );
             } catch ( \Exception $e ) {
                 Log::error( 'Failed to send password reset OTP email to ' . $email . ': ' . $e->getMessage() );
@@ -508,7 +508,7 @@ public function forgetPassword(Request $request)
             ]
         );
 
-        Mail::to($request->email)->send(new OtpMail($otp));
+        Mail::to($request->email)->send(new OtpMail($otp, 'Verify Your Account'));
     }
 
     return response()->json([

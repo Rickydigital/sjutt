@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Kreait\Firebase\Messaging;
 
 class Student extends Authenticatable
 {
@@ -72,4 +73,11 @@ class Student extends Authenticatable
     }
 
 
+    // In your Student model
+    public static function updateFcmToken($studentId, $newToken)
+    {
+        if ($newToken) {
+            static::where('id', $studentId)->update(['fcm_token' => $newToken]);
+        }
+    }
 }
