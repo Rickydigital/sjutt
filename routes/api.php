@@ -15,6 +15,7 @@ use App\Http\Controllers\SuggestionController;
 use App\Http\Controllers\Mobile\CalendarController;
 use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\FirebaseNotificationController;
+use App\Http\Controllers\LecturerCourseController;
 use App\Http\Controllers\Mobile\StaffAuthController;
 use App\Http\Controllers\MobileController;
 
@@ -81,6 +82,7 @@ Route::middleware('mobile-auth')->group(function (): void {
     Route::post('/update-last-chat-access', [ChatController::class, 'updateLastChatAccess']);
     Route::get('/get-venues', [VenueController::class, 'getVenues']);
     Route::post('/search-venue', [VenueController::class, 'searchVenue']);
+    Route::get('/lecturer/courses', [LecturerCourseController::class, 'index']);
 });
 
 //!routes protected by default sanctum middleware
@@ -104,5 +106,6 @@ Route::middleware('auth:staff-api')->group(function () {
     Route::post('/staff/request-phone-otp', [StaffAuthController::class, 'requestPhoneVerificationOtp']);
     Route::post('/staff/verify-phone-otp', [StaffAuthController::class, 'verifyPhoneOtp']);
     Route::post('/staff/resend-phone-otp', [StaffAuthController::class, 'resendPhoneOtp']);
+   
 
 });
