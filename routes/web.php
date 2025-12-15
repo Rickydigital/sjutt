@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AppVersionController;
 use App\Http\Controllers\Admin\NewsController;
 use App\Http\Controllers\Admin\EventController;
 use App\Http\Controllers\Admin\QueryController;
@@ -35,6 +36,30 @@ use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\TalentController;
 use App\Http\Controllers\TimetableSemesterController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
+
+//APK DOWNLOAD URL
+Route::get('/download-app/{filename}', function ($filename) {
+    // Only allow .apk and .ipa files
+    if (!preg_match('/\.(apk|ipa)$/i', $filename)) {
+        abort(404);
+    }
+
+    $path = 'apks/' . $filename;
+
+    if (!Storage::disk('public')->exists($path)) {
+        abort(404, 'File not found');
+    }
+
+    $file = Storage::disk('public')->path($path);
+    $mime = str_ends_with(strtolower($filename), '.apk')
+        ? 'application/vnd.android.package-archive'
+        : 'application/octet-stream';
+
+    return response()->download($file, $filename, [
+        'Content-Type' => $mime,
+    ]);
+})->name('app.download');
 
 Route::get('/', function () {
     return view('auth.login');
@@ -204,6 +229,12 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/news/{news}/edit', [NewsController::class, 'edit'])->name('news.edit')->middleware(['permission:view news']);
     Route::put('/news/{news}', [NewsController::class, 'update'])->name('news.update')->middleware(['permission:edit news']);
     Route::delete('/news/{news}', [NewsController::class, 'destroy'])->name('news.destroy')->middleware(['permission:delete news']);
+
+
+    //app-version
+    Route::middleware(['auth', 'role:Admin'])->prefix('admin')->name('admin.')->group(function () {
+     Route::resource('app-versions', AppVersionController::class)->except(['show']);
+    });
 
     // Events
     Route::get('/events', [EventController::class, 'index'])->name('events.index')->middleware(['permission:view events']);

@@ -298,12 +298,19 @@
 
                  {{-- Roles & Permissions (Admin Only) --}}
                 @hasrole('Admin')
-                <li class="nav-item {{ request()->routeIs('roles.*') ? 'active' : '' }}">
-                    <a href="{{ route('roles.index') }}">
-                        <i class="bi bi-shield-lock"></i>
-                        <p>Roles & Permissions</p>
-                    </a>
-                </li>
+                    <li class="nav-item {{ request()->routeIs('roles.*') ? 'active' : '' }}">
+                        <a href="{{ route('roles.index') }}">
+                            <i class="bi bi-shield-lock"></i>
+                            <p>Roles & Permissions</p>
+                        </a>
+                    </li>
+
+                    <li class="nav-item {{ request()->routeIs('admin.app-versions.*') ? 'active' : '' }}">
+                        <a href="{{ route('admin.app-versions.index') }}">
+                            <i class="bi bi-phone-vibrate"></i>
+                            <p>App Versions</p>
+                        </a>
+                    </li>
                 @endhasrole
             </ul>
 

@@ -16,6 +16,7 @@ use App\Http\Controllers\Mobile\CalendarController;
 use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\FirebaseNotificationController;
 use App\Http\Controllers\LecturerCourseController;
+use App\Http\Controllers\Mobile\AppVersionController;
 use App\Http\Controllers\Mobile\StaffAuthController;
 use App\Http\Controllers\MobileController;
 
@@ -30,6 +31,7 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/calendar', [CalendarController::class, 'index']);
 Route::post('/forget-password', [AuthController::class, 'forgetPassword']);
 Route::post('/verify-reset-password-otp', [AuthController::class, 'verifyResetPasswordOtp']);
+Route::get('/app/latest-version', [AppVersionController::class, 'latest']);
 
 //staff
 Route::post('/staff/login', [StaffAuthController::class, 'login']);
