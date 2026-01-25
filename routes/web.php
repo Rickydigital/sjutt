@@ -69,6 +69,7 @@ Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard
 
 Route::middleware(['web', 'auth'])->group(function () {
     // Profile
+    Route::get('/timetables/available-venues', [TimetableController::class, 'getAvailableVenues'])->name('timetables.available-venues');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit')->middleware(['permission:view own profile']);
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update')->middleware(['permission:edit own profile']);
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy')->middleware(['permission:delete own profile']);
@@ -106,6 +107,43 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::put('/timetable-semesters/first', [TimetableSemesterController::class, 'update'])->name('timetable-semesters.update');
     Route::get('/timetable-semesters/first', [TimetableSemesterController::class, 'show'])->name('timetable-semesters.show');
     // Examination Timetables
+
+    // Missing routes - add these to your web.php:
+
+// Export PDF for specific setup
+Route::get('/examination/{setup}/export/options', [ExaminationTimetableController::class, 'exportOptions'])
+->name('examination.export.options');
+
+
+Route::post('/examination/{setup}/export/pdf', [ExaminationTimetableController::class, 'exportPdf'])
+->name('examination.export.pdf');
+Route::get('/examination/get-faculty-courses', [ExaminationTimetableController::class, 'getFacultyCourses'])->name('examination.getFacultyCourses');
+
+Route::get('/examination/setup/{setup}', [ExaminationTimetableController::class, 'showSetup'])
+    ->name('examination.setup.show');
+
+
+Route::get('/examination/setup/{setup}/edit', [ExaminationTimetableController::class, 'editSetup'])
+    ->name('examination.setup.edit');
+
+
+// Delete specific exam setup
+Route::delete('/examination/setup/{setup}', [ExaminationTimetableController::class, 'destroySetup'])
+    ->name('examination.destroySetup');
+
+// Clear all timetables for a setup
+Route::delete('/examination/setup/{setup}/clear', [ExaminationTimetableController::class, 'clearTimetables'])
+    ->name('examination.clearTimetables');
+
+// Get programs (for dropdowns)
+Route::get('/examination/programs', [ExaminationTimetableController::class, 'getPrograms'])
+    ->name('examination.getPrograms');
+
+    Route::get('/examination/faculties-by-program', [ExaminationTimetableController::class, 'getFacultiesByProgram'])
+    ->name('examination.getFacultiesByProgram');
+
+Route::get('/examination/supervisors', [ExaminationTimetableController::class, 'getSupervisors'])
+    ->name('examination.getSupervisors');
     Route::post('/timetables/generate', [ExaminationTimetableController::class, 'generateTimetable'])->name('timetables.generate');
     Route::get('/timetables/faculty/{program_id}/{year_num}', [ExaminationTimetableController::class, 'getFacultyByProgramYear'])->name('timetables.getFacultyByProgramYear')->middleware(['permission:view examination timetables']);
     Route::get('/timetables/faculty-courses', [ExaminationTimetableController::class, 'getFacultyCourses'])->name('timetables.getFacultyCourses')->middleware(['permission:view examination timetables']);

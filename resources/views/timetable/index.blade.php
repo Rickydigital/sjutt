@@ -155,7 +155,7 @@
         <i class="fas fa-upload me-1"></i> Export
     </button>
     <ul class="dropdown-menu">
-        @foreach(['First Draft', 'Second Draft', 'Third Draft', 'Fourth Draft', 'Final Draft'] as $draft)
+        @foreach(['First Draft', 'Second Draft', 'Third Draft', 'Fourth Draft','Pre Final', 'Final Draft'] as $draft)
             <li>
                 <a class="dropdown-item" href="javascript:void(0)" onclick="exportTimetable('{{ $draft }}')">
                     {{ $draft }}
@@ -442,11 +442,7 @@
                             <div class="col-md-6 mb-3">
                                 <label for="modal_venue_id" class="form-label">Venue <span class="text-danger">*</span></label>
                                 <select name="venue_id" id="modal_venue_id" class="select2 form-control" required>
-                                    @foreach ($venues as $venue)
-                                        <option value="{{ $venue->id }}" data-capacity="{{ $venue->capacity }}">
-                                            {{ $venue->name }} (Capacity: {{ $venue->capacity }})
-                                        </option>
-                                    @endforeach
+                                    <option value="">Loading available venues...</option>
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
@@ -528,11 +524,7 @@
                             <div class="col-md-6 mb-3">
                                 <label for="edit_modal_venue_id" class="form-label">Venue <span class="text-danger">*</span></label>
                                 <select name="venue_id" id="edit_modal_venue_id" class="select2 form-control" required>
-                                    @foreach ($venues as $venue)
-                                        <option value="{{ $venue->id }}" data-capacity="{{ $venue->capacity }}">
-                                            {{ $venue->name }} (Capacity: {{ $venue->capacity }})
-                                        </option>
-                                    @endforeach
+                                    <option value="">Loading available venues...</option>
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
@@ -989,6 +981,7 @@
                             $('#edit_modal_time_end').append(new Option(t, t, false, t === data.time_end));
                         });
                         initializeSelect2('#edit_modal_time_end', '#editTimetableModal');
+                        $('#edit_modal_time_end').val(data.time_end).trigger('change');
 
                         $.ajax({
                             url: '{{ route('timetables.getFacultyCourses') }}',
@@ -1039,7 +1032,7 @@
                         });
 
                         $('#edit_modal_activity').val(data.activity || '').trigger('change');
-                        $('#edit_modal_venue_id').val(data.venue_id || '').trigger('change');
+                        $('#edit_modal_venue_id').data('current', data.venue_id || '');
                         $('#edit_modal_timetable_semester_id').val(data.timetable_semester_id || '').trigger('change');
 
                         $('#editTimetableModal').modal('show');
@@ -1144,5 +1137,63 @@ $('#generateTimetableForm').on('submit', function(e) {
             
 
         });
+    function loadAvailableVenues(modalPrefix, excludeId = null) {
+    const day = $(`#${modalPrefix}_day`).val();
+    const start = $(`#${modalPrefix}_time_start`).val();
+    const end = $(`#${modalPrefix}_time_end`).val();
+    const facultyId = $(`#${modalPrefix}_faculty_id`).val(); // or modal_faculty_id / edit_modal_faculty_id
+
+    const $venueSelect = $(`#${modalPrefix}_venue_id`);
+
+    if (!day || !start || !end || !facultyId) {
+        $venueSelect.empty().append('<option value="">Select time and day first</option>').trigger('change');
+        return;
+    }
+
+    $.ajax({
+        url: '{{ route('timetables.available-venues') }}',
+        method: 'GET',
+        data: {
+            day: day,
+            time_start: start,
+            time_end: end,
+            faculty_id: facultyId,
+            exclude_id: excludeId
+        },
+        success: function(response) {
+            $venueSelect.empty().append('<option value="">Select Venue</option>');
+            response.venues.forEach(function(venue) {
+                $venueSelect.append(new Option(venue.text, venue.id));
+            });
+            $venueSelect.trigger('change');
+        },
+        error: function() {
+            $venueSelect.empty().append('<option value="">Error loading venues</option>');
+            showAlert('error', 'Error', 'Could not load available venues.');
+        }
+    });
+}
+
+// For Add Modal
+$(document).on('change', '#modal_day, #modal_time_start, #modal_time_end', function() {
+    loadAvailableVenues('modal');
+});
+
+// For Edit Modal
+$(document).on('change', '#edit_modal_day, #edit_modal_time_start, #edit_modal_time_end', function() {
+    const excludeId = $('#edit_modal_id').val();
+    loadAvailableVenues('edit_modal', excludeId);
+});
+
+// Trigger on modal open (in case values are pre-filled)
+$('#addTimetableModal').on('shown.bs.modal', function() {
+    loadAvailableVenues('modal');
+});
+
+$('#editTimetableModal').on('shown.bs.modal', function() {
+    const excludeId = $('#edit_modal_id').val();
+    loadAvailableVenues('edit_modal', excludeId);
+});
+    
     </script>
 @endsection

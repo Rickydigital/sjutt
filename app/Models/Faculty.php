@@ -19,19 +19,22 @@ class Faculty extends Model
         'program_id'
     ];
 
-    public function students() {
+    public function students(): HasMany
+    {
         return $this->hasMany(Student::class);
     }
 
-    public function timetables() {
+    public function timetables(): HasMany
+    {
         return $this->hasMany(Timetable::class);
     }
 
-    public function examinationTimetables() {
+    public function examinationTimetables(): HasMany
+    {
         return $this->hasMany(ExaminationTimetable::class);
     }
 
-     public function program(): BelongsTo
+    public function program(): BelongsTo
     {
         return $this->belongsTo(Program::class);
     }

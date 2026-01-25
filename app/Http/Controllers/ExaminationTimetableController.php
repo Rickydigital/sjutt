@@ -9,6 +9,7 @@ use App\Models\Venue;
 use App\Models\Course;
 use App\Models\Program;
 use App\Models\FacultyGroup;
+use App\Models\Semester;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -18,54 +19,73 @@ use Illuminate\Support\Facades\DB;
 
 class ExaminationTimetableController extends Controller
 {
+    /**
+     * IMPORTANT NOTE (fix your earlier 500 error):
+     * If your pivot table `examination_timetable_lecturer` DOES NOT have column `role`,
+     * then in ExaminationTimetable model you MUST remove `->withPivot('role')` from lecturers() relation
+     * OR add the `role` column in migration.
+     */
+
     public function index(Request $request)
     {
-        $setups = ExamSetup::all();
+        $setups = ExamSetup::with('semester')->get();
         $allPrograms = Program::all();
         $venues = Venue::all();
-        $selectedType = $request->query('exam_type');
+
+        $academicYears = range(2010, 2025);
+        $academicYears = array_map(fn ($y) => "$y/" . ($y + 1), $academicYears);
+        $semesters = Semester::orderBy('name', 'asc')->get();
+
         $setup = null;
         $days = [];
         $timeSlots = [];
-        $programs = [];
-        $timetables = [];
+        $programs = Program::all();
 
-        // Generate academic years for the setup form (2010/2011 to 2025/2026)
-        $academicYears = [];
-        for ($year = 2010; $year <= 2025; $year++) {
-            $academicYears[] = "$year/" . ($year + 1);
+        $timetables = collect();
+        $classes = collect();      // <- faculties but shown as "Class"
+        $grid = [];                // <- indexed exams
+        $dateChunks = [];          // <- 5 days per table
+
+        $setupId = $request->query('setup_id');
+        $programId = $request->query('program_id'); // IMPORTANT
+
+        // choose setup
+        if ($setupId && $setups->isNotEmpty()) {
+            $setup = $setups->firstWhere('id', (int)$setupId);
         }
-
-        // Available semesters
-        $semesters = ['1', '2', 'Final'];
-
-        // If a type is selected, find the setup that includes that type
-        if ($selectedType && $setups->isNotEmpty()) {
-            $setup = $setups->firstWhere(function ($s) use ($selectedType) {
-                return in_array($selectedType, $s->type);
-            });
-        } elseif ($setups->isNotEmpty()) {
+        if (!$setup && $setups->isNotEmpty()) {
             $setup = $setups->first();
-            $selectedType = $setup->type[0] ?? null;
         }
 
         if ($setup) {
-            $startDate = Carbon::parse($setup->start_date);
-            $endDate = Carbon::parse($setup->end_date);
-            $includeWeekends = $setup->include_weekends;
-            $days = $this->getValidDates($setup);
-            $timeSlots = $setup->time_slots;
-            $programs = Program::whereIn('id', $setup->programs)->get();
-            $timetables = ExaminationTimetable::with(['faculty', 'venue', 'lecturers'])
-                ->whereIn('exam_date', $days)
-                ->whereIn('faculty_id', Faculty::whereIn('program_id', $setup->programs)->pluck('id'))
-                ->get();
-        }
+            $days = $this->getValidDates($setup);      // already excludes weekends if you coded it
+            $timeSlots = $setup->time_slots ?? [];
+            $dateChunks = array_chunk($days, 5);
 
-        // Get all available exam types from setups
-        $examTypes = $setups->flatMap(function ($s) {
-            return $s->type;
-        })->unique()->values();
+            // DO NOT load timetable until a program is selected
+            if (!empty($programId)) {
+
+                $classes = Faculty::where('program_id', (int)$programId)
+                    ->select('id', 'name')
+                    ->orderBy('name')
+                    ->get();
+
+                $timetables = ExaminationTimetable::with(['course','venues','supervisors'])
+                    ->where('exam_setup_id', $setup->id)
+                    ->where('program_id', (int)$programId)
+                    ->whereIn('exam_date', $days)
+                    ->get();
+
+                // Build fast lookup:
+                // $grid[faculty_id][Y-m-d][start_time] = array of exams
+                foreach ($timetables as $tt) {
+                    $dateKey = Carbon::parse($tt->exam_date)->format('Y-m-d');
+                    $startKey = Carbon::parse($tt->start_time)->format('H:i');
+
+                    $grid[$tt->faculty_id][$dateKey][$startKey][] = $tt;
+                }
+            }
+        }
 
         return view('timetables.index', compact(
             'setups',
@@ -76,20 +96,49 @@ class ExaminationTimetableController extends Controller
             'timetables',
             'allPrograms',
             'venues',
-            'selectedType',
-            'examTypes',
             'academicYears',
-            'semesters'
+            'semesters',
+            'programId',
+            'classes',
+            'grid',
+            'dateChunks'
         ));
+    }
+
+
+    // ----------------------------
+    // SETUP CRUD (JSON + actions)
+    // ----------------------------
+
+    public function showSetup(ExamSetup $setup)
+    {
+        $setup->load('semester');
+
+        return response()->json([
+            'id' => $setup->id,
+            'semester' => $setup->semester?->name,
+            'academic_year' => $setup->academic_year,
+            'start_date' => $setup->start_date?->format('Y-m-d'),
+            'end_date' => $setup->end_date?->format('Y-m-d'),
+            'include_weekends' => (bool)$setup->include_weekends,
+            'time_slots' => $setup->time_slots ?? [],
+        ]);
+    }
+
+    public function editSetup(ExamSetup $setup)
+    {
+        return response()->json([
+            'setup' => $setup,
+            'semesters' => Semester::orderBy('name', 'asc')->get(['id', 'name']),
+        ]);
     }
 
     public function storeSetup(Request $request)
     {
+        // NOTE: your view now uses semester_id, not "semester"
         $validated = $request->validate([
-            'type' => 'required|array|min:1',
-            'type.*' => 'in:Degree,Non Degree,Masters',
+            'semester_id' => 'required|exists:semesters,id',
             'academic_year' => 'required|string|regex:/^\d{4}\/\d{4}$/',
-            'semester' => 'required|in:1,2,Final',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
             'include_weekends' => 'nullable|boolean',
@@ -97,11 +146,10 @@ class ExaminationTimetableController extends Controller
             'time_slots.*.name' => 'required|string|max:255',
             'time_slots.*.start_time' => 'required|date_format:H:i',
             'time_slots.*.end_time' => 'required|date_format:H:i|after:time_slots.*.start_time',
-            'programs' => 'required|array|min:1',
-            'programs.*' => 'exists:programs,id',
         ]);
 
         $validated['include_weekends'] = $request->has('include_weekends');
+
         ExamSetup::create($validated);
 
         return redirect()->route('timetables.index')->with('success', 'Setup created successfully.');
@@ -110,10 +158,8 @@ class ExaminationTimetableController extends Controller
     public function updateSetup(Request $request, ExamSetup $setup)
     {
         $validated = $request->validate([
-            'type' => 'required|array|min:1',
-            'type.*' => 'in:Degree,Non Degree,Masters',
+            'semester_id' => 'required|exists:semesters,id',
             'academic_year' => 'required|string|regex:/^\d{4}\/\d{4}$/',
-            'semester' => 'required|in:1,2,Final',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
             'include_weekends' => 'nullable|boolean',
@@ -121,329 +167,457 @@ class ExaminationTimetableController extends Controller
             'time_slots.*.name' => 'required|string|max:255',
             'time_slots.*.start_time' => 'required|date_format:H:i',
             'time_slots.*.end_time' => 'required|date_format:H:i|after:time_slots.*.start_time',
-            'programs' => 'required|array|min:1',
-            'programs.*' => 'exists:programs,id',
         ]);
 
         $validated['include_weekends'] = $request->has('include_weekends');
+
         $setup->update($validated);
+
         return redirect()->route('timetables.index')->with('success', 'Setup updated successfully.');
     }
 
-    public function store(Request $request)
-    {
-        $setup = ExamSetup::first();
-        if (!$setup) {
-            Log::error('No setup found');
-            return $request->ajax()
-                ? response()->json(['errors' => ['setup' => 'No setup found']], 422)
-                : back()->with('error', 'No setup found')->withInput();
-        }
-
-        $timeSlot = json_decode($request->input('time_slot'), true);
-        $validated = $request->validate([
-            'faculty_id' => 'required|exists:faculties,id',
-            'course_code' => 'required|exists:courses,course_code',
-            'exam_date' => 'required|date|in:' . implode(',', $this->getValidDates($setup)),
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
-            'venue_id' => 'required|string|regex:/^(\d+)(,\d+)*$/',
-            'group_selection' => 'required|array|min:1',
-            'group_selection.*' => 'string',
-            'lecturer_ids' => 'required|array|min:1',
-            'lecturer_ids.*' => 'exists:users,id',
-        ]);
-
-        // Handle "All Groups" selection
-        if (in_array('all', $validated['group_selection'])) {
-            $groups = FacultyGroup::where('faculty_id', $validated['faculty_id'])
-                ->pluck('group_name')
-                ->toArray();
-            if (empty($groups)) {
-                Log::error('No groups found for faculty', ['faculty_id' => $validated['faculty_id']]);
-                return $request->ajax()
-                    ? response()->json(['errors' => ['group_selection' => 'No groups defined for this faculty']], 422)
-                    : back()->withInput()->withErrors(['group_selection' => 'No groups defined for this faculty']);
-            }
-            $validated['group_selection'] = $groups;
-        }
-
-        // Extract start_time and end_time from time_slot if not directly provided
-        if ($timeSlot && isset($timeSlot['start_time']) && isset($timeSlot['end_time'])) {
-            $validated['start_time'] = $timeSlot['start_time'];
-            $validated['end_time'] = $timeSlot['end_time'];
-        }
-
-        // Calculate student count
-        $faculty = Faculty::findOrFail($validated['faculty_id']);
-        $studentCount = $this->calculateStudentCount($faculty, implode(',', $validated['group_selection']));
-        if ($studentCount === 0) {
-            Log::error('No students found for selected groups', [
-                'faculty_id' => $faculty->id,
-                'group_selection' => $validated['group_selection']
-            ]);
-            return $request->ajax()
-                ? response()->json(['errors' => ['group_selection' => 'No students found for the selected groups']], 422)
-                : back()->withInput()->withErrors(['group_selection' => 'No students found for the selected groups']);
-        }
-
-        // Calculate venue capacity
-        $venueIds = explode(',', $validated['venue_id']);
-        $venues = Venue::whereIn('id', $venueIds)->get();
-        $totalVenueCapacity = $venues->sum('capacity') * 0.75;
-
-        Log::info('Venue capacity check', [
-            'venue_ids' => $venueIds,
-            'total_capacity' => round($totalVenueCapacity),
-            'student_count' => $studentCount
-        ]);
-
-        if ($totalVenueCapacity < $studentCount) {
-            $errorMessage = "Total venue capacity (" . round($totalVenueCapacity) . ") is less than required students ($studentCount).";
-            Log::error('Insufficient venue capacity', [
-                'venue_ids' => $venueIds,
-                'total_capacity' => round($totalVenueCapacity),
-                'student_count' => $studentCount
-            ]);
-            return $request->ajax()
-                ? response()->json(['errors' => ['venue_id' => $errorMessage]], 422)
-                : back()->withInput()->withErrors(['venue_id' => $errorMessage]);
-        }
-
-        // Check for conflicts
-        $conflicts = $this->checkConflicts($request, $validated);
-        Log::info('Conflict check result:', ['conflicts' => $conflicts]);
-        if (!empty($conflicts)) {
-            $errorMessage = implode(' ', $conflicts);
-            Log::info('Returning conflict error:', ['errorMessage' => $errorMessage]);
-            return $request->ajax()
-                ? response()->json(['errors' => ['conflict' => $errorMessage]], 422)
-                : back()->withInput()->withErrors(['conflict' => $errorMessage]);
-        }
-
-        try {
-            DB::beginTransaction();
-            $validated['group_selection'] = implode(',', $validated['group_selection']);
-            $validated['venue_id'] = $venueIds[0];
-            $timetable = ExaminationTimetable::create($validated);
-            $timetable->lecturers()->sync($validated['lecturer_ids']);
-            if (count($venueIds) > 1) {
-                foreach (array_slice($venueIds, 1) as $additionalVenueId) {
-                    $additionalTimetable = $timetable->replicate()->fill(['venue_id' => $additionalVenueId]);
-                    $additionalTimetable->save();
-                    $additionalTimetable->lecturers()->sync($validated['lecturer_ids']);
-                }
-            }
-            DB::commit();
-            Log::info('Exam timetable created successfully:', [
-                'id' => $timetable->id,
-                'student_count' => $studentCount,
-                'total_venue_capacity' => round($totalVenueCapacity)
-            ]);
-            return $request->ajax()
-                ? response()->json(['message' => 'Exam timetable created successfully.', 'id' => $timetable->id])
-                : redirect()->route('timetables.index')->with('success', 'Exam timetable created successfully.');
-        } catch (\Illuminate\Database\QueryException $e) {
-            DB::rollBack();
-            Log::error('Database error creating timetable:', [
-                'error' => $e->getMessage(),
-                'sql' => $e->getSql(),
-                'bindings' => $e->getBindings()
-            ]);
-            $errorMessage = 'Failed to save exam timetable due to a database error.';
-            return $request->ajax()
-                ? response()->json(['errors' => ['database' => $errorMessage]], 422)
-                : back()->withInput()->withErrors(['database' => $errorMessage]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Unexpected error in store:', [
-                'error' => $e->getMessage(),
-                'input' => $request->all()
-            ]);
-            $errorMessage = 'Failed to save exam timetable due to an unexpected error.';
-            return $request->ajax()
-                ? response()->json(['errors' => ['error' => $errorMessage]], 422)
-                : back()->withInput()->withErrors(['error' => $errorMessage]);
-        }
-    }
-
-    public function update(Request $request, ExaminationTimetable $timetable)
-    {
-        Log::info('Update timetable:', ['id' => $timetable->id, 'input' => $request->all()]);
-        $setup = ExamSetup::first();
-        if (!$setup) {
-            Log::error('No setup found');
-            return response()->json(['error' => 'No setup found'], 422);
-        }
-
-        try {
-            $timeSlot = json_decode($request->input('time_slot'), true);
-            $validated = $request->validate([
-                'faculty_id' => 'required|exists:faculties,id',
-                'course_code' => 'required|exists:courses,course_code',
-                'exam_date' => 'required|date|in:' . implode(',', $this->getValidDates($setup)),
-                'start_time' => 'required|date_format:H:i',
-                'end_time' => 'required|date_format:H:i|after:start_time',
-                'venue_id' => 'required|string|regex:/^(\d+)(,\d+)*$/',
-                'group_selection' => 'required|array|min:1',
-                'group_selection.*' => 'string',
-                'lecturer_ids' => 'required|array|min:1',
-                'lecturer_ids.*' => 'exists:users,id',
-            ]);
-
-            // Handle "All Groups" selection
-            if (in_array('all', $validated['group_selection'])) {
-                $groups = FacultyGroup::where('faculty_id', $validated['faculty_id'])
-                    ->pluck('group_name')
-                    ->toArray();
-                if (empty($groups)) {
-                    Log::error('No groups found for faculty', ['faculty_id' => $validated['faculty_id']]);
-                    return response()->json(['errors' => ['group_selection' => 'No groups defined for this faculty']], 422);
-                }
-                $validated['group_selection'] = $groups;
-            }
-
-            // Extract start_time and end_time from time_slot if not directly provided
-            if ($timeSlot && isset($timeSlot['start_time'], $timeSlot['end_time'])) {
-                $validated['start_time'] = Carbon::createFromFormat('H:i', $timeSlot['start_time'])->format('H:i');
-                $validated['end_time'] = Carbon::createFromFormat('H:i', $timeSlot['end_time'])->format('H:i');
-            }
-
-            // Calculate student count
-            $faculty = Faculty::findOrFail($validated['faculty_id']);
-            $studentCount = $this->calculateStudentCount($faculty, implode(',', $validated['group_selection']));
-            if ($studentCount === 0) {
-                Log::error('No students found for selected groups', [
-                    'faculty_id' => $faculty->id,
-                    'group_selection' => $validated['group_selection']
-                ]);
-                return response()->json(['errors' => ['group_selection' => 'No students found for the selected groups']], 422);
-            }
-
-            // Calculate venue capacity
-            $venueIds = explode(',', $validated['venue_id']);
-            $venues = Venue::whereIn('id', $venueIds)->get();
-            $totalVenueCapacity = $venues->sum('capacity') * 0.75;
-
-            Log::info('Venue capacity check', [
-                'venue_ids' => $venueIds,
-                'total_capacity' => round($totalVenueCapacity),
-                'student_count' => $studentCount
-            ]);
-
-            if ($totalVenueCapacity < $studentCount) {
-                $errorMessage = "Total venue capacity (" . round($totalVenueCapacity) . ") is less than required students ($studentCount).";
-                Log::error('Insufficient venue capacity', [
-                    'venue_ids' => $venueIds,
-                    'total_capacity' => round($totalVenueCapacity),
-                    'student_count' => $studentCount
-                ]);
-                return response()->json(['errors' => ['venue_id' => $errorMessage]], 422);
-            }
-
-            // Check for conflicts, excluding the current timetable
-            $conflicts = $this->checkConflicts($request, $validated, $timetable->id);
-            Log::info('Conflict check result:', ['conflicts' => $conflicts]);
-            if (!empty($conflicts)) {
-                $errorMessage = implode(' ', $conflicts);
-                return response()->json(['errors' => ['conflict' => $errorMessage]], 422);
-            }
-
-            DB::beginTransaction();
-            try {
-                $validated['group_selection'] = implode(',', $validated['group_selection']);
-                $validated['venue_id'] = $venueIds[0];
-                $timetable->update($validated);
-                $timetable->lecturers()->sync($validated['lecturer_ids']);
-                $existingAdditional = ExaminationTimetable::where('exam_date', $timetable->exam_date)
-                    ->where('course_code', $timetable->course_code)
-                    ->where('id', '!=', $timetable->id)
-                    ->get();
-                $existingAdditional->each->delete();
-                if (count($venueIds) > 1) {
-                    foreach (array_slice($venueIds, 1) as $additionalVenueId) {
-                        $additionalTimetable = $timetable->replicate()->fill(['venue_id' => $additionalVenueId]);
-                        $additionalTimetable->save();
-                        $additionalTimetable->lecturers()->sync($validated['lecturer_ids']);
-                    }
-                }
-                DB::commit();
-                Log::info('Exam timetable updated successfully:', [
-                    'id' => $timetable->id,
-                    'student_count' => $studentCount,
-                    'total_venue_capacity' => round($totalVenueCapacity)
-                ]);
-                return response()->json(['success' => 'Exam timetable updated successfully']);
-            } catch (\Exception $e) {
-                DB::rollBack();
-                Log::error('Update failed:', ['error' => $e->getMessage()]);
-                return response()->json(['error' => 'Update failed', 'details' => $e->getMessage()], 500);
-            }
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::error('Validation failed:', ['errors' => $e->errors()]);
-            return response()->json(['error' => 'Validation failed', 'details' => $e->errors()], 422);
-        } catch (\Exception $e) {
-            Log::error('Unexpected error in update:', ['error' => $e->getMessage()]);
-            return response()->json(['error' => 'Update failed', 'details' => $e->getMessage()], 500);
-        }
-    }
-
-    public function destroy(ExaminationTimetable $timetable)
+    public function destroySetup(ExamSetup $setup)
     {
         DB::beginTransaction();
         try {
-            // Delete related timetables for the same course and date (for multi-venue cases)
-            ExaminationTimetable::where('exam_date', $timetable->exam_date)
-                ->where('course_code', $timetable->course_code)
-                ->delete();
+            ExaminationTimetable::where('exam_setup_id', $setup->id)->delete();
+            $setup->delete();
+
             DB::commit();
-            return redirect()->route('timetables.index')->with('success', 'Exam timetable deleted successfully.');
+            return back()->with('success', 'Setup deleted successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Delete failed:', ['error' => $e->getMessage()]);
-            return back()->withErrors(['error' => 'Failed to delete timetable: ' . $e->getMessage()]);
+            Log::error('Destroy setup failed', ['error' => $e->getMessage()]);
+            return back()->withErrors(['error' => 'Failed to delete setup: ' . $e->getMessage()]);
         }
     }
 
+    public function clearTimetables(ExamSetup $setup)
+    {
+        ExaminationTimetable::where('exam_setup_id', $setup->id)->delete();
+        return back()->with('success', 'All timetables cleared for this setup.');
+    }
+
+public function exportPdf(Request $request, ExamSetup $setup)
+{
+    $validated = $request->validate([
+        'scope' => 'required|in:all,single',
+        'program_id' => 'nullable|required_if:scope,single|exists:programs,id',
+        'draft' => 'required|string|max:50',
+    ]);
+
+    $draft = $validated['draft'];
+
+    $days = $this->getValidDates($setup); // your weekend-aware function
+    $dateChunks = array_chunk($days, 5);
+
+    $timeSlots = collect($setup->time_slots ?? [])->map(function($slot){
+        return [
+            'name' => $slot['name'] ?? 'Session',
+            'start_time' => Carbon::parse($slot['start_time'])->format('H:i'),
+            'end_time' => Carbon::parse($slot['end_time'])->format('H:i'),
+        ];
+    })->toArray();
+
+    if (empty($days) || empty($timeSlots)) {
+        return back()->withErrors(['export' => 'Setup has no valid days or time slots.']);
+    }
+
+    $programs = ($validated['scope'] === 'single')
+        ? Program::where('id', (int)$validated['program_id'])->get()
+        : Program::orderBy('name')->get();
+
+    // preload all exams for these programs
+    $programIds = $programs->pluck('id')->map(fn($x)=>(int)$x)->all();
+
+    $timetables = ExaminationTimetable::with(['venues','course','faculty','program'])
+        ->where('exam_setup_id', (int)$setup->id)
+        ->whereIn('program_id', $programIds)
+        ->whereIn('exam_date', $days)
+        ->get();
+
+    // Build grid per program:
+    // $grid[program_id][faculty_id][date][start_time] = [tt...]
+    $grid = [];
+    foreach ($timetables as $tt) {
+        $p = (int)$tt->program_id;
+        $f = (int)$tt->faculty_id;
+        $dateKey = Carbon::parse($tt->exam_date)->format('Y-m-d');
+        $startKey = Carbon::parse($tt->start_time)->format('H:i');
+        $grid[$p][$f][$dateKey][$startKey][] = $tt;
+    }
+
+    // Classes per program (faculties)
+    $classesByProgram = Faculty::whereIn('program_id', $programIds)
+        ->select('id','name','program_id')
+        ->orderBy('name')
+        ->get()
+        ->groupBy('program_id');
+
+    // Filename
+    $safeDraft = str_replace([' ', '/', '\\'], '-', $draft);
+    $safeSem = str_replace([' ', '/', '\\'], '-', ($setup->semester?->name ?? 'Semester'));
+    $safeYear = str_replace(['/', '\\'], '-', $setup->academic_year ?? 'Year');
+    $filename = "exam_timetable_{$safeYear}_{$safeSem}_{$safeDraft}.pdf";
+
+    $pdf = Pdf::loadView('timetables.pdf', [
+        'setup' => $setup,
+        'draft' => $draft,
+        'programs' => $programs,
+        'classesByProgram' => $classesByProgram,
+        'grid' => $grid,
+        'dateChunks' => $dateChunks,
+        'timeSlots' => $timeSlots,
+    ])->setPaper('a4', 'portrait');
+
+    return $pdf->download($filename);
+}
+
+    // ----------------------------
+    // TIMETABLE CRUD (manual)
+    // ----------------------------
+
+    public function store(Request $request)
+{
+    $validated = $request->validate([
+        'exam_setup_id' => 'required|exists:exam_setups,id',
+        'faculty_id' => 'required|exists:faculties,id',
+        'course_code' => 'required|exists:courses,course_code',
+        'exam_date' => 'required|date',
+        'start_time' => 'required|date_format:H:i',
+        'end_time' => 'required|date_format:H:i|after:start_time',
+        'selected_venues' => 'required|array|min:1',
+        'selected_venues.*' => 'exists:venues,id',
+    ]);
+
+    $setup = ExamSetup::findOrFail($validated['exam_setup_id']);
+
+    // ensure date is in setup range (and weekends rule)
+    $validDates = $this->getValidDates($setup);
+    $examDate = Carbon::parse($validated['exam_date'])->format('Y-m-d');
+    if (!in_array($examDate, $validDates, true)) {
+        return response()->json(['errors' => ['exam_date' => 'Invalid date for this setup']], 422);
+    }
+
+    $courseCode = $validated['course_code'];
+    $startTime = $validated['start_time'];
+    $endTime   = $validated['end_time'];
+    $venueIds  = array_map('intval', $validated['selected_venues']);
+
+    $isCross = $this->isCrossCateringCourse($courseCode);
+
+    DB::beginTransaction();
+    try {
+        if ($isCross) {
+            // all faculties from ANY program studying this course
+            $faculties = $this->getFacultiesForCourse($courseCode);
+            $facultyIds = $faculties->pluck('id')->map(fn($x)=>(int)$x)->all();
+
+            // delete old versions for this slot (so "create again" replaces globally)
+            $this->deleteExistingSlotExams(
+                (int)$setup->id, $courseCode, $examDate, $startTime, $endTime, $facultyIds
+            );
+
+            // distribution like generate
+            $facultyStudentMap = [];
+            foreach ($faculties as $f) {
+                $facultyStudentMap[(int)$f->id] = (int)($f->total_students_no ?? 0);
+            }
+
+            $venueModels = Venue::whereIn('id', $venueIds)->get();
+            $allocation = $this->distributeStudentsAcrossVenues($facultyStudentMap, $venueModels);
+
+            if (empty($allocation)) {
+                throw new \Exception("Not enough venue capacity for cross-catering {$courseCode}.");
+            }
+
+            // create one row per faculty
+            foreach ($faculties as $f) {
+                $created = ExaminationTimetable::create([
+                    'exam_setup_id' => (int)$setup->id,
+                    'program_id' => (int)$f->program_id,
+                    'faculty_id' => (int)$f->id,
+                    'course_code' => $courseCode,
+                    'exam_date' => $examDate,
+                    'start_time' => $startTime,
+                    'end_time' => $endTime,
+                ]);
+
+                // attach venues with allocated_capacity for THIS faculty
+                $attach = [];
+                foreach ($venueIds as $vid) {
+                    $attach[$vid] = ['allocated_capacity' => (int)($allocation[$vid][$created->faculty_id] ?? 0)];
+                }
+                $created->venues()->sync($attach);
+            }
+
+        } else {
+            // normal course -> only this faculty
+            $faculty = Faculty::findOrFail((int)$validated['faculty_id']);
+
+            // delete any previous same slot for this faculty+course in this setup
+            $this->deleteExistingSlotExams(
+                (int)$setup->id, $courseCode, $examDate, $startTime, $endTime, [(int)$faculty->id]
+            );
+
+            $created = ExaminationTimetable::create([
+                'exam_setup_id' => (int)$setup->id,
+                'program_id' => (int)$faculty->program_id,
+                'faculty_id' => (int)$faculty->id,
+                'course_code' => $courseCode,
+                'exam_date' => $examDate,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+            ]);
+
+            // for non-cross, store allocated_capacity as total_students_no (best available)
+            $students = (int)($faculty->total_students_no ?? 0);
+            $venueModels = Venue::whereIn('id', $venueIds)->get();
+
+            $allocation = $this->distributeStudentsAcrossVenues([(int)$faculty->id => $students], $venueModels);
+            if (empty($allocation)) {
+                throw new \Exception("Not enough venue capacity for {$courseCode}.");
+            }
+
+            $attach = [];
+            foreach ($venueIds as $vid) {
+                $attach[$vid] = ['allocated_capacity' => (int)($allocation[$vid][(int)$faculty->id] ?? 0)];
+            }
+            $created->venues()->sync($attach);
+        }
+
+        DB::commit();
+        return response()->json([
+            'status' => 'success',
+            'type' => $isCross ? 'cross' : 'normal',
+            'message' => $isCross
+                ? "Cross-catering exam created for ALL classes that study {$courseCode}."
+                : "Exam created successfully for selected class."
+        ]);
+
+
+    } catch (\Exception $e) {
+    DB::rollBack();
+    return response()->json([
+        'status' => 'error',
+        'message' => $e->getMessage()
+    ], 422);
+}
+
+}
+
+
+    public function update(Request $request, ExaminationTimetable $timetable)
+{
+    $validated = $request->validate([
+        'faculty_id' => 'required|exists:faculties,id',
+        'course_code' => 'required|exists:courses,course_code',
+        'exam_date' => 'required|date',
+        'start_time' => 'required|date_format:H:i',
+        'end_time' => 'required|date_format:H:i|after:start_time',
+        'selected_venues' => 'required|array|min:1',
+        'selected_venues.*' => 'exists:venues,id',
+    ]);
+
+    $setup = ExamSetup::findOrFail((int)$timetable->exam_setup_id);
+
+    $examDate = Carbon::parse($validated['exam_date'])->format('Y-m-d');
+    $validDates = $this->getValidDates($setup);
+    if (!in_array($examDate, $validDates, true)) {
+        return response()->json(['errors' => ['exam_date' => 'Invalid date for this setup']], 422);
+    }
+
+    $courseCode = $validated['course_code'];
+    $startTime  = $validated['start_time'];
+    $endTime    = $validated['end_time'];
+    $venueIds   = array_map('intval', $validated['selected_venues']);
+    $isCross    = $this->isCrossCateringCourse($courseCode);
+
+    DB::beginTransaction();
+    try {
+        if ($isCross) {
+            $faculties = $this->getFacultiesForCourse($courseCode);
+            $facultyIds = $faculties->pluck('id')->map(fn($x)=>(int)$x)->all();
+
+            // Delete ALL old cross-catering rows in that slot (including current)
+            $this->deleteExistingSlotExams(
+                (int)$setup->id, $courseCode, $examDate, $startTime, $endTime, $facultyIds
+            );
+
+            $facultyStudentMap = [];
+            foreach ($faculties as $f) {
+                $facultyStudentMap[(int)$f->id] = (int)($f->total_students_no ?? 0);
+            }
+
+            $venueModels = Venue::whereIn('id', $venueIds)->get();
+            $allocation = $this->distributeStudentsAcrossVenues($facultyStudentMap, $venueModels);
+
+            if (empty($allocation)) {
+                throw new \Exception("Not enough venue capacity for cross-catering {$courseCode}.");
+            }
+
+            foreach ($faculties as $f) {
+                $created = ExaminationTimetable::create([
+                    'exam_setup_id' => (int)$setup->id,
+                    'program_id' => (int)$f->program_id,
+                    'faculty_id' => (int)$f->id,
+                    'course_code' => $courseCode,
+                    'exam_date' => $examDate,
+                    'start_time' => $startTime,
+                    'end_time' => $endTime,
+                ]);
+
+                $attach = [];
+                foreach ($venueIds as $vid) {
+                    $attach[$vid] = ['allocated_capacity' => (int)($allocation[$vid][$created->faculty_id] ?? 0)];
+                }
+                $created->venues()->sync($attach);
+            }
+
+            // since we recreated, the "original id" is gone - return success
+            DB::commit();
+            return response()->json(['success' => 'Cross-catering exam updated for all classes.']);
+
+        } else {
+            // normal update -> replace only this faculty row
+            $faculty = Faculty::findOrFail((int)$validated['faculty_id']);
+
+            // remove any previous same slot for this faculty+course, excluding this row
+            $this->deleteExistingSlotExams(
+                (int)$setup->id, $courseCode, $examDate, $startTime, $endTime, [(int)$faculty->id], (int)$timetable->id
+            );
+
+            $timetable->program_id = (int)$faculty->program_id;
+            $timetable->faculty_id = (int)$faculty->id;
+            $timetable->course_code = $courseCode;
+            $timetable->exam_date = $examDate;
+            $timetable->start_time = $startTime;
+            $timetable->end_time = $endTime;
+            $timetable->save();
+
+            $students = (int)($faculty->total_students_no ?? 0);
+            $venueModels = Venue::whereIn('id', $venueIds)->get();
+            $allocation = $this->distributeStudentsAcrossVenues([(int)$faculty->id => $students], $venueModels);
+
+            if (empty($allocation)) {
+                throw new \Exception("Not enough venue capacity for {$courseCode}.");
+            }
+
+            $attach = [];
+            foreach ($venueIds as $vid) {
+                $attach[$vid] = ['allocated_capacity' => (int)($allocation[$vid][(int)$faculty->id] ?? 0)];
+            }
+            $timetable->venues()->sync($attach);
+
+            DB::commit();
+            return response()->json([
+                'status' => 'success',
+                'type' => $isCross ? 'cross' : 'normal',
+                'message' => $isCross
+                    ? "Cross-catering exam updated for ALL classes that study {$courseCode}."
+                    : "Exam updated successfully."
+            ]);
+
+        }
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json(['errors' => ['error' => $e->getMessage()]], 422);
+    }
+}
+
+
+   public function destroy(ExaminationTimetable $timetable)
+{
+    DB::beginTransaction();
+    try {
+        $setupId   = (int)$timetable->exam_setup_id;
+        $course    = $timetable->course_code;
+        $examDate  = Carbon::parse($timetable->exam_date)->format('Y-m-d');
+        $startTime = Carbon::parse($timetable->start_time)->format('H:i:s');
+        $endTime   = Carbon::parse($timetable->end_time)->format('H:i:s');
+
+        $isCross = $this->isCrossCateringCourse($course);
+
+        if ($isCross) {
+            // delete all related faculties for same slot/course/setup
+            $faculties = $this->getFacultiesForCourse($course);
+            $facultyIds = $faculties->pluck('id')->map(fn($x)=>(int)$x)->all();
+
+            $this->deleteExistingSlotExams($setupId, $course, $examDate, $startTime, $endTime, $facultyIds);
+        } else {
+            $timetable->delete();
+        }
+
+        DB::commit();
+        return back()->with('success', 'Exam deleted successfully.');
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return back()->withErrors(['error' => $e->getMessage()]);
+    }
+}
+
+
+    // ----------------------------
+    // AJAX SHOW (for View Exam Modal)
+    // ----------------------------
+
     public function show($id)
     {
-        $timetable = ExaminationTimetable::with(['faculty', 'venue', 'lecturers', 'course'])->findOrFail($id);
-        Log::info('Show timetable:', ['id' => $id, 'lecturers' => $timetable->lecturers->pluck('name')->toArray()]);
-
-        $course = $timetable->course;
-        $groupSelection = $timetable->group_selection;
-
-        // Check if all groups are selected
-        $allGroups = FacultyGroup::where('faculty_id', $timetable->faculty_id)
-            ->pluck('group_name')
-            ->toArray();
-        $selectedGroups = explode(',', $timetable->group_selection);
-        $isAllGroups = empty(array_diff($allGroups, $selectedGroups)) && empty(array_diff($selectedGroups, $allGroups));
-
-        // Get additional venues for the same course and date
-        $additionalVenues = ExaminationTimetable::where('exam_date', $timetable->exam_date)
-            ->where('course_code', $timetable->course_code)
-            ->where('id', '!=', $timetable->id)
-            ->with('venue')
-            ->get()
-            ->pluck('venue.name')
-            ->toArray();
+        $timetable = ExaminationTimetable::with([
+            'course',
+            'program',
+            'faculty',
+            'venues',
+            'supervisors',
+        ])->findOrFail($id);
 
         return response()->json([
+            'id' => $timetable->id,
             'course_code' => $timetable->course_code,
-            'course_name' => $course ? $course->name : 'N/A',
             'exam_date' => $timetable->exam_date,
             'start_time' => $timetable->start_time,
             'end_time' => $timetable->end_time,
-            'time_slot_name' => $timetable->time_slot_name ?? 'N/A',
-            'venue_name' => $timetable->venue->name ?? 'N/A',
-            'additional_venues' => $additionalVenues,
-            'venue_capacity' => $timetable->venue->capacity ?? 'N/A',
-            'group_selection' => $isAllGroups ? 'All Groups' : $groupSelection,
-            'lecturers' => $timetable->lecturers->pluck('name')->toArray(),
-            'faculty_name' => $timetable->faculty->name ?? 'N/A',
+
+            'course' => $timetable->course ? [
+                'name' => $timetable->course->name,
+            ] : null,
+
+            'program' => $timetable->program ? [
+                'short_name' => $timetable->program->short_name,
+                'name' => $timetable->program->name,
+            ] : null,
+
+            'faculty' => $timetable->faculty ? [
+                'name' => $timetable->faculty->name,
+            ] : null,
+
+            'venues' => $timetable->venues->map(function ($v) {
+                return [
+                    'id' => $v->id,
+                    'name' => $v->name,
+                    'pivot' => [
+                        'allocated_capacity' => $v->pivot->allocated_capacity ?? null
+                    ]
+                ];
+            })->values(),
+
+            'supervisors' => $timetable->supervisors->map(function ($s) {
+                return [
+                    'id' => $s->id,
+                    'name' => $s->name,
+                    'pivot' => [
+                        'supervisor_role' => $s->pivot->supervisor_role ?? 'Invigilator'
+                    ]
+                ];
+            })->values(),
         ]);
     }
+
+    // ----------------------------
+    // DROPDOWNS / HELPERS
+    // ----------------------------
 
     public function getFacultyByProgramYear($programId, $yearNum)
     {
@@ -464,15 +638,21 @@ class ExaminationTimetableController extends Controller
     public function getFacultyCourses(Request $request)
     {
         $facultyId = $request->query('faculty_id');
-        $courses = Course::whereHas('faculties', fn($q) => $q->where('faculties.id', $facultyId))
-            ->select('course_code', 'name')
+
+        $courses = Course::whereHas('faculties', fn ($q) => $q->where('faculties.id', $facultyId))
+            ->select('course_code', 'name', 'cross_catering')
+            ->orderBy('course_code')
             ->get()
-            ->map(function ($course) {
-                return ['course_code' => $course->course_code, 'name' => $course->name];
-            })
+            ->map(fn ($c) => [
+                'course_code' => $c->course_code,
+                'name' => $c->name,
+                'cross_catering' => (bool) $c->cross_catering,
+            ])
             ->toArray();
+
         return response()->json(['course_codes' => $courses]);
     }
+
 
     public function getFacultyGroups(Request $request)
     {
@@ -481,70 +661,96 @@ class ExaminationTimetableController extends Controller
             ->select('group_name', 'student_count')
             ->get()
             ->toArray();
+
         return response()->json(['groups' => $groups]);
+    }
+
+    private function getFacultiesForCourse(string $courseCode)
+    {
+        return Course::where('course_code', $courseCode)
+            ->firstOrFail()
+            ->faculties()
+            ->select('faculties.id', 'faculties.program_id', 'faculties.total_students_no')
+            ->get();
+    }
+
+    public function getFacultiesByProgram(Request $request)
+    {
+        $programId = $request->query('program_id');
+
+        if ($programId === 'all' || !$programId) {
+            $faculties = Faculty::select('id', 'name')->orderBy('name')->get();
+        } else {
+            $faculties = Faculty::where('program_id', $programId)
+                ->select('id', 'name')
+                ->orderBy('name')
+                ->get();
+        }
+
+        return response()->json(['faculties' => $faculties]);
+    }
+
+    public function getSupervisors(Request $request)
+    {
+        $programId = $request->query('program_id');
+        $facultyId = $request->query('faculty_id');
+
+        $query = User::query()
+            ->select('id', 'name')
+            ->orderBy('name');
+
+        // optional filters
+        if ($programId && $programId !== 'all') {
+            $query->whereHas('courses.faculties.program', function ($q) use ($programId) {
+                $q->where('programs.id', $programId);
+            });
+        }
+        if ($facultyId && $facultyId !== 'all') {
+            $query->whereHas('courses.faculties', function ($q) use ($facultyId) {
+                $q->where('faculties.id', $facultyId);
+            });
+        }
+
+        return response()->json(['supervisors' => $query->get()]);
     }
 
     public function getCourseLecturers(Request $request)
     {
         $courseCode = $request->query('course_code');
         $timetableId = $request->query('timetable_id', null);
+
         $course = Course::where('course_code', $courseCode)->first();
         if (!$course) {
-            Log::warning('Course not found:', ['course_code' => $courseCode]);
             return response()->json(['lecturers' => []]);
         }
+
         $lecturers = $course->lecturers()->select('users.id', 'users.name')->get()->toArray();
+
         if ($timetableId) {
             $timetable = ExaminationTimetable::with('lecturers')->find($timetableId);
-            $assignedLecturerIds = $timetable ? $timetable->lecturers->pluck('id')->toArray() : [];
-            $lecturers = array_map(function ($lecturer) use ($assignedLecturerIds) {
-                $lecturer['selected'] = in_array($lecturer['id'], $assignedLecturerIds);
-                return $lecturer;
+            $assigned = $timetable ? $timetable->lecturers->pluck('id')->toArray() : [];
+            $lecturers = array_map(function ($l) use ($assigned) {
+                $l['selected'] = in_array($l['id'], $assigned);
+                return $l;
             }, $lecturers);
         }
-        Log::info('Course lecturers:', ['course_code' => $courseCode, 'lecturers' => $lecturers]);
+
         return response()->json(['lecturers' => $lecturers]);
     }
 
-    private function getValidDates(ExamSetup $setup): array
+    private function isCrossCateringCourse(string $courseCode): bool
     {
-        $dates = [];
-        $currentDate = strtotime($setup->start_date);
-        $endDate = strtotime($setup->end_date);
-
-        while ($currentDate <= $endDate) {
-            $dates[] = date('Y-m-d', $currentDate);
-            $currentDate = strtotime('+1 day', $currentDate);
+        $course = Course::where('course_code', $courseCode)->first();
+        if (!$course) {
+            throw new \Exception("Course {$courseCode} was deleted. Please refresh and select again.");
         }
-
-        return $dates;
+        return (bool) $course->cross_catering;
     }
 
-    private function calculateStudentCount($faculty, $groupSelection)
-    {
-        if (!$faculty) {
-            Log::warning('Invalid faculty provided for student count calculation', [
-                'group_selection' => $groupSelection
-            ]);
-            return 0;
-        }
 
-        Log::info('Calculating student count for faculty', [
-            'faculty_id' => $faculty->id,
-            'group_selection' => $groupSelection,
-            'total_students_no' => $faculty->total_students_no
-        ]);
-
-        // Use total_students_no from Faculty model
-        $studentCount = $faculty->total_students_no ?? 0;
-
-        Log::info('Calculated student count', [
-            'faculty_id' => $faculty->id,
-            'student_count' => $studentCount
-        ]);
-
-        return $studentCount;
-    }
+    // ----------------------------
+    // GENERATION (NO CAPACITY FILTERING + OPTION A)
+    // ----------------------------
 
     public function generateTimetable(Request $request)
     {
@@ -553,18 +759,61 @@ class ExaminationTimetableController extends Controller
         try {
             $validated = $request->validate([
                 'exam_setup_id' => 'required|exists:exam_setups,id',
+                'program_id'    => 'required|integer|exists:programs,id',
+                'faculty_id'    => 'nullable',
+                'venue_strategy' => 'required|in:distribute,single',
+                'selected_venues' => 'nullable|array',
+                'selected_venues.*' => 'exists:venues,id',
             ]);
 
-            $setup = ExamSetup::findOrFail($validated['exam_setup_id']);
-            $faculties = Faculty::whereIn('program_id', $setup->programs)->get();
-            $days = $this->getValidDates($setup);
-            $timeSlots = collect($setup->time_slots)->map(function ($slot) {
-                return ['start_time' => $slot['start_time'], 'end_time' => $slot['end_time']];
-            })->toArray();
-            $venues = Venue::select('id', 'name', 'capacity')->get();
+            $venuesQuery = Venue::query()->select('id','name','capacity');
 
-            // Build course groups automatically
+            if (!empty($validated['selected_venues'])) {
+                // FORCE venues from modal
+                $venuesQuery->whereIn('id', $validated['selected_venues']);
+            }
+
+            $venues = $venuesQuery->get();
+
+            if ($venues->isEmpty()) {
+                return response()->json(['errors' => ['venues' => 'No venues selected/available.']], 422);
+            }
+
+            if ($validated['program_id'] === 'all') {
+                return response()->json(['errors' => ['program_id' => 'Please select a single program.']], 422);
+            }
+
+            $setup = ExamSetup::findOrFail($validated['exam_setup_id']);
+
+            $facultiesQuery = Faculty::query()->where('program_id', (int)$validated['program_id']);
+
+            if (!empty($validated['faculty_id']) && $validated['faculty_id'] !== 'all') {
+                $facultiesQuery->where('id', (int)$validated['faculty_id']);
+            }
+
+            $faculties = $facultiesQuery->get();
+
+            $days = $this->getValidDates($setup);
+
+            $timeSlots = collect($setup->time_slots ?? [])->map(function ($slot) {
+                return [
+                    'name' => $slot['name'] ?? null,
+                    'start_time' => $slot['start_time'],
+                    'end_time' => $slot['end_time'],
+                ];
+            })->toArray();
+
+            if (empty($days) || empty($timeSlots)) {
+                return response()->json(['errors' => ['setup' => 'Setup has no valid days or no time slots.']], 422);
+            }
+
+            
+
+            // Build sessions:
+            // - Non cross-catering: separate by (course_code + faculty_id)
+            // - Cross-catering: group by course_code only (multi faculties together)
             $courseGroups = [];
+
             foreach ($faculties as $faculty) {
                 $courses = Course::whereHas('faculties', function ($q) use ($faculty) {
                     $q->where('faculties.id', $faculty->id);
@@ -572,53 +821,51 @@ class ExaminationTimetableController extends Controller
 
                 foreach ($courses as $course) {
                     $lecturerIds = $course->lecturers()->pluck('id')->toArray();
-                    $groups = FacultyGroup::where('faculty_id', $faculty->id)->pluck('group_name')->toArray();
-                    if (empty($groups)) {
-                        Log::warning('No groups defined for faculty', [
+
+                    if ($course->cross_catering) {
+                        $allFaculties = $course->faculties()->select('faculties.id','faculties.program_id')->get();
+
+                        $key = $course->course_code;
+
+                        $courseGroups[$key]['course_code'] = $course->course_code;
+                        $courseGroups[$key]['course_name'] = $course->name;
+                        $courseGroups[$key]['cross_catering'] = true;
+
+                        foreach ($allFaculties as $f) {
+                            $courseGroups[$key]['faculties'][] = [
+                                'faculty_id' => $f->id,
+                                'program_id' => $f->program_id, // IMPORTANT
+                                'lecturer_ids' => $lecturerIds,
+                            ];
+                        }
+
+                    } else {
+                        $key = $course->course_code . '|' . $faculty->id;
+
+                        $courseGroups[$key]['course_code'] = $course->course_code;
+                        $courseGroups[$key]['course_name'] = $course->name;
+                        $courseGroups[$key]['cross_catering'] = false;
+
+                        $courseGroups[$key]['faculties'][] = [
                             'faculty_id' => $faculty->id,
-                            'course_code' => $course->course_code
-                        ]);
-                        continue;
+                            'program_id' => $faculty->program_id,
+                            'lecturer_ids' => $lecturerIds,
+                        ];
                     }
-                    $studentCount = $this->calculateStudentCount($faculty, implode(',', $groups));
-                    if ($studentCount === 0) {
-                        Log::warning('No students found for faculty', [
-                            'faculty_id' => $faculty->id,
-                            'course_code' => $course->course_code,
-                            'groups' => $groups
-                        ]);
-                        continue;
-                    }
-                    $courseGroups[$course->course_code][] = [
-                        'course_code' => $course->course_code,
-                        'course_name' => $course->name,
-                        'faculty_id' => $faculty->id,
-                        'lecturer_ids' => $lecturerIds,
-                        'group_selection' => $groups,
-                        'student_count' => $studentCount,
-                    ];
+
                 }
             }
 
-            $sessions = [];
-            foreach ($courseGroups as $courseCode => $courseFaculties) {
-                $totalStudentCount = array_sum(array_column($courseFaculties, 'student_count'));
-                $sessions[] = [
-                    'course_code' => $courseCode,
-                    'faculties' => $courseFaculties,
-                    'total_student_count' => $totalStudentCount,
-                ];
-            }
+            $sessions = array_values($courseGroups);
 
-            $result = $this->scheduleTimetable($sessions, $days, $timeSlots, $venues, $setup, $request);
+            $result = $this->scheduleTimetable($sessions, $days, $timeSlots, $venues);
 
             if (empty($result['timetables'])) {
-                Log::warning('No timetables generated due to scheduling conflicts or insufficient resources.', [
-                    'errors' => $result['errors'] ?? []
-                ]);
                 return response()->json([
                     'errors' => [
-                        'scheduling' => $result['errors'] ? implode(' ', $result['errors']) : 'Unable to generate a conflict-free timetable. Try adjusting venues or lecturers.'
+                        'scheduling' => !empty($result['errors'])
+                            ? implode(' ', $result['errors'])
+                            : 'Unable to generate a conflict-free timetable.'
                     ]
                 ], 422);
             }
@@ -626,45 +873,56 @@ class ExaminationTimetableController extends Controller
             DB::beginTransaction();
             try {
                 $createdTimetables = [];
-                $warnings = $result['warnings'] ?? [];
-                foreach ($result['timetables'] as $timetable) {
-                    $created = ExaminationTimetable::create([
-                        'exam_date' => $timetable['exam_date'],
-                        'start_time' => $timetable['start_time'],
-                        'end_time' => $timetable['end_time'],
-                        'course_code' => $timetable['course_code'],
-                        'course_name' => $timetable['course_name'],
-                        'venue_id' => $timetable['venue_id'],
-                        'group_selection' => $timetable['group_selection'],
-                        'faculty_id' => $timetable['faculty_id'],
-                    ]);
-                    $created->lecturers()->sync($timetable['lecturer_ids']);
-                    $createdTimetables[] = $created;
+                
 
-                    // Log capacity and student count
-                    $faculty = Faculty::find($timetable['faculty_id']);
-                    $studentCount = $timetable['student_count'];
-                    $venue = Venue::find($timetable['venue_id']);
-                    Log::info('Timetable entry created', [
-                        'timetable_id' => $created->id,
-                        'course_code' => $timetable['course_code'],
-                        'faculty_id' => $timetable['faculty_id'],
-                        'student_count' => $studentCount,
-                        'venue_id' => $timetable['venue_id'],
-                        'venue_capacity' => $venue ? floor($venue->capacity * 0.75) : 'N/A'
-                    ]);
+                foreach ($result['timetables'] as $entry) {
+                    // OPTION A:
+                    // create one exam row per faculty, attach SAME venues list to each row.
+                    foreach ($entry['faculty_rows'] as $row) {
+                        $facultyModel = Faculty::findOrFail($row['faculty_id']);
+                        $created = ExaminationTimetable::create([
+                            'exam_setup_id' => $setup->id,
+                            'program_id' => (int) $facultyModel->program_id,
+                            'faculty_id' => (int)$row['faculty_id'],
+                            'course_code' => $entry['course_code'],
+                            'exam_date' => $entry['exam_date'],
+                            'start_time' => $entry['start_time'],
+                            'end_time' => $entry['end_time'],
+                        ]);
+
+                        $created->lecturers()->sync($row['lecturer_ids'] ?? []);
+
+                        // build faculty student map using total_students_no (best available)
+                    $facultyStudentMap = [];
+                    foreach ($entry['faculty_rows'] as $r) {
+                        $f = Faculty::find($r['faculty_id']);
+                        $facultyStudentMap[$r['faculty_id']] = (int) ($f->total_students_no ?? 0);
+                    }
+
+                   
+
+                    // Only venues you selected
+                    $venueModels = $venues->whereIn('id', $entry['venue_ids'])->values();
+
+                    // distribute
+                    $allocation = $this->distributeStudentsAcrossVenues($facultyStudentMap, $venueModels);
+                    if (empty($allocation)) {
+                        throw new \Exception("Not enough venue capacity for {$entry['course_code']} on {$entry['exam_date']} {$entry['start_time']}.");
+                    }
+
+                    // attach for THIS faculty
+                    $attachData = [];
+                    foreach ($entry['venue_ids'] as $vid) {
+                        $attachData[$vid] = ['allocated_capacity' => $allocation[$vid][$row['faculty_id']] ?? 0];
+                    }
+                    $created->venues()->sync($attachData);
+
+
+                        $createdTimetables[] = $created;
+                    }
                 }
+
                 DB::commit();
-                Log::info('Timetable generated successfully:', ['timetables' => $createdTimetables]);
-
-                if (!empty($warnings) && !$request->has('force_proceed')) {
-                    return response()->json([
-                        'message' => 'Timetable generated with warnings.',
-                        'timetables' => $createdTimetables,
-                        'warnings' => $warnings,
-                        'proceed' => true
-                    ], 422);
-                }
 
                 return response()->json([
                     'message' => 'Timetable generated successfully.',
@@ -672,509 +930,421 @@ class ExaminationTimetableController extends Controller
                 ]);
             } catch (\Exception $e) {
                 DB::rollBack();
-                Log::error('Error saving generated timetable:', ['error' => $e->getMessage()]);
+                Log::error('Error saving generated timetable', ['error' => $e->getMessage()]);
                 return response()->json(['errors' => ['database' => 'Failed to save timetable: ' . $e->getMessage()]], 422);
             }
         } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::error('Validation failed:', ['errors' => $e->errors()]);
             return response()->json(['errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Unexpected error in generateTimetable:', ['error' => $e->getMessage()]);
+            Log::error('Unexpected error in generateTimetable', ['error' => $e->getMessage()]);
             return response()->json(['errors' => ['error' => 'Unexpected error: ' . $e->getMessage()]], 422);
         }
     }
+    
 
-    private function scheduleTimetable(array $sessions, array $days, array $timeSlots, $venues, ExamSetup $setup, Request $request): array
-    {
-        $timetables = [];
-        $warnings = [];
-        $errors = [];
-        $usedSlots = [];
-        $lecturerSlots = [];
-        $groupSlots = [];
-        $courseSlots = [];
+    private function distributeStudentsAcrossVenues(array $facultyStudentMap, $venues): array
+{
+    $venueCaps = $venues->map(fn($v) => [
+        'id' => (int) $v->id,
+        'cap' => (int) floor($v->capacity * 0.75),
+    ])
+    ->filter(fn($x) => $x['cap'] > 0)
+    ->sortBy('cap')  // SMALL to BIG helps reduce waste
+    ->values()
+    ->all();
 
-        shuffle($sessions);
+    $remaining = $facultyStudentMap; // faculty_id => students
+    $alloc = []; // venue_id => faculty_id => allocated
 
-        foreach ($sessions as $session) {
-            $courseCode = $session['course_code'];
-            $totalStudentCount = $session['total_student_count'];
-            $faculties = $session['faculties'];
-            $scheduled = false;
-            $sessionConflicts = [];
+    foreach ($venueCaps as $vc) {
+        $vid = $vc['id'];
+        $cap = $vc['cap'];
+        $alloc[$vid] = [];
 
-            Log::info('Scheduling session for course:', [
-                'course_code' => $courseCode,
-                'total_student_count' => $totalStudentCount,
-                'faculties' => array_column($faculties, 'faculty_id')
-            ]);
+        foreach ($remaining as $fid => $need) {
+            if ($cap <= 0) break;
+            if ($need <= 0) continue;
 
-            foreach ($days as $day) {
-                foreach ($timeSlots as $timeSlot) {
-                    $startTime = $timeSlot['start_time'];
-                    $endTime = $timeSlot['end_time'];
+            $give = min($need, $cap);
+            $alloc[$vid][$fid] = ($alloc[$vid][$fid] ?? 0) + $give;
 
-                    // Filter venues for the specific day and time slot
-                    $availableVenues = $venues->filter(function ($venue) use ($usedSlots, $day, $startTime) {
-                        return !isset($usedSlots[$day][$startTime][$venue->id]);
-                    })->sortByDesc('capacity')->values();
+            $remaining[$fid] -= $give;
+            $cap -= $give;
+        }
+    }
 
-                    // Assign venues for the entire course
-                    $courseVenueAssignments = $this->assignVenues($totalStudentCount, $availableVenues);
-                    if (empty($courseVenueAssignments)) {
-                        $sessionConflicts[] = "No suitable venues available for {$courseCode} with {$totalStudentCount} students.";
-                        $errors[] = implode(' ', $sessionConflicts);
-                        Log::error('Venue assignment failed for course', [
-                            'course_code' => $courseCode,
-                            'student_count' => $totalStudentCount,
-                            'available_venues' => $availableVenues->pluck('name')->toArray()
-                        ]);
-                        continue;
+    $still = array_sum(array_map(fn($x) => max(0, (int)$x), $remaining));
+    if ($still > 0) return []; // IMPORTANT: no partial allocation
+
+    return $alloc;
+}
+
+
+    /**
+     * Scheduler Rules Implemented:
+     * - NO capacity filtering (student_count ignored)
+     * - Venue cannot be double-booked in same day+slot
+     * - Lecturer cannot be double-booked in same day+slot
+     * - Max 2 exams per faculty per day
+     * - Slot balancing: shuffle days and slots per session to avoid always first day/slot
+     * - Cross-catering: schedule once (same day+slot+venues) for all faculties in that session
+     */
+    private function scheduleTimetable(array $sessions, array $days, array $timeSlots, $venues): array
+{
+    $timetables = [];
+    $errors = [];
+
+    $usedSlots = [];
+    $lecturerSlots = [];
+    $courseSlots = [];
+    $facultyDayCount = [];
+
+    $facultySlots = []; // ✅ NEW: prevents 2 courses for same faculty in same slot
+
+    $MAX_EXAMS_PER_FACULTY_PER_DAY = 2;
+
+    shuffle($sessions);
+
+    foreach ($sessions as $session) {
+        $courseCode = $session['course_code'];
+        $facRows = $session['faculties'] ?? [];
+        $cross = (bool)($session['cross_catering'] ?? false);
+
+        $scheduled = false;
+        $sessionConflicts = [];
+
+        $daysTry = $days;
+        $slotsTry = $timeSlots;
+        shuffle($daysTry);
+        shuffle($slotsTry);
+
+        foreach ($daysTry as $day) {
+            foreach ($slotsTry as $slot) {
+                $startTime = $slot['start_time'];
+                $endTime = $slot['end_time'];
+
+                // course already scheduled in same slot
+                if (isset($courseSlots[$courseCode][$day][$startTime])) {
+                    $sessionConflicts[] = "Course {$courseCode} already scheduled on {$day} at {$startTime}.";
+                    continue;
+                }
+
+                // ✅ NEW: faculty slot conflict (THIS is your issue)
+                $slotBlocked = false;
+                foreach ($facRows as $r) {
+                    $fid = (int)$r['faculty_id'];
+                    if (isset($facultySlots[$fid][$day][$startTime])) {
+                        $sessionConflicts[] = "Faculty {$fid} already has an exam on {$day} at {$startTime}.";
+                        $slotBlocked = true;
+                        break;
                     }
+                }
+                if ($slotBlocked) continue;
 
-                    Log::info('Venue assignments for course', [
-                        'course_code' => $courseCode,
-                        'student_count' => $totalStudentCount,
-                        'venues' => array_map(fn($v) => [
-                            'id' => $v->id,
-                            'name' => $v->name,
-                            'raw_capacity' => $v->raw_capacity,
-                            'effective_capacity' => $v->capacity,
-                            'students_assigned' => $v->students_assigned
-                        ], $courseVenueAssignments)
-                    ]);
-
-                    // Distribute venues among faculties
-                    $facultyVenueAssignments = [];
-                    $remainingVenues = $courseVenueAssignments;
-                    foreach ($faculties as $faculty) {
-                        $studentCount = $this->calculateStudentCount(Faculty::find($faculty['faculty_id']), implode(',', $faculty['group_selection']));
-                        // Use all course-assigned venues for each faculty to avoid premature removal
-                        $facultyVenues = $this->assignVenues($studentCount, collect($courseVenueAssignments));
-                        if (empty($facultyVenues)) {
-                            $sessionConflicts[] = "Insufficient venue capacity for faculty ID {$faculty['faculty_id']} with $studentCount students.";
-                            $errors[] = implode(' ', $sessionConflicts);
-                            Log::error('Insufficient venue capacity for faculty', [
-                                'faculty_id' => $faculty['faculty_id'],
-                                'student_count' => $studentCount,
-                                'available_venues' => array_map(fn($v) => [
-                                    'id' => $v->id,
-                                    'name' => $v->name,
-                                    'raw_capacity' => $v->raw_capacity,
-                                    'effective_capacity' => $v->capacity
-                                ], $courseVenueAssignments)
-                            ]);
-                            $scheduled = false;
-                            break;
-                        }
-                        $facultyVenueAssignments[$faculty['faculty_id']] = $facultyVenues;
+                // max/day check
+                $blocked = false;
+                foreach ($facRows as $r) {
+                    $fid = (int)$r['faculty_id'];
+                    $count = $facultyDayCount[$fid][$day] ?? 0;
+                    if ($count >= $MAX_EXAMS_PER_FACULTY_PER_DAY) {
+                        $sessionConflicts[] = "Faculty {$fid} already has {$count} exam(s) on {$day} (max {$MAX_EXAMS_PER_FACULTY_PER_DAY}).";
+                        $blocked = true;
+                        break;
                     }
+                }
+                if ($blocked) continue;
 
-                    if (!empty($sessionConflicts)) {
-                        continue;
-                    }
-
-                    // Check if the course is already scheduled
-                    if (isset($courseSlots[$courseCode][$day][$startTime])) {
-                        $sessionConflicts[] = "Course {$courseCode} is already scheduled on {$day} at {$startTime}.";
-                        continue;
-                    }
-
-                    // Check venue availability
-                    $venuesAvailable = true;
-                    foreach ($courseVenueAssignments as $venue) {
-                        if (isset($usedSlots[$day][$startTime][$venue->id])) {
-                            $sessionConflicts[] = "Venue {$venue->name} is unavailable on {$day} at {$startTime}.";
-                            $venuesAvailable = false;
-                            break;
-                        }
-                    }
-                    if (!$venuesAvailable) {
-                        continue;
-                    }
-
-                    // Check lecturer availability for each faculty
-                    $allLecturersAvailable = true;
-                    foreach ($faculties as $faculty) {
-                        foreach ($faculty['lecturer_ids'] as $lecturerId) {
-                            if (isset($lecturerSlots[$lecturerId][$day][$startTime])) {
-                                $sessionConflicts[] = "Lecturer ID {$lecturerId} is unavailable on {$day} at {$startTime}.";
-                                $allLecturersAvailable = false;
-                                break;
-                            }
-                        }
-                        if (!$allLecturersAvailable) {
-                            break;
-                        }
-                    }
-                    if (!$allLecturersAvailable) {
-                        continue;
-                    }
-
-                    // Check group availability for each faculty
-                    $allGroupsAvailable = true;
-                    foreach ($faculties as $faculty) {
-                        $groups = is_array($faculty['group_selection']) ? $faculty['group_selection'] : explode(',', $faculty['group_selection']);
-                        if (empty($groups)) {
-                            Log::warning('Empty group selection for faculty', [
-                                'faculty_id' => $faculty['faculty_id'],
-                                'course_code' => $courseCode
-                            ]);
-                            $sessionConflicts[] = "No groups defined for faculty ID {$faculty['faculty_id']} in course {$courseCode}.";
-                            $allGroupsAvailable = false;
-                            break;
-                        }
-                        Log::info('Groups for faculty', ['faculty_id' => $faculty['faculty_id'], 'groups' => $groups, 'type' => gettype($groups)]);
-                        /*
-                        foreach ($groups as $group) {
-                            if (isset($groupSlots[$group][$day][$startTime])) {
-                                $sessionConflicts[] = "Group {$group} is unavailable on {$day} at {$startTime}.";
-                                $allGroupsAvailable = false;
-                                break;
-                            }
-                        }
-                        if (!$allGroupsAvailable) {
-                            break;
-                        }
-                        */
-                    }
-                    /*
-                    if (!$allGroupsAvailable) {
-                        continue;
-                    }
-                    */
-
-                    // Validate with conflict checker
-                    $hasConflict = false;
-                    foreach ($faculties as $faculty) {
-                        $facultyVenues = $facultyVenueAssignments[$faculty['faculty_id']];
-                        if (empty($facultyVenues)) {
-                            $sessionConflicts[] = "No venues assigned for faculty ID {$faculty['faculty_id']}.";
-                            $hasConflict = true;
-                            break;
-                        }
-                        $venueIds = array_column($facultyVenues, 'id');
-                        $groupSelection = is_array($faculty['group_selection']) ? $faculty['group_selection'] : explode(',', $faculty['group_selection']);
-                        Log::info('Group selection for conflict check', ['faculty_id' => $faculty['faculty_id'], 'group_selection' => $groupSelection, 'type' => gettype($groupSelection)]);
-
-                        $timetableData = [
-                            'exam_date' => $day,
-                            'start_time' => $startTime,
-                            'end_time' => $endTime,
-                            'course_code' => $courseCode,
-                            'course_name' => $faculty['course_name'],
-                            'venue_id' => $venueIds,
-                            'lecturer_ids' => $faculty['lecturer_ids'],
-                            'group_selection' => $groupSelection,
-                            'faculty_id' => $faculty['faculty_id'],
-                        ];
-
-                        $conflicts = $this->checkConflicts(new Request($timetableData), $timetableData);
-                        if (!empty($conflicts)) {
-                            $sessionConflicts = array_merge($sessionConflicts, $conflicts);
-                            $hasConflict = true;
-                            break;
-                        }
-
-                        // Create timetable entries for each venue
-                        foreach ($facultyVenues as $venue) {
-                            $timetables[] = [
-                                'exam_date' => $day,
-                                'start_time' => $startTime,
-                                'end_time' => $endTime,
-                                'course_code' => $courseCode,
-                                'course_name' => $faculty['course_name'],
-                                'venue_id' => $venue->id,
-                                'lecturer_ids' => $faculty['lecturer_ids'],
-                                'group_selection' => implode(',', $groupSelection),
-                                'faculty_id' => $faculty['faculty_id'],
-                                'student_count' => $venue->students_assigned
-                            ];
+                // lecturer slot conflict
+                $lecturerBlocked = false;
+                foreach ($facRows as $r) {
+                    foreach (($r['lecturer_ids'] ?? []) as $lid) {
+                        if (isset($lecturerSlots[$lid][$day][$startTime])) {
+                            $sessionConflicts[] = "Lecturer {$lid} unavailable on {$day} at {$startTime}.";
+                            $lecturerBlocked = true;
+                            break 2;
                         }
                     }
+                }
+                if ($lecturerBlocked) continue;
 
-                    if ($hasConflict) {
-                        continue;
-                    }
+                // available venues
+                $availableVenues = $venues->filter(function ($venue) use ($usedSlots, $day, $startTime) {
+                    return !isset($usedSlots[$day][$startTime][$venue->id]);
+                })->values();
 
-                    // Update tracking arrays
-                    foreach ($faculties as $faculty) {
-                        $facultyVenues = $facultyVenueAssignments[$faculty['faculty_id']];
-                        foreach ($facultyVenues as $venue) {
-                            $usedSlots[$day][$startTime][$venue->id] = true;
-                        }
-                        foreach ($faculty['lecturer_ids'] as $lecturerId) {
-                            $lecturerSlots[$lecturerId][$day][$startTime] = true;
-                        }
-                        $groups = is_array($faculty['group_selection']) ? $faculty['group_selection'] : explode(',', $faculty['group_selection']);
-                        Log::info('Groups for tracking', ['faculty_id' => $faculty['faculty_id'], 'groups' => $groups, 'type' => gettype($groups)]);
-                        /*
-                        foreach ($groups as $group) {
-                            $groupSlots[$group][$day][$startTime] = true;
-                        }
-                        */
-                        $courseSlots[$courseCode][$day][$startTime] = true;
-                    }
+                // total students
+                $totalStudents = 0;
+                foreach ($facRows as $r) {
+                    $f = Faculty::find($r['faculty_id']);
+                    $totalStudents += (int)($f->total_students_no ?? 0);
+                }
 
-                    $scheduled = true;
-                    Log::info('Session scheduled successfully:', [
-                        'course_code' => $courseCode,
+                $selectedVenueIds = $this->pickVenuesToFitStudents($totalStudents, $availableVenues);
+                if (empty($selectedVenueIds)) {
+                    $sessionConflicts[] = "Not enough venue capacity on {$day} at {$startTime} for {$courseCode}.";
+                    continue;
+                }
+
+                // DB conflict check (IMPORTANT: will be improved below too)
+                $hasDbConflict = false;
+                foreach ($facRows as $r) {
+                    $timetableData = [
                         'exam_date' => $day,
                         'start_time' => $startTime,
                         'end_time' => $endTime,
-                        'venues' => array_column($courseVenueAssignments, 'name'),
-                        'student_count' => $totalStudentCount,
-                        'total_venue_capacity' => array_sum(array_map(fn($v) => $v->capacity, $courseVenueAssignments)),
-                        'faculty_venue_assignments' => array_map(fn($fid, $venues) => [
-                            'faculty_id' => $fid,
-                            'venues' => array_map(fn($v) => [
-                                'id' => $v->id,
-                                'name' => $v->name,
-                                'raw_capacity' => $v->raw_capacity,
-                                'effective_capacity' => $v->capacity,
-                                'students_assigned' => $v->students_assigned
-                            ], $venues)
-                        ], array_keys($facultyVenueAssignments), $facultyVenueAssignments)
-                    ]);
-                    break;
+                        'course_code' => $courseCode,
+                        'faculty_id' => $r['faculty_id'],
+                        'venue_id' => $selectedVenueIds,
+                        'lecturer_ids' => $r['lecturer_ids'] ?? [],
+                        'group_selection' => [],
+                    ];
+
+                    $conf = $this->checkConflicts(new Request($timetableData), $timetableData);
+                    if (!empty($conf)) {
+                        $sessionConflicts = array_merge($sessionConflicts, $conf);
+                        $hasDbConflict = true;
+                        break;
+                    }
                 }
-                if ($scheduled) {
-                    break;
-                }
-            }
+                if ($hasDbConflict) continue;
 
-            if (!$scheduled) {
-                Log::info('Could not schedule session:', [
-                    'session' => $session,
-                    'conflicts' => array_unique($sessionConflicts)
-                ]);
-                $errors[] = "Cannot schedule {$courseCode}: " . implode(' ', array_unique($sessionConflicts));
-            }
-        }
-
-        return [
-            'timetables' => $timetables,
-            'warnings' => $warnings,
-            'errors' => $errors
-        ];
-    }
-
-    private function assignVenues(int $studentCount, $availableVenues): array
-    {
-        $sortedVenues = $availableVenues->sortByDesc('capacity')->values();
-        $selectedVenues = [];
-        $remainingStudents = $studentCount;
-
-        Log::info('Assigning venues for student count', ['student_count' => $studentCount]);
-
-        foreach ($sortedVenues as $venue) {
-            $effectiveCapacity = floor($venue->capacity * 0.75);
-            if ($effectiveCapacity > 0) {
-                $studentsToAssign = min($remainingStudents, $effectiveCapacity);
-                $selectedVenues[] = (object) [
-                    'id' => $venue->id,
-                    'name' => $venue->name,
-                    'capacity' => $effectiveCapacity,
-                    'raw_capacity' => $venue->capacity,
-                    'students_assigned' => $studentsToAssign
+                // save session result
+                $timetables[] = [
+                    'course_code' => $courseCode,
+                    'exam_date' => $day,
+                    'start_time' => $startTime,
+                    'end_time' => $endTime,
+                    'venue_ids' => $selectedVenueIds,
+                    'faculty_rows' => $facRows,
                 ];
-                $remainingStudents -= $studentsToAssign;
-            }
 
-            if ($remainingStudents <= 0) {
+                // trackers
+                foreach ($selectedVenueIds as $vid) {
+                    $usedSlots[$day][$startTime][$vid] = true;
+                }
+
+                foreach ($facRows as $r) {
+                    $fid = (int)$r['faculty_id'];
+
+                    // ✅ NEW: lock faculty slot
+                    $facultySlots[$fid][$day][$startTime] = true;
+
+                    foreach (($r['lecturer_ids'] ?? []) as $lid) {
+                        $lecturerSlots[$lid][$day][$startTime] = true;
+                    }
+
+                    $facultyDayCount[$fid][$day] = ($facultyDayCount[$fid][$day] ?? 0) + 1;
+                }
+
+                $courseSlots[$courseCode][$day][$startTime] = true;
+
+                $scheduled = true;
                 break;
             }
+
+            if ($scheduled) break;
         }
 
-        if ($remainingStudents > 0) {
-            Log::error('Insufficient venue capacity', [
-                'student_count' => $studentCount,
-                'remaining_students' => $remainingStudents,
-                'selected_venues' => array_map(fn($v) => [
-                    'id' => $v->id,
-                    'name' => $v->name,
-                    'raw_capacity' => $v->raw_capacity,
-                    'effective_capacity' => $v->capacity,
-                    'students_assigned' => $v->students_assigned
-                ], $selectedVenues)
-            ]);
-            return [];
+        if (!$scheduled) {
+            $errors[] = "Cannot schedule {$courseCode}: " . implode(' ', array_unique($sessionConflicts));
         }
-
-        Log::info('Venue assignments completed', [
-            'student_count' => $studentCount,
-            'venues' => array_map(fn($v) => [
-                'id' => $v->id,
-                'name' => $v->name,
-                'raw_capacity' => $v->raw_capacity,
-                'effective_capacity' => $v->capacity,
-                'students_assigned' => $v->students_assigned
-            ], $selectedVenues)
-        ]);
-
-        return $selectedVenues;
     }
 
-    public function generatePdf(Request $request)
-    {
-        $selectedType = $request->query('exam_type');
-        $setup = ExamSetup::whereJsonContains('type', $selectedType)->first();
-        if (!$setup) {
-            return back()->with('error', 'No setup found for the selected type.');
+    return [
+        'timetables' => $timetables,
+        'errors' => $errors,
+    ];
+}
+
+     private function pickVenuesToFitStudents(int $totalStudents, $availableVenues): array
+{
+    // effective capacity = 75%
+    $venues = $availableVenues->map(function ($v) {
+        return (object)[
+            'id' => (int)$v->id,
+            'name' => $v->name,
+            'eff' => (int) floor($v->capacity * 0.75),
+        ];
+    })->filter(fn($v) => $v->eff > 0)->values();
+
+    $selected = [];
+    $remaining = $totalStudents;
+
+    // Best-fit loop: each time choose venue with smallest eff >= remaining.
+    while ($remaining > 0 && $venues->isNotEmpty()) {
+
+        // candidates that can finish the remaining
+        $candidates = $venues->filter(fn($v) => $v->eff >= $remaining)->sortBy('eff')->values();
+
+        if ($candidates->isNotEmpty()) {
+            $chosen = $candidates->first(); // smallest that fits
+        } else {
+            // none can finish it -> take the largest available to reduce remaining fastest
+            $chosen = $venues->sortByDesc('eff')->first();
         }
 
-        $days = $this->getValidDates($setup);
-        $timeSlots = $setup->time_slots;
-        $programs = Program::whereIn('id', $setup->programs)->get();
-        $timetables = ExaminationTimetable::with(['faculty', 'venue', 'lecturers'])
-            ->whereIn('exam_date', $days)
-            ->whereIn('faculty_id', Faculty::whereIn('program_id', $setup->programs)->pluck('id'))
-            ->get();
+        $selected[] = $chosen;
+        $remaining -= min($remaining, $chosen->eff);
 
-        $dateChunks = array_chunk($days, 5); // 5 dates per table for readability
-
-        // Sanitize the academic year by replacing '/' with '-'
-        $sanitizedAcademicYear = str_replace('/', '-', $setup->academic_year);
-        $filename = 'examination_timetable_' . $sanitizedAcademicYear . '_draft_' . ($setup->draft_number ?? 1) . '.pdf';
-
-        $pdf = Pdf::loadView('timetables.pdf', compact('setup', 'dateChunks', 'timeSlots', 'programs', 'timetables', 'selectedType'))
-            ->setPaper('a4', 'landscape');
-
-        return $pdf->download($filename);
+        // remove chosen from pool
+        $venues = $venues->reject(fn($v) => $v->id === $chosen->id)->values();
     }
 
-    private function checkConflicts(Request $request, array $validated, ?int $excludeId = null): array
-    {
-        Log::info('Checking conflicts', [
-            'excludeId' => $excludeId,
-            'validated' => $validated
-        ]);
+    // if still > 0 => not enough capacity overall
+    if ($remaining > 0) return [];
 
-        $conflicts = [];
+    return array_map(fn($v) => $v->id, $selected);
+}
 
-        // Calculate student count using total_students_no
-        $faculty = Faculty::find($validated['faculty_id']);
-        $studentCount = $this->calculateStudentCount($faculty, is_array($validated['group_selection']) ? implode(',', $validated['group_selection']) : $validated['group_selection']);
-        
-        // Validate venue capacity
-        $venueIds = is_array($validated['venue_id']) ? $validated['venue_id'] : [$validated['venue_id']];
-        $venues = Venue::whereIn('id', $venueIds)->get();
-        $totalVenueCapacity = $venues->sum('capacity') * 0.75;
+    // ----------------------------
+    // CONFLICT CHECKER (NO CAPACITY)
+    // ----------------------------
 
-        Log::info('Conflict check capacity details', [
-            'faculty_id' => $validated['faculty_id'],
-            'student_count' => $studentCount,
-            'venue_ids' => $venueIds,
-            'total_venue_capacity' => round($totalVenueCapacity)
-        ]);
+private function checkConflicts(Request $request, array $validated, ?int $excludeId = null): array
+{
+    $conflicts = [];
 
-        if ($totalVenueCapacity < $studentCount) {
-            $conflicts[] = "Insufficient venue capacity (" . round($totalVenueCapacity) . ") for $studentCount students for faculty ID {$validated['faculty_id']}.";
-            Log::error('Insufficient venue capacity in conflict check', [
-                'faculty_id' => $validated['faculty_id'],
-                'student_count' => $studentCount,
-                'venue_ids' => $venueIds,
-                'total_venue_capacity' => round($totalVenueCapacity)
-            ]);
-        }
+    $venueIds = is_array($validated['venue_id'] ?? null) ? $validated['venue_id'] : [$validated['venue_id'] ?? null];
+    $venueIds = array_values(array_filter(array_map('intval', $venueIds)));
 
-        // Lecturer Conflict Check
-        if (!empty($validated['lecturer_ids'])) {
-            $lecturerConflict = ExaminationTimetable::where('exam_date', $validated['exam_date'])
-                ->where(function ($query) use ($validated) {
-                    $query->where('start_time', '<', $validated['end_time'])
-                          ->where('end_time', '>', $validated['start_time']);
-                })
-                ->whereHas('lecturers', fn($q) => $q->whereIn('users.id', $validated['lecturer_ids']))
-                ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
-                ->with(['lecturers' => fn($q) => $q->whereIn('users.id', $validated['lecturer_ids'])])
-                ->first();
-            if ($lecturerConflict) {
-                $conflictingLecturers = $lecturerConflict->lecturers->pluck('name')->toArray();
-                $conflicts[] = sprintf(
-                    'Lecturer(s) %s are assigned to exam %s for %s from %s to %s.',
-                    implode(', ', $conflictingLecturers),
-                    $lecturerConflict->course_code,
-                    $lecturerConflict->faculty->name,
-                    $lecturerConflict->start_time,
-                    $lecturerConflict->end_time
-                );
-            }
-        }
+    $validated['start_time'] = Carbon::parse($validated['start_time'])->format('H:i:s');
+    $validated['end_time']   = Carbon::parse($validated['end_time'])->format('H:i:s');
+    $validated['exam_date']  = Carbon::parse($validated['exam_date'])->format('Y-m-d');
 
-        // Venue Conflict Check
-        foreach ($venueIds as $venueId) {
-            $venueConflict = ExaminationTimetable::where('exam_date', $validated['exam_date'])
-                ->where('venue_id', $venueId)
-                ->where(function ($query) use ($validated) {
-                    $query->where('start_time', '<', $validated['end_time'])
-                          ->where('end_time', '>', $validated['start_time']);
-                })
-                ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
-                ->first();
-            if ($venueConflict) {
-                $conflicts[] = sprintf(
-                    'Venue %s is in use for exam %s for %s from %s to %s.',
-                    $venueConflict->venue->name,
-                    $venueConflict->course_code,
-                    $venueConflict->faculty->name,
-                    $venueConflict->start_time,
-                    $venueConflict->end_time
-                );
-            }
-        }
+    // ✅ 1) Faculty Conflict
+    $facultyConflict = ExaminationTimetable::whereDate('exam_date', $validated['exam_date'])
+        ->where('faculty_id', (int)$validated['faculty_id'])
+        ->where(function ($q) use ($validated) {
+            $q->where('start_time', '<', $validated['end_time'])
+              ->where('end_time',   '>', $validated['start_time']);
+        })
+        ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+        ->first();
 
-        // Group Conflict Check
-        $groups = is_array($validated['group_selection']) ? $validated['group_selection'] : explode(',', $validated['group_selection']);
-        if (empty($groups)) {
-            $conflicts[] = "No groups defined for faculty ID {$validated['faculty_id']}.";
-            Log::warning('Empty group selection in conflict check', [
-                'faculty_id' => $validated['faculty_id'],
-                'course_code' => $validated['course_code']
-            ]);
-        }
-        /*
-        foreach ($groups as $group) {
-            $groupConflict = ExaminationTimetable::where('exam_date', $validated['exam_date'])
-                ->where('group_selection', 'like', "%$group%")
-                ->where(function ($query) use ($validated) {
-                    $query->where('start_time', '<', $validated['end_time'])
-                          ->where('end_time', '>', $validated['start_time']);
-                })
-                ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
-                ->first();
-            if ($groupConflict) {
-                $conflicts[] = sprintf(
-                    'Group %s has an exam for %s from %s to %s.',
-                    trim(str_replace('Group', '', $group)),
-                    $groupConflict->course_code,
-                    $groupConflict->start_time,
-                    $groupConflict->end_time
-                );
-            }
-        }
-        */
+    if ($facultyConflict) {
+        $conflicts[] = "Faculty already has another exam at the same time.";
+    }
 
-        // Course Conflict Check
-        $courseConflict = ExaminationTimetable::where('exam_date', $validated['exam_date'])
-            ->where('course_code', $validated['course_code'])
-            ->where('faculty_id', $validated['faculty_id'])
-            ->where(function ($query) use ($validated) {
-                $query->where('start_time', '<', $validated['end_time'])
-                      ->where('end_time', '>', $validated['start_time']);
+    // ✅ 2) Lecturer Conflict
+    if (!empty($validated['lecturer_ids'])) {
+        $lecturerConflict = ExaminationTimetable::whereDate('exam_date', $validated['exam_date'])
+            ->where(function ($q) use ($validated) {
+                $q->where('start_time', '<', $validated['end_time'])
+                  ->where('end_time',   '>', $validated['start_time']);
             })
+            ->whereHas('lecturers', fn($q) => $q->whereIn('users.id', $validated['lecturer_ids']))
             ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
             ->first();
-        if ($courseConflict) {
-            $conflicts[] = sprintf(
-                'Course %s is already scheduled for %s from %s to %s.',
-                $validated['course_code'],
-                $courseConflict->faculty->name,
-                $courseConflict->start_time,
-                $courseConflict->end_time
-            );
+
+        if ($lecturerConflict) {
+            $conflicts[] = "One of selected lecturers has another exam at the same time.";
+        }
+    }
+
+   
+
+    // ✅ 4) Venue Conflict
+    foreach ($venueIds as $venueId) {
+        $venueConflict = ExaminationTimetable::whereDate('exam_date', $validated['exam_date'])
+            ->where(function ($q) use ($validated) {
+                $q->where('start_time', '<', $validated['end_time'])
+                  ->where('end_time',   '>', $validated['start_time']);
+            })
+            ->whereHas('venues', fn($q) => $q->where('venues.id', $venueId))
+            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+            ->first();
+
+        if ($venueConflict) {
+            $conflicts[] = "Venue {$venueId} is already in use at the same time.";
+            break;
+        }
+    }
+
+    // ✅ 5) Same course duplicated in same slot (same faculty)
+    $courseConflict = ExaminationTimetable::whereDate('exam_date', $validated['exam_date'])
+        ->where('course_code', $validated['course_code'])
+        ->where('faculty_id', (int)$validated['faculty_id'])
+        ->where(function ($q) use ($validated) {
+            $q->where('start_time', '<', $validated['end_time'])
+              ->where('end_time',   '>', $validated['start_time']);
+        })
+        ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+        ->first();
+
+    if ($courseConflict) {
+        $conflicts[] = "Course {$validated['course_code']} already scheduled for this faculty at same time.";
+    }
+
+    return $conflicts;
+}
+
+    
+
+    // ----------------------------
+    // DATE HELPERS
+    // ----------------------------
+
+    private function getValidDates(ExamSetup $setup): array
+{
+    $dates = [];
+    $start = Carbon::parse($setup->start_date);
+    $end   = Carbon::parse($setup->end_date);
+
+    $includeWeekends = (bool) ($setup->include_weekends ?? false);
+
+    for ($d = $start->copy(); $d->lte($end); $d->addDay()) {
+
+        // EXCLUDE SAT/SUN if include_weekends = false
+        if (!$includeWeekends && $d->isWeekend()) {
+            continue;
         }
 
-        return $conflicts;
+        $dates[] = $d->format('Y-m-d');
     }
+
+    return $dates;
+}
+
+    // still here if you want later (currently not used for filtering)
+    private function calculateStudentCount($faculty, $groupSelection)
+    {
+        if (!$faculty) return 0;
+        return (int)($faculty->total_students_no ?? 0);
+    }
+
+    // keep old pdf method if you want later
+    public function generatePdf(Request $request)
+    {
+        return back()->with('error', 'PDF export not implemented yet.');
+    }
+
+ 
+
+
+
+    private function deleteExistingSlotExams(
+    int $setupId,
+    string $courseCode,
+    string $examDate,
+    string $startTime,
+    string $endTime,
+    ?array $facultyIds = null,
+    ?int $excludeId = null
+): void {
+    $q = ExaminationTimetable::where('exam_setup_id', $setupId)
+        ->where('course_code', $courseCode)
+        ->whereDate('exam_date', $examDate)
+        ->where('start_time', $startTime)
+        ->where('end_time', $endTime);
+
+    if ($facultyIds) {
+        $q->whereIn('faculty_id', $facultyIds);
+    }
+
+    if ($excludeId) {
+        $q->where('id', '!=', $excludeId);
+    }
+
+    $q->delete(); // pivots should cascade if FK; if not, detach first in model events
+}
 }

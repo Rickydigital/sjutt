@@ -6,16 +6,29 @@ use Carbon\Carbon;
 
 @section('styles')
 <style>
-    /* body {
-            background-color: #f4f6f9;
-        } */
+    .setup-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        border-radius: 15px;
+        overflow: hidden;
+    }
+
+    .setup-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .setup-card-header {
+        background: linear-gradient(135deg, #6f42c1, #4B2E83);
+        color: white;
+        padding: 20px;
+    }
 
     .exam-table th,
     .exam-table td {
         border: 2px solid #dee2e6 !important;
         vertical-align: middle;
         text-align: center;
-        min-width: 150px;
+        padding: 12px;
     }
 
     .exam-table th {
@@ -27,66 +40,26 @@ use Carbon\Carbon;
         z-index: 3;
     }
 
-    .exam-table .time-slot-header {
-        background: linear-gradient(135deg, #6f42c1, #4B2E83);
-        color: white;
-        position: sticky;
-        left: 0;
-        z-index: 4;
-    }
-
-    .exam-table .year-header {
-        background: linear-gradient(135deg, #6f42c1, #4B2E83);
-        color: white;
-        position: sticky;
-        left: 150px;
-        z-index: 4;
-    }
-
-    .exam-table caption {
-        caption-side: top;
-        font-size: 1.25rem;
-        font-weight: bold;
-        padding: 10px;
-        background: linear-gradient(135deg, #6f42c1, #4B2E83);
-        color: white;
-        border-radius: 10px 10px 0 0;
-    }
-
-    .exam-table .empty-cell {
-        height: 100px;
-        background-color: #f8f9fa;
-        cursor: pointer;
-        transition: background-color 0.3s;
-    }
-
-    .exam-table .empty-cell:hover {
-        background-color: #e9ecef;
-    }
-
     .exam-table .course-cell {
         background: linear-gradient(135deg, #e2e8f0, #f8f9fa);
-        transition: transform 0.2s;
+        transition: all 0.3s;
+        cursor: pointer;
     }
 
     .exam-table .course-cell:hover {
         transform: scale(1.02);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     }
 
     .action-icon {
         margin: 0 5px;
         font-size: 1.2rem;
         transition: color 0.3s;
+        cursor: pointer;
     }
 
     .action-icon:hover {
         color: #007bff !important;
-    }
-
-    .card-header {
-        background: linear-gradient(135deg, #6f42c1, #4B2E83);
-        color: white;
-        border-radius: 10px 10px 0 0;
     }
 
     .modal-content {
@@ -101,1242 +74,1235 @@ use Carbon\Carbon;
     }
 
     .form-control,
-    .select2-container--classic .select2-selection--single,
-    .select2-container--classic .select2-selection--multiple {
+    .select2-container--classic .select2-selection--single {
         border-radius: 8px;
         border: 1px solid #ced4da;
         transition: border-color 0.3s;
     }
 
-    .form-control:focus,
-    .select2-container--classic .select2-selection--single:focus,
-    .select2-container--classic .select2-selection--multiple:focus {
+    .form-control:focus {
         border-color: #6f42c1;
         box-shadow: 0 0 5px rgba(111, 66, 193, 0.5);
     }
 
-    .table-responsive {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+    .badge-lg {
+        padding: 8px 16px;
+        font-size: 0.95rem;
+    }
+
+    .time-slot-container {
+        border-left: 3px solid #6f42c1;
+        padding-left: 15px;
+        margin-bottom: 10px;
+    }
+
+    .venue-badge {
+        display: inline-block;
+        margin: 3px;
+        padding: 5px 10px;
+        background-color: #e9ecef;
+        border-radius: 5px;
+        font-size: 0.85rem;
+    }
+
+    .supervisor-badge {
+        display: inline-block;
+        margin: 3px;
+        padding: 5px 10px;
+        background-color: #d4edda;
+        border-radius: 5px;
+        font-size: 0.85rem;
+    }
+
+    .generate-options {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+
+    .modal .select2-container--open {
+        z-index: 1070 !important;
+    }
+
+    .modal .select2-dropdown {
+        z-index: 1070 !important;
     }
 </style>
 @endsection
 
 @section('content')
-<div class="container">
-    <!-- Page Header -->
+<div class="container-fluid">
     <div class="row mb-4">
         <div class="col-12 d-flex justify-content-between align-items-center">
             <h1 class="fw-bold" style="color: #4B2E83;">
                 <i class="fas fa-calendar-alt me-2"></i> Examination Timetables
             </h1>
             <div>
-                @if ($setup)
-                <a href="{{ route('timetables.pdf', ['exam_type' => $selectedType]) }}" class="btn btn-success me-2">
-                    <i class="fas fa-download me-1"></i> Download PDF
-                </a>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editSetupModal">
-                    <i class="fas fa-edit me-1"></i> Edit Setup
-                </button>
-                <button id="auto-generate-btn" class="btn btn-primary ms-2" data-setup-id="{{ $setup->id }}">
-                    <i class="fas fa-magic me-1"></i> Auto-Generate Timetable
-                </button>
-                @else
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#setupModal">
-                    <i class="fas fa-plus me-1"></i> Create Setup
+                    <i class="fas fa-plus me-1"></i> Create New Setup
                 </button>
-                @endif
             </div>
         </div>
     </div>
 
-    <!-- Exam Type Filter -->
     @if ($setups->isNotEmpty())
     <div class="row mb-4">
-        <div class="col-12 col-md-6 col-lg-4">
-            <form method="GET" action="{{ route('timetables.index') }}" id="examTypeFilterForm">
-                <div class="mb-3">
-                    <label for="exam_type" class="form-label fw-semibold">Select Exam Type</label>
-                    <select class="form-control select2" id="exam_type" name="exam_type">
-                        <option value="">Select Exam Type</option>
-                        @foreach ($examTypes as $type)
-                        <option value="{{ $type }}" {{ $selectedType==$type ? 'selected' : '' }}>
-                            {{ $type }}
-                        </option>
-                        @endforeach
-                    </select>
-                </div>
-            </form>
-        </div>
-    </div>
-    @endif
-
-    <!-- Examination Timetable -->
-    @if ($setup)
-    @php
-    $datesPerPage = 5;
-    $dateChunks = array_chunk($days, $datesPerPage);
-    @endphp
-    @foreach ($dateChunks as $chunkIndex => $dateChunk)
-    <div class="row">
         <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-header">
-                    <h5 class="card-title mb-0 text-white">
-                        Type: {{ $selectedType }} ({{ $setup->academic_year }}) - Semester:
-                        {{ $setup->semester }}
-                    </h5>
+            <h4 class="fw-semibold mb-3">Existing Examination Setups</h4>
+        </div>
+        @foreach ($setups as $setup)
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card setup-card h-100">
+                <div class="setup-card-header">
+                    <h5 class="mb-1">{{ $setup->semester->name ?? 'N/A' }}</h5>
+                    <p class="mb-0 small">{{ $setup->academic_year }}</p>
                 </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table exam-table mb-0">
-                            <thead class="bg-primary text-white">
-                                <tr>
-                                    <th rowspan="2" class="time-slot-header">Time</th>
-                                    <th rowspan="2" class="year-header">Year</th>
-                                    @foreach ($dateChunk as $date)
-                                    @php
-                                    $carbonDate = Carbon::parse($date);
-                                    $formattedDate =
-                                    $carbonDate->format('d-m') .
-                                    ' (' .
-                                    $carbonDate->format('l') .
-                                    ')';
-                                    @endphp
-                                    <th colspan="{{ $programs->count() }}">{{ $formattedDate }}</th>
-                                    @endforeach
-                                </tr>
-                                <tr>
-                                    @foreach ($dateChunk as $date)
-                                    @foreach ($programs as $program)
-                                    <th>{{ $program->short_name }}</th>
-                                    @endforeach
-                                    @endforeach
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($timeSlots as $slot)
-                                <tr>
-                                    <td rowspan="4" class="time-slot-header">{{ $slot['name'] }}
-                                        ({{ $slot['start_time'] }} - {{ $slot['end_time'] }})</td>
-                                    <td class="year-header">Year 1</td>
-                                    @foreach ($dateChunk as $date)
-                                    @foreach ($programs as $program)
-                                    @php
-                                    $faculty = \App\Models\Faculty::where(
-                                    'program_id',
-                                    $program->id,
-                                    )
-                                    ->where('name', 'LIKE', '% 1')
-                                    ->first();
-                                    $slotStartTime = Carbon::createFromFormat(
-                                    'H:i',
-                                    $slot['start_time'],
-                                    )->format('H:i:s');
-                                    $slotEndTime = Carbon::createFromFormat(
-                                    'H:i',
-                                    $slot['end_time'],
-                                    )->format('H:i:s');
-                                    $timetable = $timetables->firstWhere(function ($t) use (
-                                    $faculty,
-                                    $date,
-                                    $slotStartTime,
-                                    $slotEndTime,
-                                    ) {
-                                    return $t->faculty_id ==
-                                    ($faculty ? $faculty->id : null) &&
-                                    $t->exam_date == $date &&
-                                    $t->start_time == $slotStartTime &&
-                                    $t->end_time == $slotEndTime;
-                                    });
-                                    @endphp
-                                    <td class="{{ $timetable ? 'course-cell' : 'empty-cell' }}">
-                                        @if ($timetable)
-                                        <p class="fw-bold mb-1">{{ $timetable->course_code }}
-                                        </p>
-                                        <p class="mb-2">
-                                            {{ optional($timetable->venue)->name ?? 'N/A' }}
-                                        </p>
-                                        <div class="d-flex justify-content-center flex-nowrap">
-                                            <a href="#" class="action-icon show-exam" data-id="{{ $timetable->id }}"
-                                                data-bs-toggle="tooltip" data-bs-placement="top" title="Show Details">
-                                                <i class="bi bi-eye-fill text-primary"></i>
-                                            </a>
-                                            <a href="#" class="action-icon edit-exam" data-id="{{ $timetable->id }}"
-                                                data-faculty-id="{{ $faculty ? $faculty->id : '' }}"
-                                                data-course-code="{{ $timetable->course_code }}"
-                                                data-exam-date="{{ $timetable->exam_date }}"
-                                                data-time-slot="{{ json_encode(['start_time' => Carbon::createFromFormat('H:i:s', $timetable->start_time)->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i:s', $timetable->end_time)->format('H:i'), 'name' => $slot['name']]) }}"
-                                                data-venue-id="{{ $timetable->venue_id }}"
-                                                data-group-selection="{{ $timetable->group_selection }}"
-                                                data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}"
-                                                data-bs-toggle="tooltip" data-bs-placement="top" title="Edit Exam">
-                                                <i class="bi bi-pencil-square text-primary"></i>
-                                            </a>
-                                            <form action="{{ route('timetables.destroy', $timetable->id) }}"
-                                                method="POST" style="display:inline;" class="delete-exam-form">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="action-icon" data-bs-toggle="tooltip"
-                                                    data-bs-placement="top" title="Delete Exam">
-                                                    <i class="bi bi-trash text-danger"></i>
-                                                </button>
-                                            </form>
-                                        </div>
-                                        @else
-                                        @if (1 <= $program->total_years)
-                                            <a href="#" class="create-exam" data-program-id="{{ $program->id }}"
-                                                data-year-num="1" data-date="{{ $date }}"
-                                                data-time-slot="{{ json_encode($slot) }}">
-                                                <i class="bi bi-plus-circle fs-5"></i>
-                                            </a>
-                                            @else
-                                            <span class="text-muted">N/A</span>
-                                            @endif
-                                            @endif
-                                    </td>
-                                    @endforeach
-                                    @endforeach
-                                </tr>
-                                <tr>
-                                    <td class="year-header">Year 2</td>
-                                    @foreach ($dateChunk as $date)
-                                    @foreach ($programs as $program)
-                                    @php
-                                    $faculty = \App\Models\Faculty::where(
-                                    'program_id',
-                                    $program->id,
-                                    )
-                                    ->where('name', 'LIKE', '% 2')
-                                    ->first();
-                                    $slotStartTime = Carbon::createFromFormat(
-                                    'H:i',
-                                    $slot['start_time'],
-                                    )->format('H:i:s');
-                                    $slotEndTime = Carbon::createFromFormat(
-                                    'H:i',
-                                    $slot['end_time'],
-                                    )->format('H:i:s');
-                                    $timetable = $timetables->firstWhere(function ($t) use (
-                                    $faculty,
-                                    $date,
-                                    $slotStartTime,
-                                    $slotEndTime,
-                                    ) {
-                                    return $t->faculty_id ==
-                                    ($faculty ? $faculty->id : null) &&
-                                    $t->exam_date == $date &&
-                                    $t->start_time == $slotStartTime &&
-                                    $t->end_time == $slotEndTime;
-                                    });
-                                    @endphp
-                                    <td class="{{ $timetable ? 'course-cell' : 'empty-cell' }}">
-                                        @if ($timetable)
-                                        <p class="fw-bold mb-1">{{ $timetable->course_code }}
-                                        </p>
-                                        <p class="mb-2">
-                                            {{ optional($timetable->venue)->name ?? 'N/A' }}
-                                        </p>
-                                        <div class="d-flex justify-content-center flex-nowrap">
-                                            <a href="#" class="action-icon show-exam" data-id="{{ $timetable->id }}"
-                                                data-bs-toggle="tooltip" data-bs-placement="top" title="Show Details">
-                                                <i class="bi bi-eye-fill text-primary"></i>
-                                            </a>
-                                            <a href="#" class="action-icon edit-exam" data-id="{{ $timetable->id }}"
-                                                data-faculty-id="{{ $faculty ? $faculty->id : '' }}"
-                                                data-course-code="{{ $timetable->course_code }}"
-                                                data-exam-date="{{ $timetable->exam_date }}"
-                                                data-time-slot="{{ json_encode(['start_time' => Carbon::createFromFormat('H:i:s', $timetable->start_time)->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i:s', $timetable->end_time)->format('H:i'), 'name' => $slot['name']]) }}"
-                                                data-venue-id="{{ $timetable->venue_id }}"
-                                                data-group-selection="{{ $timetable->group_selection }}"
-                                                data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}"
-                                                data-bs-toggle="tooltip" data-bs-placement="top" title="Edit Exam">
-                                                <i class="bi bi-pencil-square text-primary"></i>
-                                            </a>
-                                            <form action="{{ route('timetables.destroy', $timetable->id) }}"
-                                                method="POST" style="display:inline;" class="delete-exam-form">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="action-icon" data-bs-toggle="tooltip"
-                                                    data-bs-placement="top" title="Delete Exam">
-                                                    <i class="bi bi-trash text-danger"></i>
-                                                </button>
-                                            </form>
-                                        </div>
-                                        @else
-                                        @if (2 <= $program->total_years)
-                                            <a href="#" class="create-exam" data-program-id="{{ $program->id }}"
-                                                data-year-num="2" data-date="{{ $date }}"
-                                                data-time-slot="{{ json_encode($slot) }}">
-                                                <i class="bi bi-plus-circle fs-5"></i>
-                                            </a>
-                                            @else
-                                            <span class="text-muted">N/A</span>
-                                            @endif
-                                            @endif
-                                    </td>
-                                    @endforeach
-                                    @endforeach
-                                </tr>
-                                <tr>
-                                    <td class="year-header">Year 3</td>
-                                    @foreach ($dateChunk as $date)
-                                    @foreach ($programs as $program)
-                                    @php
-                                    $faculty = \App\Models\Faculty::where(
-                                    'program_id',
-                                    $program->id,
-                                    )
-                                    ->where('name', 'LIKE', '% 3')
-                                    ->first();
-                                    $slotStartTime = Carbon::createFromFormat(
-                                    'H:i',
-                                    $slot['start_time'],
-                                    )->format('H:i:s');
-                                    $slotEndTime = Carbon::createFromFormat(
-                                    'H:i',
-                                    $slot['end_time'],
-                                    )->format('H:i:s');
-                                    $timetable = $timetables->firstWhere(function ($t) use (
-                                    $faculty,
-                                    $date,
-                                    $slotStartTime,
-                                    $slotEndTime,
-                                    ) {
-                                    return $t->faculty_id ==
-                                    ($faculty ? $faculty->id : null) &&
-                                    $t->exam_date == $date &&
-                                    $t->start_time == $slotStartTime &&
-                                    $t->end_time == $slotEndTime;
-                                    });
-                                    @endphp
-                                    <td class="{{ $timetable ? 'course-cell' : 'empty-cell' }}">
-                                        @if ($timetable)
-                                        <p class="fw-bold mb-1">{{ $timetable->course_code }}
-                                        </p>
-                                        <p class="mb-2">
-                                            {{ optional($timetable->venue)->name ?? 'N/A' }}
-                                        </p>
-                                        <div class="d-flex justify-content-center flex-nowrap">
-                                            <a href="#" class="action-icon show-exam" data-id="{{ $timetable->id }}"
-                                                data-bs-toggle="tooltip" data-bs-placement="top" title="Show Details">
-                                                <i class="bi bi-eye-fill text-primary"></i>
-                                            </a>
-                                            <a href="#" class="action-icon edit-exam" data-id="{{ $timetable->id }}"
-                                                data-faculty-id="{{ $faculty ? $faculty->id : '' }}"
-                                                data-course-code="{{ $timetable->course_code }}"
-                                                data-exam-date="{{ $timetable->exam_date }}"
-                                                data-time-slot="{{ json_encode(['start_time' => Carbon::createFromFormat('H:i:s', $timetable->start_time)->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i:s', $timetable->end_time)->format('H:i'), 'name' => $slot['name']]) }}"
-                                                data-venue-id="{{ $timetable->venue_id }}"
-                                                data-group-selection="{{ $timetable->group_selection }}"
-                                                data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}"
-                                                data-bs-toggle="tooltip" data-bs-placement="top" title="Edit Exam">
-                                                <i class="bi bi-pencil-square text-primary"></i>
-                                            </a>
-                                            <form action="{{ route('timetables.destroy', $timetable->id) }}"
-                                                method="POST" style="display:inline;" class="delete-exam-form">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="action-icon" data-bs-toggle="tooltip"
-                                                    data-bs-placement="top" title="Delete Exam">
-                                                    <i class="bi bi-trash text-danger"></i>
-                                                </button>
-                                            </form>
-                                        </div>
-                                        @else
-                                        @if (3 <= $program->total_years)
-                                            <a href="#" class="create-exam" data-program-id="{{ $program->id }}"
-                                                data-year-num="3" data-date="{{ $date }}"
-                                                data-time-slot="{{ json_encode($slot) }}">
-                                                <i class="bi bi-plus-circle fs-5"></i>
-                                            </a>
-                                            @else
-                                            <span class="text-muted">N/A</span>
-                                            @endif
-                                            @endif
-                                    </td>
-                                    @endforeach
-                                    @endforeach
-                                </tr>
-                                <tr>
-                                    <td class="year-header">Year 4</td>
-                                    @foreach ($dateChunk as $date)
-                                    @foreach ($programs as $program)
-                                    @php
-                                    $faculty = \App\Models\Faculty::where(
-                                    'program_id',
-                                    $program->id,
-                                    )
-                                    ->where('name', 'LIKE', '% 4')
-                                    ->first();
-                                    $slotStartTime = Carbon::createFromFormat(
-                                    'H:i',
-                                    $slot['start_time'],
-                                    )->format('H:i:s');
-                                    $slotEndTime = Carbon::createFromFormat(
-                                    'H:i',
-                                    $slot['end_time'],
-                                    )->format('H:i:s');
-                                    $timetable = $timetables->firstWhere(function ($t) use (
-                                    $faculty,
-                                    $date,
-                                    $slotStartTime,
-                                    $slotEndTime,
-                                    ) {
-                                    return $t->faculty_id ==
-                                    ($faculty ? $faculty->id : null) &&
-                                    $t->exam_date == $date &&
-                                    $t->start_time == $slotStartTime &&
-                                    $t->end_time == $slotEndTime;
-                                    });
-                                    @endphp
-                                    <td class="{{ $timetable ? 'course-cell' : 'empty-cell' }}">
-                                        @if ($timetable)
-                                        <p class="fw-bold mb-1">{{ $timetable->course_code }}
-                                        </p>
-                                        <p class="mb-2">
-                                            {{ optional($timetable->venue)->name ?? 'N/A' }}
-                                        </p>
-                                        <div class="d-flex justify-content-center flex-nowrap">
-                                            <a href="#" class="action-icon show-exam" data-id="{{ $timetable->id }}"
-                                                data-bs-toggle="tooltip" data-bs-placement="top" title="Show Details">
-                                                <i class="bi bi-eye-fill text-primary"></i>
-                                            </a>
-                                            <a href="#" class="action-icon edit-exam" data-id="{{ $timetable->id }}"
-                                                data-faculty-id="{{ $faculty ? $faculty->id : '' }}"
-                                                data-course-code="{{ $timetable->course_code }}"
-                                                data-exam-date="{{ $timetable->exam_date }}"
-                                                data-time-slot="{{ json_encode(['start_time' => Carbon::createFromFormat('H:i:s', $timetable->start_time)->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i:s', $timetable->end_time)->format('H:i'), 'name' => $slot['name']]) }}"
-                                                data-venue-id="{{ $timetable->venue_id }}"
-                                                data-group-selection="{{ $timetable->group_selection }}"
-                                                data-lecturer-ids="{{ json_encode($timetable->lecturers->pluck('id')->toArray()) }}"
-                                                data-bs-toggle="tooltip" data-bs-placement="top" title="Edit Exam">
-                                                <i class="bi bi-pencil-square text-primary"></i>
-                                            </a>
-                                            <form action="{{ route('timetables.destroy', $timetable->id) }}"
-                                                method="POST" style="display:inline;" class="delete-exam-form">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="action-icon" data-bs-toggle="tooltip"
-                                                    data-bs-placement="top" title="Delete Exam">
-                                                    <i class="bi bi-trash text-danger"></i>
-                                                </button>
-                                            </form>
-                                        </div>
-                                        @else
-                                        @if (4 <= $program->total_years)
-                                            <a href="#" class="create-exam" data-program-id="{{ $program->id }}"
-                                                data-year-num="4" data-date="{{ $date }}"
-                                                data-time-slot="{{ json_encode($slot) }}">
-                                                <i class="bi bi-plus-circle fs-5"></i>
-                                            </a>
-                                            @else
-                                            <span class="text-muted">N/A</span>
-                                            @endif
-                                            @endif
-                                    </td>
-                                    @endforeach
-                                    @endforeach
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                <div class="card-body">
+                    <p class="mb-2">
+                        <i class="fas fa-calendar me-2"></i>
+                        <strong>Period:</strong> {{ Carbon::parse($setup->start_date)->format('M d, Y') }} - {{
+                        Carbon::parse($setup->end_date)->format('M d, Y') }}
+                    </p>
+                    <p class="mb-2">
+                        <i class="fas fa-clock me-2"></i>
+                        <strong>Time Slots:</strong> {{ count($setup->time_slots) }}
+                    </p>
+                    <p class="mb-2">
+                        <i class="fas fa-calendar-check me-2"></i>
+                        <strong>Weekends:</strong> {{ $setup->include_weekends ? 'Included' : 'Excluded' }}
+                    </p>
+                    <p class="mb-2">
+                        <i class="fas fa-list-ol me-2"></i>
+                        <strong>Exams Scheduled:</strong> {{ $setup->examinationTimetables->count() }}
+                    </p>
+                </div>
+                <div class="card-footer bg-white">
+                    <div class="d-flex justify-content-between">
+                        <a href="#" class="btn btn-sm btn-primary view-setup" data-setup-id="{{ $setup->id }}">
+                            <i class="fas fa-eye me-1"></i> View
+                        </a>
+
+                        <button class="btn btn-sm btn-warning edit-setup" data-setup-id="{{ $setup->id }}">
+                            <i class="fas fa-edit me-1"></i> Edit
+                        </button>
+                        <form action="{{ route('examination.destroySetup', $setup->id) }}" method="POST"
+                            class="d-inline delete-setup-form">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <i class="fas fa-trash me-1"></i> Delete
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    @endforeach
-    @else
-    <div class="alert alert-info">
-        No examination setup found. Please create a setup to start scheduling exams.
+        @endforeach
     </div>
     @endif
 
-    <!-- Setup Modal -->
-    <div class="modal fade" id="setupModal" tabindex="-1" aria-labelledby="setupModalLabel" aria-hidden="true">
+    @if ($setup)
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-gradient" style="background: linear-gradient(135deg, #6f42c1, #4B2E83);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0 text-white">
+                            {{ $setup->semester->name ?? 'N/A' }} - {{ $setup->academic_year }}
+                        </h4>
+                        <div>
+                            <button class="btn btn-light btn-sm me-2" data-bs-toggle="modal"
+                                data-bs-target="#generateModal">
+                                <i class="fas fa-magic me-1"></i> Auto-Generate
+                            </button>
+                            @if($setup)
+                            <button class="btn btn-success btn-sm me-2" data-bs-toggle="modal"
+                                data-bs-target="#exportPdfModal">
+                                <i class="fas fa-file-pdf me-1"></i> Export PDF
+                            </button>
+                            @endif
+                            <button class="btn btn-warning btn-sm me-2 edit-setup" data-setup-id="{{ $setup->id }}">
+                                <i class="fas fa-edit me-1"></i> Edit Setup
+                            </button>
+                            <form action="{{ route('examination.clearTimetables', $setup->id) }}" method="POST"
+                                class="d-inline clear-timetables-form">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-danger btn-sm">
+                                    <i class="fas fa-trash-alt me-1"></i> Clear All
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Select Program to Continue</label>
+                        <select class="form-control select2" id="filter_program" data-placeholder="Select a program">
+                            <option value=""></option>
+                            @foreach($programs as $p)
+                            <option value="{{ $p->id }}" {{ ((string)$programId===(string)$p->id) ? 'selected' : '' }}>
+                                {{ $p->name }}
+                            </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">Choose a program to view its timetable.</small>
+                    </div>
+                </div>
+
+                @if(empty($programId))
+                <div class="alert alert-info text-center">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Select a program to continue.
+                </div>
+                @else
+                @foreach($dateChunks as $chunkIndex => $chunkDays)
+                <div class="table-responsive mb-4">
+                    <table class="table table-bordered exam-table align-middle">
+                        <thead>
+                            <tr>
+                                <th style="width:220px;">TIME</th>
+                                <th style="width:180px;">CLASS</th>
+                                @foreach($chunkDays as $d)
+                                <th>
+                                    {{ Carbon::parse($d)->format('d-m') }}
+                                    ({{ strtoupper(Carbon::parse($d)->format('l')) }})
+                                </th>
+                                @endforeach
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach($timeSlots as $slot)
+                            @php
+                            $slotStart = Carbon::createFromFormat('H:i', $slot['start_time'])->format('H:i');
+                            $slotEnd = Carbon::createFromFormat('H:i', $slot['end_time'])->format('H:i');
+                            $slotLabel = ($slot['name'] ?? 'Session') . " ({$slotStart}-{$slotEnd})";
+                            @endphp
+
+                            @if($classes->isEmpty())
+                            <tr>
+                                <td class="fw-semibold" style="background:#4B2E83;color:#fff;">
+                                    {{ $slotLabel }}
+                                </td>
+                                <td colspan="{{ 1 + count($chunkDays) }}" class="text-muted text-center">
+                                    No classes found for this program.
+                                </td>
+                            </tr>
+                            @else
+                            @foreach($classes as $i => $class)
+                            <tr>
+                                {{-- TIME column with rowspan like screenshot --}}
+                                @if($i === 0)
+                                <td rowspan="{{ $classes->count() }}" class="fw-semibold"
+                                    style="background:#4B2E83;color:#fff;">
+                                    {{ $slotLabel }}
+                                </td>
+                                @endif
+
+                                {{-- CLASS column --}}
+                                <td class="fw-semibold" style="background:#5b3aa6;color:#fff;">
+                                    {{ $class->name }}
+                                </td>
+
+                                {{-- date cells --}}
+                                @foreach($chunkDays as $d)
+                                @php
+                                $dateKey = Carbon::parse($d)->format('Y-m-d');
+                                $items = $grid[$class->id][$dateKey][$slotStart] ?? [];
+                                @endphp
+
+                                <td class="course-cell">
+                                    @if(!empty($items))
+                                    @foreach($items as $tt)
+                                    <div class="mb-2">
+                                        <div class="fw-bold">{{ $tt->course_code }}</div>
+
+                                        {{-- venues --}}
+                                        <div class="small">
+                                            @foreach($tt->venues as $v)
+                                            <span class="venue-badge">
+                                                {{ $v->name }}
+                                                ({{ $v->pivot->allocated_capacity ?? 0 }})
+                                            </span>
+                                            @endforeach
+                                        </div>
+
+                                        {{-- actions --}}
+                                        <div class="mt-2">
+                                            <a href="#" class="action-icon show-exam" data-id="{{ $tt->id }}"
+                                                title="View">
+                                                <i class="bi bi-eye-fill text-primary"></i>
+                                            </a>
+
+                                            <a href="#" class="action-icon edit-exam" data-id="{{ $tt->id }}"
+                                                title="Edit">
+                                                <i class="bi bi-pencil-fill text-warning"></i>
+                                            </a>
+
+
+                                            <form action="{{ route('timetables.destroy', $tt->id) }}" method="POST"
+                                                class="d-inline delete-exam-form">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="action-icon border-0 bg-transparent"
+                                                    title="Delete">
+                                                    <i class="bi bi-trash text-danger"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    @endforeach
+                                    @else
+                                    {{-- plus icon like screenshot --}}
+                                    <div class="text-center">
+                                        <a href="#" class="text-decoration-none add-exam"
+                                            data-faculty-id="{{ $class->id }}" data-exam-date="{{ $dateKey }}"
+                                            data-start-time="{{ $slotStart }}" data-end-time="{{ $slotEnd }}"
+                                            title="Add exam">
+                                            <i class="bi bi-plus-circle" style="font-size:1.4rem;color:#6f42c1;"></i>
+                                        </a>
+                                    </div>
+
+                                    @endif
+                                </td>
+                                @endforeach
+                            </tr>
+                            @endforeach
+                            @endif
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                @endforeach
+
+                @endif
+
+            </div>
+        </div>
+    </div>
+    @else
+    <div class="alert alert-info text-center">
+        <i class="fas fa-info-circle me-2"></i>
+        Select an examination setup above to view or manage its timetable.
+    </div>
+    @endif
+
+    <div class="modal fade" id="setupModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <form id="setupForm" action="{{ route('timetables.storeSetup') }}" method="POST">
+                <form action="{{ route('timetables.storeSetup') }}" method="POST">
                     @csrf
                     <div class="modal-header">
-                        <h5 class="modal-title" id="setupModalLabel">Examination Setup</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title">Create Examination Setup</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="type" class="form-label">Program Types <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="type" name="type[]" multiple required>
-                                    <option value="Degree">Degree</option>
-                                    <option value="Non Degree">Non Degree</option>
-                                    <option value="Masters">Masters</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="academic_year" class="form-label">Academic Year <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="academic_year" name="academic_year" required>
-                                    @foreach ($academicYears as $year)
-                                    <option value="{{ $year }}" {{ $year=='2024/2025' ? 'selected' : '' }}>{{ $year }}
-                                    </option>
+                                <label class="form-label">Semester <span class="text-danger">*</span></label>
+                                <select class="form-control select2" name="semester_id" required>
+                                    <option value="">Select Semester</option>
+                                    @foreach ($semesters as $semester)
+                                    <option value="{{ $semester->id }}">{{ $semester->name }}</option>
                                     @endforeach
                                 </select>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="semester" class="form-label">Semester <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="semester" name="semester" required>
-                                    @foreach ($semesters as $sem)
-                                    <option value="{{ $sem }}">{{ $sem }}</option>
-                                    @endforeach
-                                </select>
+                                <label class="form-label">Academic Year <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="academic_year" placeholder="2024/2025"
+                                    pattern="\d{4}/\d{4}" required>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="start_date" class="form-label">Start Date <span
-                                        class="text-danger">*</span></label>
-                                <input type="date" class="form-control" id="start_date" name="start_date" required>
+                                <label class="form-label">Start Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" name="start_date" required>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="end_date" class="form-label">End Date <span
-                                        class="text-danger">*</span></label>
-                                <input type="date" class="form-control" id="end_date" name="end_date" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="include_weekends" class="form-label">Include Weekends</label>
-                                <input type="checkbox" id="include_weekends" name="include_weekends"
-                                    class="form-check-input">
+                                <label class="form-label">End Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" name="end_date" required>
                             </div>
                             <div class="col-md-12 mb-3">
-                                <label for="programs" class="form-label">Programs <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="programs" name="programs[]" multiple required>
-                                    @foreach ($allPrograms as $program)
-                                    <option value="{{ $program->id }}">{{ $program->name }}</option>
-                                    @endforeach
-                                </select>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="include_weekends"
+                                        id="include_weekends">
+                                    <label class="form-check-label" for="include_weekends">
+                                        Include Weekends
+                                    </label>
+                                </div>
                             </div>
                             <div class="col-md-12 mb-3">
                                 <label class="form-label">Time Slots <span class="text-danger">*</span></label>
                                 <div id="timeSlots">
-                                    <div class="time-slot mb-2">
-                                        <input type="text" class="form-control mb-1" name="time_slots[0][name]"
-                                            placeholder="Slot Name" required>
-                                        <input type="time" class="form-control mb-1" name="time_slots[0][start_time]"
-                                            required>
-                                        <input type="time" class="form-control" name="time_slots[0][end_time]" required>
+                                    <div class="time-slot-container mb-3">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <input type="text" class="form-control" name="time_slots[0][name]"
+                                                    placeholder="Morning Session" required>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <input type="time" class="form-control" name="time_slots[0][start_time]"
+                                                    required>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <input type="time" class="form-control" name="time_slots[0][end_time]"
+                                                    required>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                <button type="button" class="btn btn-primary mt-2" onclick="addTimeSlot()">Add Time
-                                    Slot</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addTimeSlot()">
+                                    <i class="fas fa-plus me-1"></i> Add Time Slot
+                                </button>
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary">Save Setup</button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Setup</button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+
+    @if ($setup)
+    <div class="modal fade" id="exportPdfModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="exportPdfForm" method="POST" action="{{ route('examination.export.pdf', $setup->id) }}">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title">Export Examination Timetable</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Export For</label>
+                            <select class="form-control select2" name="scope" id="export_scope" required
+                                data-placeholder="Select option">
+                                <option value=""></option>
+                                <option value="all">All Programs</option>
+                                <option value="single">Single Program</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3" id="export_program_wrap" style="display:none;">
+                            <label class="form-label fw-semibold">Select Program</label>
+                            <select class="form-control select2" name="program_id" id="export_program_id"
+                                data-placeholder="Select program">
+                                <option value=""></option>
+                                @foreach($programs as $p)
+                                <option value="{{ $p->id }}">{{ $p->short_name }} - {{ $p->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Draft</label>
+                            <select class="form-control select2" name="draft" required data-placeholder="Select draft">
+                                <option value=""></option>
+                                <option>First Draft</option>
+                                <option>Second Draft</option>
+                                <option>Third Draft</option>
+                                <option>Fourth Draft</option>
+                                <option>Fifth Draft</option>
+                                <option selected>Final Draft</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-download me-1"></i> Download PDF
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
-
-    <!-- Edit Setup Modal -->
-    @if ($setup)
-    <div class="modal fade" id="editSetupModal" tabindex="-1" aria-labelledby="editSetupModalLabel" aria-hidden="true">
+    @endif
+    <div class="modal fade" id="editSetupModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <form id="editSetupForm" action="{{ route('timetables.updateSetup', $setup->id) }}" method="POST">
+                <form id="editSetupForm" method="POST">
                     @csrf
                     @method('PUT')
                     <div class="modal-header">
-                        <h5 class="modal-title" id="editSetupModalLabel">Edit Examination Setup</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title">Edit Examination Setup</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="edit_type" class="form-label">Program Types <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="edit_type" name="type[]" multiple required>
-                                    <option value="Degree" {{ in_array('Degree', $setup->type) ? 'selected' : ''
-                                        }}>Degree</option>
-                                    <option value="Non Degree" {{ in_array('Non Degree', $setup->type) ? 'selected' : ''
-                                        }}>Non Degree
-                                    </option>
-                                    <option value="Masters" {{ in_array('Masters', $setup->type) ? 'selected' : ''
-                                        }}>Masters</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="edit_academic_year" class="form-label">Academic Year <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="edit_academic_year" name="academic_year"
-                                    required>
-                                    @foreach ($academicYears as $year)
-                                    <option value="{{ $year }}" {{ $year==$setup->academic_year ? 'selected' : '' }}>
-                                        {{ $year }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="edit_semester" class="form-label">Semester <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="edit_semester" name="semester" required>
-                                    @foreach ($semesters as $sem)
-                                    <option value="{{ $sem }}" {{ $sem==$setup->semester ? 'selected' : '' }}>{{ $sem }}
-                                    </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="edit_start_date" class="form-label">Start Date <span
-                                        class="text-danger">*</span></label>
-                                <input type="date" class="form-control" id="edit_start_date" name="start_date"
-                                    value="{{ $setup->start_date }}" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="edit_end_date" class="form-label">End Date <span
-                                        class="text-danger">*</span></label>
-                                <input type="date" class="form-control" id="edit_end_date" name="end_date"
-                                    value="{{ $setup->end_date }}" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="edit_include_weekends" class="form-label">Include Weekends</label>
-                                <input type="checkbox" id="edit_include_weekends" name="include_weekends"
-                                    class="form-check-input" {{ $setup->include_weekends ? 'checked' : '' }}>
-                            </div>
-                            <div class="col-md-12 mb-3">
-                                <label for="edit_programs" class="form-label">Programs <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="edit_programs" name="programs[]" multiple
-                                    required>
-                                    @foreach ($allPrograms as $program)
-                                    <option value="{{ $program->id }}" {{ in_array($program->id, $setup->programs) ?
-                                        'selected' : '' }}>
-                                        {{ $program->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-12 mb-3">
-                                <label class="form-label">Time Slots <span class="text-danger">*</span></label>
-                                <div id="editTimeSlots">
-                                    @foreach ($setup->time_slots as $index => $slot)
-                                    <div class="time-slot mb-2">
-                                        <input type="text" class="form-control mb-1"
-                                            name="time_slots[{{ $index }}][name]" value="{{ $slot['name'] }}"
-                                            placeholder="Slot Name" required>
-                                        <input type="time" class="form-control mb-1"
-                                            name="time_slots[{{ $index }}][start_time]"
-                                            value="{{ $slot['start_time'] }}" required>
-                                        <input type="time" class="form-control"
-                                            name="time_slots[{{ $index }}][end_time]" value="{{ $slot['end_time'] }}"
-                                            required>
-                                    </div>
-                                    @endforeach
-                                </div>
-                                <button type="button" class="btn btn-primary mt-2" onclick="addEditTimeSlot()">Add Time
-                                    Slot</button>
-                            </div>
-                        </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-primary">Update Setup</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
-    @endif
 
-    <!-- Create/Edit Exam Modal -->
-    <div class="modal fade" id="examModal" tabindex="-1" aria-labelledby="examModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+    @if ($setup)
+    <div class="modal fade" id="generateModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
-                <form id="examForm" method="POST">
+                <form id="generateForm">
                     @csrf
-                    <input type="hidden" id="examId" name="exam_id">
+                    <input type="hidden" name="exam_setup_id" value="{{ $setup->id }}">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="examModalLabel">Create Exam</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title">Auto-Generate Examination Timetable</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <input type="hidden" name="faculty_id" id="faculty_id">
-                        @if ($setup)
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="exam_date" class="form-label">Exam Date <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="exam_date" name="exam_date" required>
-                                    @foreach ($days as $day)
-                                    @php
-                                    $carbonDay = Carbon::parse($day);
-                                    $displayDay =
-                                    $carbonDay->format('d-m') .
-                                    ' (' .
-                                    $carbonDay->format('l') .
-                                    ')';
-                                    @endphp
-                                    <option value="{{ $day }}">{{ $displayDay }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="time_slot" class="form-label">Time Slot <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="time_slot" name="time_slot" required>
-                                    @foreach ($timeSlots as $slot)
-                                    <option
-                                        value="{{ json_encode(['name' => $slot['name'], 'start_time' => Carbon::createFromFormat('H:i', $slot['start_time'])->format('H:i'), 'end_time' => Carbon::createFromFormat('H:i', $slot['end_time'])->format('H:i')]) }}">
-                                        {{ $slot['name'] }} ({{ $slot['start_time'] }} -
-                                        {{ $slot['end_time'] }})
-                                    </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="course_code" class="form-label">Course <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="course_code" name="course_code" required>
-                                    <option value="">Select Course</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="venue_id" class="form-label">Venue <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="venue_id" name="venue_id" required>
-                                    @foreach ($venues as $venue)
-                                    <option value="{{ $venue->id }}" data-capacity="{{ $venue->capacity }}">
-                                        {{ $venue->name }} (Capacity: {{ $venue->capacity }})
-                                    </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="group_selection" class="form-label">Groups <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="group_selection" name="group_selection[]"
-                                    multiple required>
-                                    <option value="" disabled>Select Groups</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="lecturer_ids" class="form-label">Lecturers <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-control select2" id="lecturer_ids" name="lecturer_ids[]" multiple
-                                    required>
-                                    <option value="" disabled>Select Lecturers</option>
-                                </select>
+                        <div class="generate-options">
+                            <h6 class="fw-bold mb-3">Generation Options</h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Program <span class="text-danger">*</span></label>
+                                    <select class="form-control select2" name="program_id" id="program_id" required>
+                                        <option value="all">All Programs</option>
+                                        @foreach ($programs as $program)
+                                        <option value="{{ $program->id }}">{{ $program->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Faculty</label>
+                                    <select class="form-control select2" name="faculty_id" id="faculty_id">
+                                        <option value="all">All Faculties</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label">Time Priority <span class="text-danger">*</span></label>
+                                    <div class="d-flex gap-2">
+                                        <select class="form-control" name="time_priority[]" required>
+                                            <option value="morning">Morning</option>
+                                            <option value="afternoon">Afternoon</option>
+                                            <option value="evening">Evening</option>
+                                        </select>
+                                        <select class="form-control" name="time_priority[]" required>
+                                            <option value="afternoon">Afternoon</option>
+                                            <option value="morning">Morning</option>
+                                            <option value="evening">Evening</option>
+                                        </select>
+                                        <select class="form-control" name="time_priority[]" required>
+                                            <option value="evening">Evening</option>
+                                            <option value="morning">Morning</option>
+                                            <option value="afternoon">Afternoon</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Venue Strategy <span class="text-danger">*</span></label>
+                                    <select class="form-control" name="venue_strategy" id="venue_strategy" required>
+                                        <option value="distribute">Distribute (ll Available venues)</option>
+                                        <option value="single">Single (Selected venues only)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3" id="selected_venues_container" style="display: none;">
+                                    <label class="form-label">Select Venues</label>
+                                    <select class="form-control select2" name="selected_venues[]" id="selected_venues"
+                                        multiple>
+                                        @foreach ($venues as $venue)
+                                        <option value="{{ $venue->id }}">{{ $venue->name }} ({{ $venue->capacity }})
+                                        </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
                             </div>
                         </div>
-                        @endif
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary">Save Exam</button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-magic me-1"></i> Generate Timetable
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
+    @endif
 
-    <!-- Show Exam Modal -->
-    <div class="modal fade" id="showExamModal" tabindex="-1" aria-labelledby="showExamModalLabel" aria-hidden="true">
+    <div class="modal fade" id="viewExamModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="showExamModalLabel">Exam Details</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title">Examination Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Course Code</label>
-                            <p id="show_course_code"></p>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Course Name</label>
-                            <p id="show_course_name"></p>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Exam Date</label>
-                            <p id="show_exam_date"></p>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Time Slot</label>
-                            <p id="show_time_slot"></p>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Venue</label>
-                            <p id="show_venue_name"></p>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Venue Capacity</label>
-                            <p id="show_venue_capacity"></p>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Groups</label>
-                            <p id="show_group_selection"></p>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Lecturers</label>
-                            <p id="show_lecturers"></p>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Faculty</label>
-                            <p id="show_faculty_name"></p>
-                        </div>
-                    </div>
+                <div class="modal-body" id="examDetailsContent">
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
     </div>
+
+
+    <div class="modal fade" id="examFormModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form id="examForm" method="POST">
+                    @csrf
+                    <input type="hidden" name="_method" id="examFormMethod" value="POST">
+                    <input type="hidden" name="exam_setup_id" id="exam_setup_id" value="{{ $setup?->id }}">
+                    <input type="hidden" name="faculty_id" id="faculty_id_hidden">
+
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="examFormTitle">Add Exam</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="row g-3">
+
+                            <div class="col-md-6">
+                                <label class="form-label">Exam Date</label>
+                                <input type="date" class="form-control" name="exam_date" id="exam_date" required
+                                    readonly>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">Start</label>
+                                <input type="time" class="form-control" name="start_time" id="start_time" required
+                                    readonly>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label">End</label>
+                                <input type="time" class="form-control" name="end_time" id="end_time" required readonly>
+                            </div>
+
+                            <div class="col-md-12">
+                                <label class="form-label">Course</label>
+                                <select class="form-control select2" name="course_code" id="course_code" required
+                                    data-placeholder="Select course">
+                                    <option value=""></option>
+                                </select>
+                                <small class="text-muted">Courses are loaded based on the selected class
+                                    (faculty).</small>
+                            </div>
+
+                            <div class="col-md-12">
+                                <label class="form-label">Venues</label>
+                                <select class="form-control select2" name="selected_venues[]" id="exam_venues" multiple
+                                    required data-placeholder="Select venues">
+                                    @foreach($venues as $v)
+                                    <option value="{{ $v->id }}">{{ $v->name }} ({{ $v->capacity }})</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="examFormSubmitBtn">Save</button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="viewSetupModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Setup Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="setupDetailsContent">
+                    <!-- loaded by AJAX -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 @endsection
 
-
 @section('scripts')
 <script>
-    $(document).ready(function() {
-        // Initialize Select2 with custom template for course_code
-        const initializeSelect2 = (selector, modalId = null) => {
-            const options = {
-                dropdownParent: modalId ? $(modalId) : null,
-                theme: 'classic',
-                placeholder: 'Select an option',
-                allowClear: false,
-                width: '100%'
-            };
+    let timeSlotIndex = 1;
 
-            if (selector === '#course_code' || selector === '.course-select') {
-                options.templateResult = function(data) {
-                    if (!data.id) return data.text;
-                    return $('<span style="font-weight: 500;">' + data.text + '</span>');
-                };
-                options.templateSelection = function(data) {
-                    return $('<span style="font-weight: 600; color: #4B2E83;">' + data.text + '</span>');
-                };
-            }
+/* =========================
+   HELPERS (SweetAlert + Ajax)
+========================= */
+function extractAjaxMessage(xhr, fallback = 'Something went wrong.') {
+  try {
+    const r = xhr.responseJSON;
+    if (r?.message) return r.message;
+    if (r?.errors) return Object.values(r.errors).flat().join(' ');
+    if (typeof r === 'string') return r;
+  } catch (e) {}
+  return fallback;
+}
 
-            $(selector).select2(options);
-        };
+function swalLoading(title = 'Please wait...', text = 'Processing...') {
+  Swal.fire({
+    title,
+    text,
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    didOpen: () => Swal.showLoading()
+  });
+}
 
-        // Initialize Select2 for all dropdowns
-        initializeSelect2('#exam_type');
-        initializeSelect2('#type', '#setupModal');
-        initializeSelect2('#academic_year', '#setupModal');
-        initializeSelect2('#semester', '#setupModal');
-        initializeSelect2('#programs', '#setupModal');
-        initializeSelect2('#edit_type', '#editSetupModal');
-        initializeSelect2('#edit_academic_year', '#editSetupModal');
-        initializeSelect2('#edit_semester', '#editSetupModal');
-        initializeSelect2('#edit_programs', '#editSetupModal');
-        initializeSelect2('#exam_date', '#examModal');
-        initializeSelect2('#time_slot', '#examModal');
-        initializeSelect2('#course_code', '#examModal');
-        initializeSelect2('#venue_id', '#examModal');
-        initializeSelect2('#group_selection', '#examModal');
-        initializeSelect2('#lecturer_ids', '#examModal');
-
-        // Show Alert Function
-        function showAlert(type, title, message) {
-            Swal.fire({
-                icon: type,
-                title: title,
-                html: message, // Use html to support lists or formatted text
-                timer: type === 'success' ? 1500 : undefined,
-                showConfirmButton: type !== 'success',
-            });
+// Fix Select2 in ALL modals - including #setupModal
+$(document).on('shown.bs.modal', '.modal', function () {
+    $(this).find('.select2').each(function () {
+        if ($(this).data('select2')) {
+            $(this).select2('destroy');
         }
-
-        // Add Time Slot
-        let timeSlotIndex = 1;
-        window.addTimeSlot = function() {
-            const timeSlotHtml = `
-                <div class="time-slot mb-2">
-                    <input type="text" class="form-control mb-1" name="time_slots[${timeSlotIndex}][name]" placeholder="Slot Name" required>
-                    <input type="time" class="form-control mb-1" name="time_slots[${timeSlotIndex}][start_time]" required>
-                    <input type="time" class="form-control" name="time_slots[${timeSlotIndex}][end_time]" required>
-                    <button type="button" class="btn btn-outline-danger btn-sm mt-1" onclick="removeTimeSlot(this)">Remove</button>
-                </div>`;
-            $('#timeSlots').append(timeSlotHtml);
-            timeSlotIndex++;
-        };
-
-        // Add Edit Time Slot
-        let editTimeSlotIndex = {{ $setup ? count($setup->time_slots) : 1 }};
-        window.addEditTimeSlot = function() {
-            const timeSlotHtml = `
-                <div class="time-slot mb-2">
-                    <input type="text" class="form-control mb-1" name="time_slots[${editTimeSlotIndex}][name]" placeholder="Slot Name" required>
-                    <input type="time" class="form-control mb-1" name="time_slots[${editTimeSlotIndex}][start_time]" required>
-                    <input type="time" class="form-control" name="time_slots[${editTimeSlotIndex}][end_time]" required>
-                    <button type="button" class="btn btn-outline-danger btn-sm mt-1" onclick="removeTimeSlot(this)">Remove</button>
-                </div>`;
-            $('#editTimeSlots').append(timeSlotHtml);
-            editTimeSlotIndex++;
-        };
-
-        // Remove Time Slot
-        window.removeTimeSlot = function(button) {
-            $(button).closest('.time-slot').remove();
-        };
-
-        // Load Courses
-        function loadCourses(facultyId, courseCode = null, targetSelect = '#course_code') {
-            if (!facultyId) {
-                $(targetSelect).empty().append('<option value="" disabled>Select Course</option>').trigger('change');
-                return;
-            }
-            $.ajax({
-                url: '{{ route('timetables.getFacultyCourses') }}',
-                method: 'GET',
-                data: {
-                    faculty_id: facultyId
-                },
-                success: function(response) {
-                    $(targetSelect).empty().append('<option value="" disabled>Select Course</option>');
-                    response.course_codes.forEach(course => {
-                        const option = new Option(`${course.course_code} - ${course.name}`,
-                            course.course_code, false, course.course_code === courseCode);
-                        $(targetSelect).append(option);
-                    });
-                    $(targetSelect).trigger('change');
-                },
-                error: function(xhr) {
-                    console.error('Error fetching courses:', xhr.responseText);
-                    showAlert('error', 'Error', 'Failed to load courses.');
-                }
-            });
-        }
-
-        // Load Groups
-        function loadGroups(facultyId, selectedGroups = []) {
-            if (!facultyId) {
-                $('#group_selection').empty().append('<option value="" disabled>Select Groups</option>')
-                    .trigger('change');
-                return;
-            }
-            $.ajax({
-                url: '{{ route('timetables.getFacultyGroups') }}',
-                method: 'GET',
-                data: {
-                    faculty_id: facultyId
-                },
-                success: function(response) {
-                    $('#group_selection').empty()
-                        .append('<option value="" disabled>Select Groups</option>')
-                        .append('<option value="all">All Groups</option>');
-                    response.groups.forEach(group => {
-                        const isSelected = selectedGroups.includes(group.group_name);
-                        const option = new Option(
-                            `${group.group_name} (${group.student_count} students)`,
-                            group.group_name, false, isSelected);
-                        $('#group_selection').append(option);
-                    });
-                    if (selectedGroups.length > 0 && response.groups.every(g => selectedGroups.includes(g.group_name))) {
-                        $('#group_selection').val('all').trigger('change');
-                    } else {
-                        $('#group_selection').val(selectedGroups).trigger('change');
-                    }
-                },
-                error: function(xhr) {
-                    console.error('Error fetching groups:', xhr.responseText);
-                    showAlert('error', 'Error', 'Failed to load groups.');
-                }
-            });
-        }
-
-        // Load Lecturers
-        function loadLecturers(courseCode, timetableId = null, selectedLecturerIds = []) {
-            if (!courseCode) {
-                $('#lecturer_ids').empty().append('<option value="" disabled>Select Lecturers</option>')
-                    .trigger('change');
-                return;
-            }
-            $.ajax({
-                url: '{{ route('timetables.getCourseLecturers') }}',
-                method: 'GET',
-                data: {
-                    course_code: courseCode,
-                    timetable_id: timetableId
-                },
-                success: function(response) {
-                    $('#lecturer_ids').empty().append(
-                        '<option value="" disabled>Select Lecturers</option>');
-                    response.lecturers.forEach(lecturer => {
-                        const isSelected = timetableId ? lecturer.selected :
-                            selectedLecturerIds.includes(lecturer.id);
-                        const option = new Option(lecturer.name, lecturer.id, false,
-                            isSelected);
-                        $('#lecturer_ids').append(option);
-                    });
-                    $('#lecturer_ids').trigger('change');
-                },
-                error: function(xhr) {
-                    console.error('Error fetching lecturers:', xhr.responseText);
-                    showAlert('error', 'Error', 'Failed to load lecturers.');
-                }
-            });
-        }
-
-        // Create Exam
-        $('.create-exam').click(function(e) {
-            e.preventDefault();
-            @if (!$setup)
-                showAlert('error', 'Error', 'Please create an examination setup first.');
-                return;
-            @endif
-
-            const programId = $(this).data('program-id');
-            const yearNum = $(this).data('year-num');
-            const date = $(this).data('date');
-            const timeSlot = $(this).data('time-slot');
-
-            $.ajax({
-                url: '{{ route('timetables.getFacultyByProgramYear', ['program_id' => ':programId', 'year_num' => ':yearNum']) }}'
-                    .replace(':programId', programId)
-                    .replace(':yearNum', yearNum),
-                method: 'GET',
-                success: function(faculty) {
-                    if (!faculty || !faculty.id) {
-                        showAlert('error', 'Error', 'Invalid year for this program.');
-                        return;
-                    }
-
-                    $('#examModalLabel').text('Create Exam');
-                    $('#examForm').attr('action', '{{ route('timetables.store') }}').find(
-                        '[name="_method"]').remove();
-                    $('#examId').val('');
-                    $('#faculty_id').val(faculty.id);
-                    $('#exam_date').val(date);
-                    const slotData = typeof timeSlot === 'string' ? JSON.parse(timeSlot) :
-                        timeSlot;
-                    $('#time_slot').val(JSON.stringify(slotData));
-                    $('#examForm').find('[name="start_time"], [name="end_time"]').remove();
-                    $('<input>').attr({
-                        type: 'hidden',
-                        name: 'start_time',
-                        value: slotData.start_time
-                    }).appendTo('#examForm');
-                    $('<input>').attr({
-                        type: 'hidden',
-                        name: 'end_time',
-                        value: slotData.end_time
-                    }).appendTo('#examForm');
-                    $('#venue_id').val('').trigger('change');
-                    $('#course_code').val('').trigger('change');
-                    $('#group_selection').val('').trigger('change');
-                    $('#lecturer_ids').val('').trigger('change');
-
-                    loadCourses(faculty.id);
-                    loadGroups(faculty.id);
-                    $('#examModal').modal('show');
-                },
-                error: function(xhr) {
-                    console.error('Error fetching faculty:', xhr.responseText);
-                    showAlert('error', 'Error', 'Failed to load faculty data.');
-                }
-            });
+        $(this).select2({
+            theme: 'classic',
+            width: '100%',
+            dropdownParent: $(this).closest('.modal'),  // This is the magic line
+            placeholder: $(this).data('placeholder') || 'Select an option',
+            allowClear: true
         });
-
-        // Edit Exam
-        $('.edit-exam').click(function(e) {
-            e.preventDefault();
-            const id = $(this).data('id');
-            const facultyId = $(this).data('faculty-id');
-            const courseCode = $(this).data('course-code');
-            const examDate = $(this).data('exam-date');
-            const timeSlot = $(this).data('time-slot');
-            const venueId = $(this).data('venue-id');
-            const groupSelection = $(this).data('group-selection');
-            const lecturerIds = typeof $(this).data('lecturer-ids') === 'string' ? JSON.parse($(this)
-                .data('lecturer-ids')) : $(this).data('lecturer-ids');
-
-            $('#examModalLabel').text('Edit Exam');
-            $('#examForm').attr('action', `{{ url('timetables') }}/${id}`).find('[name="_method"]')
-                .remove()
-                .end().append('<input type="hidden" name="_method" value="PUT">');
-            $('#examId').val(id);
-            $('#faculty_id').val(facultyId);
-            $('#exam_date').val(examDate);
-            const timeSlotParsed = typeof timeSlot === 'string' ? JSON.parse(timeSlot) : timeSlot;
-            $('#time_slot').val(JSON.stringify(timeSlotParsed));
-            $('#venue_id').val(venueId).trigger('change');
-            $('#examForm').find('[name="start_time"], [name="end_time"]').remove();
-            $('<input>').attr({
-                type: 'hidden',
-                name: 'start_time',
-                value: timeSlotParsed.start_time
-            }).appendTo('#examForm');
-            $('<input>').attr({
-                type: 'hidden',
-                name: 'end_time',
-                value: timeSlotParsed.end_time
-            }).appendTo('#examForm');
-
-            const selectedGroups = groupSelection ? groupSelection.split(',') : [];
-            loadCourses(facultyId, courseCode);
-            loadGroups(facultyId, selectedGroups);
-            loadLecturers(courseCode, id, lecturerIds);
-            $('#examModal').modal('show');
-        });
-
-        // Load Lecturers on Course Change
-        $('#course_code').on('change', function() {
-            const courseCode = $(this).val();
-            const timetableId = $('#examId').val();
-            loadLecturers(courseCode, timetableId);
-        });
-
-        // Exam Form Submission
-        $('#examForm').submit(function(e) {
-            e.preventDefault();
-            const form = $(this);
-            $.ajax({
-                url: form.attr('action'),
-                method: form.find('[name="_method"]').val() || 'POST',
-                data: form.serialize(),
-                success: function(response) {
-                    showAlert('success', 'Success', response.message || response.success);
-                    $('#examModal').modal('hide');
-                    window.location.reload();
-                },
-                error: function(xhr) {
-                    console.error('Error saving exam:', xhr.responseText);
-                    const errors = xhr.responseJSON && xhr.responseJSON.errors ? xhr.responseJSON.errors : {};
-                    let errorMessage = errors.conflict || errors.database || errors.error || xhr.responseJSON?.message || 'Failed to save exam.';
-                    
-                    if (xhr.responseJSON && xhr.responseJSON.errors && !errors.conflict && !errors.database && !errors.error) {
-                        errorMessage = '<ul>';
-                        Object.values(xhr.responseJSON.errors).forEach(error => {
-                            errorMessage += `<li>${error}</li>`;
-                        });
-                        errorMessage += '</ul>';
-                    }
-                    
-                    showAlert('error', 'Error', errorMessage);
-                }
-            });
-        });
-
-        // Delete Exam
-        $('.delete-exam-form').submit(function(e) {
-            e.preventDefault();
-            const form = $(this);
-            Swal.fire({
-                title: 'Are you sure?',
-                text: 'This exam will be deleted permanently!',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#3085d6',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Yes, delete it!'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    $.ajax({
-                        url: form.attr('action'),
-                        method: 'POST',
-                        data: form.serialize(),
-                        success: function(response) {
-                            showAlert('success', 'Success', response.success ||
-                                'Exam deleted successfully.');
-                            window.location.reload();
-                        },
-                        error: function(xhr) {
-                            console.error('Error deleting exam:', xhr.responseText);
-                            showAlert('error', 'Error', xhr.responseJSON?.error ||
-                                'Failed to delete exam.');
-                        }
-                    });
-                }
-            });
-        });
-
-        // Show Exam Details
-        $('.show-exam').click(function(e) {
-            e.preventDefault();
-            const id = $(this).data('id');
-            $.ajax({
-                url: `{{ url('timetables') }}/${id}`,
-                method: 'GET',
-                success: function(data) {
-                    $('#show_course_code').text(data.course_code || 'N/A');
-                    $('#show_course_name').text(data.course_name || 'N/A');
-                    $('#show_exam_date').text(data.exam_date || 'N/A');
-                    $('#show_time_slot').text(
-                        `${data.start_time} - ${data.end_time} (${data.time_slot_name})` ||
-                        'N/A');
-                    $('#show_venue_name').text(data.venue_name || 'N/A');
-                    $('#show_venue_capacity').text(data.venue_capacity || 'N/A');
-                    $('#show_group_selection').text(data.group_selection || 'N/A');
-                    $('#show_lecturers').text(data.lecturers.join(', ') || 'N/A');
-                    $('#show_faculty_name').text(data.faculty_name || 'N/A');
-                    $('#showExamModal').modal('show');
-                },
-                error: function(xhr) {
-                    console.error('Error fetching exam details:', xhr.responseText);
-                    showAlert('error', 'Error', 'Failed to load exam details.');
-                }
-            });
-        });
-
-        // Exam Type Filter
-        $('#exam_type').on('change', function() {
-            $('#examTypeFilterForm').submit();
-        });
-
-        // Auto-Generate Timetable Button Click
-        $('#auto-generate-btn').click(function (e) {
-            e.preventDefault();
-            const setupId = $(this).data('setup-id');
-            Swal.fire({
-                title: 'Generating Timetable',
-                html: 'Please wait while the timetable is being generated...',
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-            $.ajax({
-                url: '{{ route('timetables.generate') }}',
-                method: 'POST',
-                data: {
-                    _token: '{{ csrf_token() }}',
-                    exam_setup_id: setupId
-                },
-                success: function (response) {
-                    Swal.close();
-                    showAlert('success', 'Success', response.message);
-                    window.location.reload();
-                },
-                error: function (xhr) {
-                    Swal.close();
-                    const errors = xhr.responseJSON && xhr.responseJSON.errors ? xhr.responseJSON.errors : {};
-                    let errorMessage = errors.scheduling || errors.database || errors.error || xhr.responseJSON?.message || 'Failed to generate timetable.';
-                    
-                    if (xhr.responseJSON && xhr.responseJSON.errors && !errors.scheduling && !errors.database && !errors.error) {
-                        errorMessage = '<ul>';
-                        Object.values(xhr.responseJSON.errors).forEach(error => {
-                            errorMessage += `<li>${error}</li>`;
-                        });
-                        errorMessage += '</ul>';
-                    }
-                    
-                    showAlert('error', 'Error', errorMessage);
-                }
-            });
-        });
-
-        // Initialize Tooltips
-        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-        const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(
-            tooltipTriggerEl));
     });
+});
+
+function reinitSelect2($root, dropdownParent = null) {
+  $root.find('.select2').each(function () {
+    const $el = $(this);
+    if ($el.data('select2')) $el.select2('destroy');
+
+    $el.select2({
+      theme: 'classic',
+      width: '100%',
+      dropdownParent: dropdownParent || $root,
+      placeholder: $el.data('placeholder') || 'Select an option',
+      allowClear: true
+    });
+  });
+}
+
+
+$(document).on('change', '#export_scope', function () {
+  const v = $(this).val();
+  if (v === 'single') {
+    $('#export_program_wrap').slideDown();
+    $('#export_program_id').prop('required', true);
+  } else {
+    $('#export_program_wrap').slideUp();
+    $('#export_program_id').prop('required', false).val(null).trigger('change');
+  }
+});
+/* =========================
+   TIME SLOT ADDER
+========================= */
+window.addTimeSlot = function(containerId = 'timeSlots') {
+  const html = `
+    <div class="time-slot-container mb-3" data-index="${timeSlotIndex}">
+      <div class="row align-items-center">
+        <div class="col-md-4">
+          <input type="text" class="form-control" name="time_slots[${timeSlotIndex}][name]"
+                 placeholder="Session Name (e.g. Morning)" required>
+        </div>
+        <div class="col-md-3">
+          <input type="time" class="form-control" name="time_slots[${timeSlotIndex}][start_time]" required>
+        </div>
+        <div class="col-md-3">
+          <input type="time" class="form-control" name="time_slots[${timeSlotIndex}][end_time]" required>
+        </div>
+        <div class="col-md-2">
+          <button type="button" class="btn btn-sm btn-danger remove-time-slot">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    </div>`;
+  $(`#${containerId}`).append(html);
+  timeSlotIndex++;
+};
+
+$(document).ready(function() {
+
+  /* =========================
+     GLOBAL SELECT2 INIT
+  ========================= */
+  $('.select2').select2({
+    theme: 'classic',
+    width: '100%',
+    placeholder: function() {
+      return $(this).data('placeholder') || "Select an option";
+    },
+    allowClear: true
+  });
+
+  $(document).on('click', '.remove-time-slot', function() {
+    $(this).closest('.time-slot-container').remove();
+  });
+
+  /* =========================
+     PROGRAM FILTER (reload page)
+  ========================= */
+  $('#filter_program').on('change', function () {
+    const programId = $(this).val();
+    const params = new URLSearchParams(window.location.search);
+
+    if (!params.get('setup_id')) {
+      @if($setup)
+        params.set('setup_id', '{{ $setup->id }}');
+      @endif
+    }
+
+    if (!programId) params.delete('program_id');
+    else params.set('program_id', programId);
+
+    window.location.search = params.toString();
+  });
+
+  /* =========================
+     VIEW SETUP MODAL
+  ========================= */
+  $(document).on('click', '.view-setup', function(e) {
+    e.preventDefault();
+    const setupId = $(this).data('setup-id');
+
+    $('#setupDetailsContent').html('<div class="text-center py-4">Loading...</div>');
+    $('#viewSetupModal').modal('show');
+
+    $.get(`{{ url('/examination/setup') }}/${setupId}`)
+      .done(function(data) {
+        const slots = (data.time_slots || []).map(s =>
+          `<li>${s.name}: ${s.start_time} - ${s.end_time}</li>`
+        ).join('');
+
+        const html = `
+          <div class="row g-3">
+            <div class="col-md-6"><strong>Semester:</strong> ${data.semester || 'N/A'}</div>
+            <div class="col-md-6"><strong>Academic Year:</strong> ${data.academic_year || 'N/A'}</div>
+            <div class="col-md-6"><strong>Start Date:</strong> ${data.start_date || 'N/A'}</div>
+            <div class="col-md-6"><strong>End Date:</strong> ${data.end_date || 'N/A'}</div>
+            <div class="col-md-6"><strong>Weekends:</strong> ${data.include_weekends ? 'Included' : 'Excluded'}</div>
+            <div class="col-12">
+              <strong>Time Slots:</strong>
+              <ul class="mt-2 mb-0">${slots || '<li>No slots</li>'}</ul>
+            </div>
+          </div>
+        `;
+        $('#setupDetailsContent').html(html);
+      })
+      .fail(function(xhr) {
+        console.log('Setup details failed:', xhr.status, xhr.responseText);
+        $('#setupDetailsContent').html('<div class="alert alert-danger">Failed to load setup details.</div>');
+      });
+  });
+
+  /* =========================
+     EDIT SETUP MODAL (AJAX load)
+  ========================= */
+  $(document).on('click', '.edit-setup', function() {
+    const setupId = $(this).data('setup-id');
+
+    $.ajax({
+      url: `{{ url('/examination/setup') }}/${setupId}/edit`,
+      method: 'GET',
+      success: function(data) {
+        const form = $('#editSetupForm');
+        form.attr('action', `/examination/setup/${setupId}`);
+
+        let html = `
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Semester</label>
+              <select class="form-control select2" name="semester_id" required data-placeholder="Select semester">
+                <option value=""></option>
+                ${data.semesters.map(s => `<option value="${s.id}" ${s.id == data.setup.semester_id ? 'selected' : ''}>${s.name}</option>`).join('')}
+              </select>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Academic Year</label>
+              <input type="text" class="form-control" name="academic_year" value="${data.setup.academic_year}" required pattern="\\d{4}/\\d{4}">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Start Date</label>
+              <input type="date" class="form-control" name="start_date" value="${data.setup.start_date}" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">End Date</label>
+              <input type="date" class="form-control" name="end_date" value="${data.setup.end_date}" required>
+            </div>
+            <div class="col-md-12 mb-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="include_weekends" id="edit_include_weekends" ${data.setup.include_weekends ? 'checked' : ''}>
+                <label class="form-check-label" for="edit_include_weekends">Include Weekends</label>
+              </div>
+            </div>
+            <div class="col-md-12 mb-3">
+              <label class="form-label">Time Slots</label>
+              <div id="editTimeSlots">`;
+
+        (data.setup.time_slots || []).forEach((slot, index) => {
+          html += `
+            <div class="time-slot-container mb-3" data-index="${index}">
+              <div class="row align-items-center">
+                <div class="col-md-4">
+                  <input type="text" class="form-control" name="time_slots[${index}][name]" value="${slot.name}" required>
+                </div>
+                <div class="col-md-3">
+                  <input type="time" class="form-control" name="time_slots[${index}][start_time]" value="${slot.start_time}" required>
+                </div>
+                <div class="col-md-3">
+                  <input type="time" class="form-control" name="time_slots[${index}][end_time]" value="${slot.end_time}" required>
+                </div>
+                <div class="col-md-2">
+                  <button type="button" class="btn btn-sm btn-danger remove-time-slot">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>`;
+        });
+
+        html += `
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addTimeSlot('editTimeSlots')">
+                <i class="fas fa-plus me-1"></i> Add Time Slot
+              </button>
+            </div>
+          </div>`;
+
+        $('#editSetupModal .modal-body').html(html);
+        reinitSelect2($('#editSetupModal'), $('#editSetupModal'));
+        $('#editSetupModal').modal('show');
+      },
+      error: function() {
+        Swal.fire('Error', 'Could not load setup data', 'error');
+      }
+    });
+  });
+
+  /* =========================
+     CONFIRM DELETE / CLEAR
+  ========================= */
+  $('.delete-setup-form').submit(function(e) {
+    e.preventDefault();
+    const form = this;
+    Swal.fire({
+      title: 'Are you sure?',
+      text: "This will delete the setup and ALL associated timetables!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it!'
+    }).then((result) => {
+      if (result.isConfirmed) form.submit();
+    });
+  });
+
+  $('.clear-timetables-form').submit(function(e) {
+    e.preventDefault();
+    const form = this;
+    Swal.fire({
+      title: 'Clear timetable?',
+      text: "All scheduled exams in this setup will be removed!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      confirmButtonText: 'Yes, clear everything'
+    }).then((result) => {
+      if (result.isConfirmed) form.submit();
+    });
+  });
+
+  $(document).on('submit', '.delete-exam-form', function(e) {
+    e.preventDefault();
+    const form = this;
+    Swal.fire({
+      title: 'Delete this exam?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      confirmButtonText: 'Yes, delete'
+    }).then((result) => {
+      if (result.isConfirmed) form.submit();
+    });
+  });
+
+  /* =========================
+     SHOW EXAM MODAL (VIEW)
+  ========================= */
+  $(document).on('click', '.show-exam', function(e) {
+    e.preventDefault();
+    const examId = $(this).data('id');
+
+    $('#examDetailsContent').html(
+      '<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-3x text-primary"></i><p class="mt-3">Loading...</p></div>'
+    );
+    $('#viewExamModal').modal('show');
+
+    $.ajax({
+      url: `{{ url('/timetables') }}/${examId}`,
+      method: 'GET',
+      success: function(data) {
+        let venuesHtml = (data.venues || []).map(v =>
+          `<span class="venue-badge me-2 mb-1">${v.name} (${v.pivot?.allocated_capacity ?? '?'} seats)</span>`
+        ).join('');
+
+        let supervisorsHtml = (data.supervisors || []).map(s =>
+          `<span class="supervisor-badge me-2 mb-1">${s.name} <small>(${s.pivot?.supervisor_role || 'Invigilator'})</small></span>`
+        ).join('');
+
+        const html = `
+          <div class="row g-3">
+            <div class="col-md-8">
+              <h5 class="mb-1">${data.course_code} - ${(data.course?.name || 'Unknown')}</h5>
+              <p class="text-muted mb-3">${(data.program?.short_name || '')} • ${(data.faculty?.name || '')}</p>
+            </div>
+            <div class="col-md-4 text-md-end">
+              <h6 class="mb-1">${new Date(data.exam_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</h6>
+              <h6>${data.start_time} – ${data.end_time}</h6>
+            </div>
+            <div class="col-12">
+              <hr class="my-2">
+              <strong>Venues:</strong><br>
+              ${venuesHtml || '<span class="text-muted">No venues assigned</span>'}
+            </div>
+            <div class="col-12">
+              <strong>Supervisors / Invigilators:</strong><br>
+              ${supervisorsHtml || '<span class="text-muted">No supervisors assigned</span>'}
+            </div>
+          </div>`;
+
+        $('#examDetailsContent').html(html);
+      },
+      error: function() {
+        $('#examDetailsContent').html('<div class="alert alert-danger">Failed to load examination details.</div>');
+      }
+    });
+  });
+
+  /* =========================
+     GENERATE MODAL OPTIONS
+  ========================= */
+  $('#venue_strategy').on('change', function() {
+    if ($(this).val() === 'single') {
+      $('#selected_venues_container').slideDown();
+      $('#selected_venues').prop('required', true);
+    } else {
+      $('#selected_venues_container').slideUp();
+      $('#selected_venues').prop('required', false);
+    }
+  });
+
+ $('#program_id').on('change', function() {
+  const programId = $(this).val() || 'all';
+  const facultySelect = $('#faculty_id');
+
+  facultySelect.prop('disabled', true).html('<option value="all">All Faculties</option>');
+
+  $.get('{{ route("examination.getFacultiesByProgram") }}', { program_id: programId })
+    .done(function(data) {
+      let options = '<option value="all">All Faculties</option>';
+      (data.faculties || []).forEach(f => options += `<option value="${f.id}">${f.name}</option>`);
+      facultySelect.html(options).prop('disabled', false);
+    })
+    .fail(function() {
+      facultySelect.html('<option value="">Error loading faculties</option>');
+    });
+});
+
+ 
+  /* =========================
+     EXAM FORM MODAL (CREATE/EDIT)
+  ========================= */
+  function initExamModalSelect2() {
+    reinitSelect2($('#examFormModal'), $('#examFormModal'));
+  }
+
+  function loadCoursesForFaculty(facultyId, selectedCourseCode = null) {
+    $('#course_code').html('<option value=""></option>');
+
+    $.get('{{ route("examination.getFacultyCourses") }}', { faculty_id: facultyId })
+      .done(function(resp){
+        let options = '<option value=""></option>';
+
+        (resp.course_codes || []).forEach(c => {
+          // you MUST return cross_catering from controller for this label to work
+          const tag = c.cross_catering ? ' [Cross]' : '';
+          options += `<option value="${c.course_code}">${c.course_code} - ${c.name}${tag}</option>`;
+        });
+
+        $('#course_code').html(options);
+
+        if (selectedCourseCode) $('#course_code').val(selectedCourseCode).trigger('change');
+        else $('#course_code').val(null).trigger('change');
+      })
+      .fail(function(){
+        $('#course_code').html('<option value="">Failed to load courses</option>');
+      });
+  }
+
+  // OPEN CREATE modal from "+"
+  $(document).on('click', '.add-exam', function(e){
+    e.preventDefault();
+
+    const facultyId = $(this).data('faculty-id');
+    const examDate  = $(this).data('exam-date');
+    const startTime = $(this).data('start-time');
+    const endTime   = $(this).data('end-time');
+
+    $('#examFormTitle').text('Add Exam');
+    $('#examFormSubmitBtn').text('Save');
+
+    $('#examForm').attr('action', '{{ route("timetables.store") }}');
+    $('#examFormMethod').val('POST');
+
+    $('#faculty_id_hidden').val(facultyId);
+    $('#exam_date').val(examDate);
+    $('#start_time').val(startTime);
+    $('#end_time').val(endTime);
+
+    $('#exam_venues').val(null).trigger('change');
+    $('#course_code').val(null).trigger('change');
+
+    initExamModalSelect2();
+    loadCoursesForFaculty(facultyId);
+
+    $('#examFormModal').modal('show');
+  });
+
+  // OPEN EDIT modal from pencil
+  $(document).on('click', '.edit-exam', function(e){
+    e.preventDefault();
+
+    const examId = $(this).data('id');
+
+    $('#examFormTitle').text('Edit Exam');
+    $('#examFormSubmitBtn').text('Update');
+
+    const updateUrl = `{{ url('/timetables') }}/${examId}`;
+    $('#examForm').attr('action', updateUrl);
+    $('#examFormMethod').val('PUT');
+
+    initExamModalSelect2();
+
+    $.ajax({
+      url: `{{ url('/timetables') }}/${examId}`,
+      method: 'GET',
+      success: function(data){
+        // IMPORTANT: your controller show() should return faculty_id
+        const facultyId = data.faculty_id || data.faculty?.id;
+
+        $('#faculty_id_hidden').val(facultyId);
+        $('#exam_date').val((data.exam_date || '').substring(0,10));
+        $('#start_time').val((data.start_time || '').substring(0,5));
+        $('#end_time').val((data.end_time || '').substring(0,5));
+
+        const venueIds = (data.venues || []).map(v => String(v.id));
+        $('#exam_venues').val(venueIds).trigger('change');
+
+        loadCoursesForFaculty(facultyId, data.course_code);
+
+        $('#examFormModal').modal('show');
+      },
+      error: function(){
+        Swal.fire('Error', 'Failed to load exam for editing.', 'error');
+      }
+    });
+  });
+
+  /* =========================
+     SAVE EXAM (CREATE + EDIT) -> SweetAlert uses controller message
+  ========================= */
+  $('#examForm').on('submit', function(e){
+    e.preventDefault();
+
+    const form = $(this);
+    const actionUrl = form.attr('action');
+    const method = ($('#examFormMethod').val() || 'POST').toUpperCase();
+
+    swalLoading(method === 'PUT' ? 'Updating exam...' : 'Saving exam...', 'Please wait');
+
+    $.ajax({
+      url: actionUrl,
+      method: 'POST', // always POST; Laravel uses _method
+      data: form.serialize() + `&_method=${method}`,
+      success: function(resp){
+        Swal.fire({
+          icon: 'success',
+          title: 'Success',
+          text: resp.message || 'Saved successfully.',
+          timer: 2500
+        }).then(() => location.reload());
+      },
+      error: function(xhr){
+        const msg = extractAjaxMessage(xhr, 'Failed to save exam.');
+        Swal.fire({ icon: 'error', title: 'Error', text: msg });
+      }
+    });
+  });
+
+  /* =========================
+     GENERATE TIMETABLE -> SweetAlert loading + controller message
+  ========================= */
+  $('#generateModal').on('show.bs.modal', function () {
+    $('#program_id').trigger('change');
+    reinitSelect2($('#generateModal'), $('#generateModal'));
+  });
+
+  $('#generateForm').on('submit', function(e) {
+    e.preventDefault();
+
+    const form = $(this);
+
+    Swal.fire({
+      title: 'Generate Timetable?',
+      text: "This may take a few moments depending on the number of courses.",
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Generate',
+      cancelButtonText: 'Cancel'
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+
+      // SWEETALERT LOADING (instead of button loader)
+      swalLoading('Generating timetable...', 'Please wait');
+
+      $.ajax({
+        url: '{{ route("timetables.generate") }}',
+        method: 'POST',
+        data: form.serialize(),
+        success: function(response) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Success!',
+            text: response.message || 'Timetable generated successfully.',
+            timer: 2500
+          }).then(() => location.reload());
+        },
+        error: function(xhr) {
+          const msg = extractAjaxMessage(xhr, 'An error occurred while generating the timetable.');
+          Swal.fire('Error', msg, 'error');
+        }
+      });
+    });
+  });
+
+  /* =========================
+     TOOLTIP INIT
+  ========================= */
+  const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+  [...tooltipTriggerList].forEach(el => new bootstrap.Tooltip(el));
+
+});
 </script>
 @endsection

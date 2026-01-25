@@ -48,9 +48,23 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->withoutOverlapping()
                  ->appendOutputTo(storage_path('logs/morning-motivation.log'));
 
+        $schedule->command('motivation:staff-morning')
+                ->dailyAt('06:45')  // Slightly earlier so staff get it first
+                ->timezone('Africa/Dar_es_Salaam')
+                ->withoutOverlapping()
+                ->appendOutputTo(storage_path('logs/staff-morning-motivation.log'));
+
         // Your existing calendar notifications
         $schedule->job(new SendCalendarNotifications)
                  ->dailyAt('07:00')
                  ->timezone('Africa/Dar_es_Salaam');
+
+        $schedule->command('lecturers:timetable-remind')
+                ->everyThirtyMinutes()
+                ->between('07:00', '20:30') 
+                ->timezone('Africa/Dar_es_Salaam')
+                ->withoutOverlapping()
+                ->runInBackground()
+                ->appendOutputTo(storage_path('logs/lecturer-timetable-remind.log'));
     })
     ->create();

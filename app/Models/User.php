@@ -52,6 +52,23 @@ class User extends Authenticatable
         return $this->hasMany(Timetable::class, 'lecturer_id');
     }
 
+    public function examinationLectures(): BelongsToMany
+    {
+        return $this->belongsToMany(ExaminationTimetable::class, 'examination_timetable_lecturer')
+                    ->withPivot('role')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Get examination timetables where this user is a supervisor
+     */
+    public function examinationSupervisions(): BelongsToMany
+    {
+        return $this->belongsToMany(ExaminationTimetable::class, 'examination_timetable_supervisor')
+                    ->withPivot('venue_id', 'supervisor_role')
+                    ->withTimestamps();
+    }
+
     public function routeNotificationForMail()
     {
         return $this->email;

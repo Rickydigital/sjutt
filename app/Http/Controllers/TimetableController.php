@@ -68,6 +68,47 @@ class TimetableController extends Controller
     ));
 }
 
+public function getAvailableVenues(Request $request)
+{
+    $request->validate([
+        'day'        => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
+        'time_start' => 'required|date_format:H:i',
+        'time_end'   => 'required|date_format:H:i|after:time_start',
+        'faculty_id' => 'required|exists:faculties,id',
+        'exclude_id' => 'nullable|integer', // For edit mode: exclude current timetable ID
+    ]);
+
+    $timetableSemester = TimetableSemester::getFirstSemester();
+
+    // Find all venues that are ALREADY booked in the selected time slot
+    $bookedVenueIds = Timetable::where('day', $request->day)
+        ->where('semester_id', $timetableSemester->semester_id)
+        ->where(function ($q) use ($request) {
+            $q->where('time_start', '<', $request->time_end)
+              ->where('time_end', '>', $request->time_start);
+        })
+        ->when($request->filled('exclude_id'), fn($q) => $q->where('id', '!=', $request->exclude_id))
+        ->pluck('venue_id')
+        ->unique();
+
+    // Get all venues except the booked ones
+    $availableVenues = Venue::whereNotIn('id', $bookedVenueIds)
+        ->select('id', 'name', 'capacity')
+        ->orderBy('name')
+        ->get();
+
+    return response()->json([
+        'venues' => $availableVenues->map(function ($venue) {
+            return [
+                'id'       => $venue->id,
+                'name'     => $venue->name,
+                'capacity' => $venue->capacity,
+                'text'     => $venue->name . ' (Capacity: ' . $venue->capacity . ')'
+            ];
+        })
+    ]);
+}
+
 /* --------------------------------------------------------------------- */
 /*  STORE (ONLY VENUE AVAILABILITY CHECK)                               */
 /* --------------------------------------------------------------------- */

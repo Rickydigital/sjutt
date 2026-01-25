@@ -1,134 +1,208 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Examination Timetable</title>
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            margin: 20px; 
-            position: relative; 
-        }
-        h1 { 
-            text-align: center; 
-            font-size: 24px; 
-            margin-bottom: 5px; 
-        }
-        h2 { 
-            text-align: center; 
-            font-size: 18px; 
-            margin-bottom: 20px; 
-        }
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            font-size: 10px; 
-            margin-bottom: 20px; 
-        }
-        th, td { 
-            border: 1px solid #000; 
-            padding: 4px; 
-            text-align: center; 
-            vertical-align: middle; 
-        }
-        th { 
-            background-color: #f2f2f2; 
-            font-weight: bold; 
-        }
-        .time-slot-header { 
-            background-color: #f8f9fa; 
-        }
-        .year-header { 
-            background-color: #e9ecef; 
-        }
-        .page-break { 
-            page-break-after: always; 
-        }
-        
-        .watermark {
-            position: fixed;
-            top: 40%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: -1; 
-            opacity: 0.3; 
-            width: 300px; 
-            height: 300px; 
-            background-image: url('{{ public_path('images/logo.png') }}');
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-        }
-    </style>
+  <meta charset="utf-8">
+  <title>Examination Timetable PDF</title>
+  <style>
+    body { margin:0; padding-top: 95px; font-family: Arial, sans-serif; }
+
+    .print-header{
+      position: fixed; top:0; left:0; right:0;
+      height: 86px; background:#fff;
+      text-align:center; padding:6px 0;
+      border-bottom: 2px solid #4B2E83;
+      z-index: 10000; line-height:1.2;
+    }
+    .print-header .main-title{ color:#4B2E83; font-weight:bold; font-size:12.5pt; margin:0; }
+    .print-header .subtitle{ font-size:9pt; color:#333; margin:2px 0; }
+    .print-header .draft{ font-weight:bold; color:#4B2E83; font-size:8.5pt; }
+    .print-header .logo{ height: 28px; margin-top: 3px; }
+
+    .page-break { page-break-before: always; }
+
+    table { width:100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 10px; }
+    thead { display: table-header-group !important; }
+    tr { page-break-inside: avoid !important; }
+
+    th, td {
+      border: 1.4px solid #4B2E83;
+      padding: 2px 2px;
+      text-align: center;
+      vertical-align: middle;
+      font-size: 7pt;
+    }
+
+    .program-row th{
+      background:#4B2E83 !important;
+      color:#fff !important;
+      font-size: 10.5pt !important;
+      font-weight:bold;
+      padding:6px 4px !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .day-header th{
+      background:#4B2E83 !important;
+      color:#fff !important;
+      font-weight:bold;
+      font-size:7.5pt;
+      padding:3px 2px;
+    }
+
+    .time-cell{
+      background:#f5f5f5;
+      font-weight:bold;
+      width: 130px;
+      font-size: 7pt;
+    }
+
+    .class-cell{
+      background:#5b3aa6;
+      color:#fff;
+      font-weight:bold;
+      width: 140px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .session{
+      background:#fff;
+      border: 0.7px solid #fff;
+      border-radius: 2px;
+      padding: 2px 3px;
+      margin: 1px 0;
+      font-size: 6.5pt;
+      line-height: 1.15;
+    }
+    .session strong{ font-size: 6.8pt; display:block; }
+
+    @page { margin: 1.1cm 0.7cm 1.1cm 0.7cm; size: A4 portrait; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  </style>
 </head>
+
 <body>
-    <!-- Watermark div -->
-    <div class="watermark"></div>
+  <div class="print-header">
+    <div class="main-title">ST JOHN'S UNIVERSITY OF TANZANIA</div>
+    <div class="subtitle">
+      Examination Timetable • {{ $setup->academic_year }} • {{ $setup->semester?->name ?? 'Semester' }}
+    </div>
+    <div class="draft">{{ $draft }}</div>
+    <img src="{{ public_path('images/logo.png') }}" class="logo" alt="Logo">
+  </div>
 
-    <h1>St John's University of Tanzania University Exams {{ $setup->academic_year }}</h1>
-    <h2>Semester {{ $setup->semester }} - Draft {{ $setup->draft_number ?? 1 }}</h2>
+  @php
+    // ✅ Put Week 1 & Week 2 on same page => group chunks by 2
+    $chunkPairs = array_chunk($dateChunks, 2);
+    $firstPage = true;
 
-    @foreach ($dateChunks as $chunkIndex => $dateChunk)
+    // helper: build comma venue list, excluding allocated_capacity = 0
+    $venueNames = function($tt) {
+      $names = [];
+      foreach ($tt->venues as $v) {
+        $cap = (int)($v->pivot->allocated_capacity ?? 0);
+        if ($cap <= 0) continue; // ✅ hide 0 capacity venues in PDF
+        $names[] = $v->name;
+      }
+      $names = array_values(array_unique($names));
+      return implode(', ', $names);
+    };
+  @endphp
+
+  @foreach($programs as $program)
+    @php
+      $programClasses = $classesByProgram[$program->id] ?? collect();
+    @endphp
+
+    @foreach($chunkPairs as $pairIndex => $pair)
+      @if(!$firstPage)
+        <div class="page-break"></div>
+      @endif
+      @php $firstPage = false; @endphp
+
+      {{-- ✅ Each page contains 1 or 2 weeks (tables) --}}
+      @foreach($pair as $pairTableIndex => $chunkDays)
+        @php
+          // week number based on real chunk index
+          $weekNumber = ($pairIndex * 2) + $pairTableIndex + 1;
+        @endphp
+
         <table>
-            <thead>
+          <thead>
+            <tr class="program-row">
+              <th colspan="{{ 2 + count($chunkDays) }}">
+                {{ $program->short_name }} - {{ $program->name }} (Week {{ $weekNumber }})
+              </th>
+            </tr>
+
+            <tr class="day-header">
+              <th class="time-cell">TIME</th>
+              <th>CLASS</th>
+              @foreach($chunkDays as $d)
+                <th>
+                  {{ \Carbon\Carbon::parse($d)->format('d-m') }}
+                  ({{ strtoupper(\Carbon\Carbon::parse($d)->format('D')) }})
+                </th>
+              @endforeach
+            </tr>
+          </thead>
+
+          <tbody>
+          @foreach($timeSlots as $slot)
+            @php
+              $slotStart = $slot['start_time'];
+              $slotEnd   = $slot['end_time'];
+              $slotLabel = ($slot['name'] ?? 'Session') . " ({$slotStart}-{$slotEnd})";
+            @endphp
+
+            @if($programClasses->isEmpty())
+              <tr>
+                <td class="time-cell">{{ $slotLabel }}</td>
+                <td colspan="{{ 1 + count($chunkDays) }}">No classes found for this program.</td>
+              </tr>
+            @else
+              @foreach($programClasses as $i => $class)
                 <tr>
-                    <th rowspan="2" class="time-slot-header">Time</th>
-                    <th rowspan="2" class="year-header">Year</th>
-                    @foreach ($dateChunk as $date)
-                        @php
-                            $carbonDate = \Carbon\Carbon::parse($date);
-                            $formattedDate = $carbonDate->format('d-m') . ' (' . $carbonDate->format('l') . ')';
-                        @endphp
-                        <th colspan="{{ $programs->count() }}">{{ $formattedDate }}</th>
-                    @endforeach
-                </tr>
-                <tr>
-                    @foreach ($dateChunk as $date)
-                        @foreach ($programs as $program)
-                            <th>{{ $program->short_name }}</th>
+                  @if($i === 0)
+                    <td class="time-cell" rowspan="{{ $programClasses->count() }}">
+                      {{ $slotLabel }}
+                    </td>
+                  @endif
+
+                  <td class="class-cell">{{ $class->name }}</td>
+
+                  @foreach($chunkDays as $d)
+                    @php
+                      $dateKey = \Carbon\Carbon::parse($d)->format('Y-m-d');
+                      $items = $grid[$program->id][$class->id][$dateKey][$slotStart] ?? [];
+                    @endphp
+
+                    <td>
+                      @if(!empty($items))
+                        @foreach($items as $tt)
+                          @php $vList = $venueNames($tt); @endphp
+                          <div class="session">
+                            <strong>{{ $tt->course_code }}</strong>
+                            {{-- ✅ venues only, comma separated, no capacity --}}
+                            <div>{{ $vList ?: '' }}</div>
+                          </div>
                         @endforeach
-                    @endforeach
+                      @else
+                        &nbsp;
+                      @endif
+                    </td>
+                  @endforeach
                 </tr>
-            </thead>
-            <tbody>
-                @foreach ($timeSlots as $slot)
-                    @foreach ([1,2,3,4] as $yearNum)
-                        <tr>
-                            @if ($yearNum == 1)
-                                <td rowspan="4" class="time-slot-header">{{ $slot['name'] }} ({{ $slot['start_time'] }} - {{ $slot['end_time'] }})</td>
-                            @endif
-                            <td class="year-header">Year {{ $yearNum }}</td>
-                            @foreach ($dateChunk as $date)
-                                @foreach ($programs as $program)
-                                    @php
-                                        $faculty = \App\Models\Faculty::where('program_id', $program->id)
-                                            ->where('name', 'LIKE', "% {$yearNum}")
-                                            ->first();
-                                        $slotStartTime = \Carbon\Carbon::createFromFormat('H:i', $slot['start_time'])->format('H:i:s');
-                                        $slotEndTime = \Carbon\Carbon::createFromFormat('H:i', $slot['end_time'])->format('H:i:s');
-                                        $timetable = $timetables->firstWhere(function ($t) use ($faculty, $date, $slotStartTime, $slotEndTime) {
-                                            return $t->faculty_id == ($faculty ? $faculty->id : null) &&
-                                                   $t->exam_date == $date &&
-                                                   $t->start_time == $slotStartTime &&
-                                                   $t->end_time == $slotEndTime;
-                                        });
-                                    @endphp
-                                    <td>
-                                        @if ($timetable)
-                                            {{ $timetable->course_code }} ({{ optional($timetable->venue)->name ?? '' }})
-                                        @else
-                                            
-                                        @endif
-                                    </td>
-                                @endforeach
-                            @endforeach
-                        </tr>
-                    @endforeach
-                @endforeach
-            </tbody>
+              @endforeach
+            @endif
+          @endforeach
+          </tbody>
         </table>
-        @if ($chunkIndex < count($dateChunks) - 1)
-            <div class="page-break"></div>
-        @endif
+      @endforeach
+
     @endforeach
+  @endforeach
+
 </body>
 </html>

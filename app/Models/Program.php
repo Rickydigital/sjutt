@@ -30,10 +30,17 @@ class Program extends Model
         return $this->hasMany(Faculty::class);
     }
 
-       
     public function calendarEvents(): HasMany
     {
         return $this->hasMany(CalendarEvent::class);
+    }
+
+    /**
+     * Get examination timetables for this program
+     */
+    public function examinationTimetables(): HasMany
+    {
+        return $this->hasMany(ExaminationTimetable::class);
     }
     
     public function getGeneratedFacultyNames(): array
@@ -54,7 +61,8 @@ class Program extends Model
         return $this->belongsToMany(ProgramCategory::class, 'program_category_program');
     }
 
-    public function students() {
+    public function students(): HasMany
+    {
         return $this->hasMany(Student::class);
     }
 }
