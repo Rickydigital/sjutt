@@ -26,84 +26,83 @@ class ExaminationTimetableController extends Controller
      * OR add the `role` column in migration.
      */
 
-    public function index(Request $request)
-    {
-        $setups = ExamSetup::with('semester')->get();
-        $allPrograms = Program::all();
-        $venues = Venue::all();
+   public function index(Request $request)
+{
+    $setups = ExamSetup::with(['semester', 'examinationTimetables'])
+        ->orderByDesc('id')
+        ->get();
 
-        $academicYears = range(2010, 2025);
-        $academicYears = array_map(fn ($y) => "$y/" . ($y + 1), $academicYears);
-        $semesters = Semester::orderBy('name', 'asc')->get();
+    $allPrograms = Program::all();
+    $venues = Venue::all();
 
-        $setup = null;
-        $days = [];
-        $timeSlots = [];
-        $programs = Program::all();
+    $academicYears = range(2010, 2025);
+    $academicYears = array_map(fn ($y) => "$y/" . ($y + 1), $academicYears);
+    $semesters = Semester::orderBy('name', 'asc')->get();
 
-        $timetables = collect();
-        $classes = collect();      // <- faculties but shown as "Class"
-        $grid = [];                // <- indexed exams
-        $dateChunks = [];          // <- 5 days per table
+    // defaults
+    $setup = null;
+    $days = [];
+    $timeSlots = [];
+    $programs = Program::all();
 
-        $setupId = $request->query('setup_id');
-        $programId = $request->query('program_id'); // IMPORTANT
+    $timetables = collect();
+    $classes = collect();
+    $grid = [];
+    $dateChunks = [];
 
-        // choose setup
-        if ($setupId && $setups->isNotEmpty()) {
-            $setup = $setups->firstWhere('id', (int)$setupId);
-        }
-        if (!$setup && $setups->isNotEmpty()) {
-            $setup = $setups->first();
-        }
+    $setupId = $request->query('setup_id');
+    $programId = $request->query('program_id');
 
-        if ($setup) {
-            $days = $this->getValidDates($setup);      // already excludes weekends if you coded it
-            $timeSlots = $setup->time_slots ?? [];
-            $dateChunks = array_chunk($days, 5);
+    // ✅ IMPORTANT: DO NOT auto-pick first setup
+    if (!empty($setupId)) {
+        $setup = $setups->firstWhere('id', (int) $setupId);
+    }
 
-            // DO NOT load timetable until a program is selected
-            if (!empty($programId)) {
+    if ($setup) {
+        $days = $this->getValidDates($setup);
+        $timeSlots = $setup->time_slots ?? [];
+        $dateChunks = array_chunk($days, 5);
 
-                $classes = Faculty::where('program_id', (int)$programId)
-                    ->select('id', 'name')
-                    ->orderBy('name')
-                    ->get();
+        // DO NOT load timetable until a program is selected
+        if (!empty($programId)) {
 
-                $timetables = ExaminationTimetable::with(['course','venues','supervisors'])
-                    ->where('exam_setup_id', $setup->id)
-                    ->where('program_id', (int)$programId)
-                    ->whereIn('exam_date', $days)
-                    ->get();
+            $classes = Faculty::where('program_id', (int) $programId)
+                ->select('id', 'name')
+                ->orderBy('name')
+                ->get();
 
-                // Build fast lookup:
-                // $grid[faculty_id][Y-m-d][start_time] = array of exams
-                foreach ($timetables as $tt) {
-                    $dateKey = Carbon::parse($tt->exam_date)->format('Y-m-d');
-                    $startKey = Carbon::parse($tt->start_time)->format('H:i');
+            $timetables = ExaminationTimetable::with(['course', 'venues', 'supervisors'])
+                ->where('exam_setup_id', $setup->id)
+                ->where('program_id', (int) $programId)
+                ->whereIn('exam_date', $days)
+                ->get();
 
-                    $grid[$tt->faculty_id][$dateKey][$startKey][] = $tt;
-                }
+            foreach ($timetables as $tt) {
+                $dateKey  = Carbon::parse($tt->exam_date)->format('Y-m-d');
+                $startKey = Carbon::parse($tt->start_time)->format('H:i');
+
+                $grid[$tt->faculty_id][$dateKey][$startKey][] = $tt;
             }
         }
-
-        return view('timetables.index', compact(
-            'setups',
-            'setup',
-            'days',
-            'timeSlots',
-            'programs',
-            'timetables',
-            'allPrograms',
-            'venues',
-            'academicYears',
-            'semesters',
-            'programId',
-            'classes',
-            'grid',
-            'dateChunks'
-        ));
     }
+
+    return view('timetables.index', compact(
+        'setups',
+        'setup',
+        'days',
+        'timeSlots',
+        'programs',
+        'timetables',
+        'allPrograms',
+        'venues',
+        'academicYears',
+        'semesters',
+        'programId',
+        'classes',
+        'grid',
+        'dateChunks'
+    ));
+}
 
 
     // ----------------------------

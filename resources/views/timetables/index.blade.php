@@ -146,61 +146,60 @@ use Carbon\Carbon;
         </div>
     </div>
 
-    @if ($setups->isNotEmpty())
-    <div class="row mb-4">
-        <div class="col-12">
-            <h4 class="fw-semibold mb-3">Existing Examination Setups</h4>
-        </div>
-        @foreach ($setups as $setup)
-        <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card setup-card h-100">
-                <div class="setup-card-header">
-                    <h5 class="mb-1">{{ $setup->semester->name ?? 'N/A' }}</h5>
-                    <p class="mb-0 small">{{ $setup->academic_year }}</p>
-                </div>
-                <div class="card-body">
-                    <p class="mb-2">
-                        <i class="fas fa-calendar me-2"></i>
-                        <strong>Period:</strong> {{ Carbon::parse($setup->start_date)->format('M d, Y') }} - {{
-                        Carbon::parse($setup->end_date)->format('M d, Y') }}
-                    </p>
-                    <p class="mb-2">
-                        <i class="fas fa-clock me-2"></i>
-                        <strong>Time Slots:</strong> {{ count($setup->time_slots) }}
-                    </p>
-                    <p class="mb-2">
-                        <i class="fas fa-calendar-check me-2"></i>
-                        <strong>Weekends:</strong> {{ $setup->include_weekends ? 'Included' : 'Excluded' }}
-                    </p>
-                    <p class="mb-2">
-                        <i class="fas fa-list-ol me-2"></i>
-                        <strong>Exams Scheduled:</strong> {{ $setup->examinationTimetables->count() }}
-                    </p>
-                </div>
-                <div class="card-footer bg-white">
-                    <div class="d-flex justify-content-between">
-                        <a href="#" class="btn btn-sm btn-primary view-setup" data-setup-id="{{ $setup->id }}">
-                            <i class="fas fa-eye me-1"></i> View
-                        </a>
+ @if ($setups->isNotEmpty())
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="row align-items-end g-3">
+          <div class="col-md-8">
+            <label class="form-label fw-semibold">Select Examination Setup</label>
+            <select class="form-control select2" id="filter_setup" data-placeholder="Select setup">
+              <option value="">Please select Setup to proceed</option>
+              @foreach($setups as $s)
+                <option value="{{ $s->id }}" {{ ($setup?->id == $s->id) ? 'selected' : '' }}>
+                  {{ $s->semester->name ?? 'N/A' }} - {{ $s->academic_year }}
+                  ({{ \Carbon\Carbon::parse($s->start_date)->format('d M Y') }} - {{ \Carbon\Carbon::parse($s->end_date)->format('d M Y') }})
+                  • Slots: {{ count($s->time_slots ?? []) }}
+                  • Exams: {{ $s->examinationTimetables->count() }}
+                </option>
+              @endforeach
+            </select>
+            <small class="text-muted">Choose setup then choose program.</small>
+          </div>
 
-                        <button class="btn btn-sm btn-warning edit-setup" data-setup-id="{{ $setup->id }}">
-                            <i class="fas fa-edit me-1"></i> Edit
-                        </button>
-                        <form action="{{ route('examination.destroySetup', $setup->id) }}" method="POST"
-                            class="d-inline delete-setup-form">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn btn-sm btn-danger">
-                                <i class="fas fa-trash me-1"></i> Delete
-                            </button>
-                        </form>
-                    </div>
-                </div>
+          <div class="col-md-4 text-md-end">
+            <div class="btn-group" role="group" id="setupActions" style="display:none;">
+              {{-- VIEW = open timetable (URL attach) --}}
+              
+
+              {{-- DETAILS = open modal --}}
+              <button type="button" class="btn btn-outline-primary btn-sm" id="btnSetupDetails" title="Details" disabled>
+                <i class="fas fa-info-circle"></i>
+              </button>
+
+              {{-- EDIT --}}
+              <button type="button" class="btn btn-warning btn-sm" id="btnSetupEdit" title="Edit" disabled>
+                <i class="fas fa-edit"></i>
+              </button>
+
+              {{-- DELETE --}}
+              <form id="setupDeleteForm" method="POST" class="d-inline">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-danger btn-sm" id="btnSetupDelete" title="Delete" disabled>
+                  <i class="fas fa-trash"></i>
+                </button>
+              </form>
             </div>
+          </div>
+
         </div>
-        @endforeach
+      </div>
     </div>
-    @endif
+  </div>
+</div>
+@endif
 
     @if ($setup)
     <div class="row mb-4">
@@ -244,7 +243,7 @@ use Carbon\Carbon;
                             <option value=""></option>
                             @foreach($programs as $p)
                             <option value="{{ $p->id }}" {{ ((string)$programId===(string)$p->id) ? 'selected' : '' }}>
-                                {{ $p->name }}
+                                {{ $p->short_name }} – {{ $p->name }}
                             </option>
                             @endforeach
                         </select>
@@ -567,7 +566,7 @@ use Carbon\Carbon;
                                     <select class="form-control select2" name="program_id" id="program_id" required>
                                         <option value="all">All Programs</option>
                                         @foreach ($programs as $program)
-                                        <option value="{{ $program->id }}">{{ $program->name }}</option>
+                                        <option value="{{ $program->id }}">{{ $program->short_name }} – {{ $program->name }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -736,7 +735,7 @@ use Carbon\Carbon;
 
 @section('scripts')
 <script>
-    let timeSlotIndex = 1;
+let timeSlotIndex = 1;
 
 /* =========================
    HELPERS (SweetAlert + Ajax)
@@ -753,8 +752,7 @@ function extractAjaxMessage(xhr, fallback = 'Something went wrong.') {
 
 function swalLoading(title = 'Please wait...', text = 'Processing...') {
   Swal.fire({
-    title,
-    text,
+    title, text,
     allowOutsideClick: false,
     allowEscapeKey: false,
     didOpen: () => Swal.showLoading()
@@ -763,18 +761,16 @@ function swalLoading(title = 'Please wait...', text = 'Processing...') {
 
 // Fix Select2 in ALL modals - including #setupModal
 $(document).on('shown.bs.modal', '.modal', function () {
-    $(this).find('.select2').each(function () {
-        if ($(this).data('select2')) {
-            $(this).select2('destroy');
-        }
-        $(this).select2({
-            theme: 'classic',
-            width: '100%',
-            dropdownParent: $(this).closest('.modal'),  // This is the magic line
-            placeholder: $(this).data('placeholder') || 'Select an option',
-            allowClear: true
-        });
+  $(this).find('.select2').each(function () {
+    if ($(this).data('select2')) $(this).select2('destroy');
+    $(this).select2({
+      theme: 'classic',
+      width: '100%',
+      dropdownParent: $(this).closest('.modal'),
+      placeholder: $(this).data('placeholder') || 'Select an option',
+      allowClear: true
     });
+  });
 });
 
 function reinitSelect2($root, dropdownParent = null) {
@@ -792,7 +788,9 @@ function reinitSelect2($root, dropdownParent = null) {
   });
 }
 
-
+/* =========================
+   EXPORT SCOPE
+========================= */
 $(document).on('change', '#export_scope', function () {
   const v = $(this).val();
   if (v === 'single') {
@@ -803,6 +801,7 @@ $(document).on('change', '#export_scope', function () {
     $('#export_program_id').prop('required', false).val(null).trigger('change');
   }
 });
+
 /* =========================
    TIME SLOT ADDER
 ========================= */
@@ -850,17 +849,68 @@ $(document).ready(function() {
   });
 
   /* =========================
+     SETUP ACTIONS STATE
+  ========================= */
+  const destroyRouteTemplate = `{{ route('examination.destroySetup', ':id') }}`;
+
+  function getSelectedSetupId() {
+    return $('#filter_setup').val();
+  }
+
+  function setSetupActionsState() {
+    const sid = getSelectedSetupId();
+    if (sid) {
+      $('#setupActions').show(); // requires id="setupActions" in Blade
+      $('#btnSetupDetails, #btnSetupEdit, #btnSetupDelete').prop('disabled', false);
+      $('#filter_program').prop('disabled', false);
+    } else {
+      $('#setupActions').hide();
+      $('#btnSetupDetails, #btnSetupEdit, #btnSetupDelete').prop('disabled', true);
+      $('#filter_program').prop('disabled', true).val(null).trigger('change');
+    }
+  }
+
+  // initial state when page loads
+  setSetupActionsState();
+
+  /* =========================
+     SETUP DROPDOWN (reload page)
+     - attach setup_id in URL
+     - clear program_id when setup changes
+  ========================= */
+    $('#filter_setup').on('change', function () {
+    const setupId = $('#filter_setup').val();
+    const params = new URLSearchParams(window.location.search);
+
+    if (!setupId) {
+        params.delete('setup_id');
+        params.delete('program_id');
+        window.location.search = params.toString();
+        return;
+    }
+
+    // Auto-load setup immediately
+    params.set('setup_id', setupId);
+    params.delete('program_id'); // reset program on setup change
+    window.location.search = params.toString();
+    });
+  /* =========================
      PROGRAM FILTER (reload page)
+     - NEVER auto-set fake setup_id
+     - require setup first
   ========================= */
   $('#filter_program').on('change', function () {
     const programId = $(this).val();
     const params = new URLSearchParams(window.location.search);
 
-    if (!params.get('setup_id')) {
-      @if($setup)
-        params.set('setup_id', '{{ $setup->id }}');
-      @endif
+    const setupId = params.get('setup_id') || getSelectedSetupId();
+    if (!setupId) {
+      Swal.fire('Select setup first', 'Please select an examination setup before choosing a program.', 'info');
+      $(this).val(null).trigger('change');
+      return;
     }
+
+    params.set('setup_id', setupId);
 
     if (!programId) params.delete('program_id');
     else params.set('program_id', programId);
@@ -869,11 +919,27 @@ $(document).ready(function() {
   });
 
   /* =========================
-     VIEW SETUP MODAL
+     SETUP BUTTONS
   ========================= */
-  $(document).on('click', '.view-setup', function(e) {
-    e.preventDefault();
-    const setupId = $(this).data('setup-id');
+
+  // VIEW timetable => just ensure setup_id in URL (keep program_id if selected)
+  $('#btnSetupView').on('click', function () {
+    const setupId = getSelectedSetupId();
+    if (!setupId) return;
+
+    const params = new URLSearchParams(window.location.search);
+    params.set('setup_id', setupId);
+
+    const programId = $('#filter_program').val();
+    if (programId) params.set('program_id', programId);
+
+    window.location.search = params.toString();
+  });
+
+  // DETAILS (modal) => uses your existing endpoint /examination/setup/{id}
+  $('#btnSetupDetails').on('click', function () {
+    const setupId = getSelectedSetupId();
+    if (!setupId) return;
 
     $('#setupDetailsContent').html('<div class="text-center py-4">Loading...</div>');
     $('#viewSetupModal').modal('show');
@@ -895,8 +961,7 @@ $(document).ready(function() {
               <strong>Time Slots:</strong>
               <ul class="mt-2 mb-0">${slots || '<li>No slots</li>'}</ul>
             </div>
-          </div>
-        `;
+          </div>`;
         $('#setupDetailsContent').html(html);
       })
       .fail(function(xhr) {
@@ -905,8 +970,42 @@ $(document).ready(function() {
       });
   });
 
+  // EDIT => reuse your existing .edit-setup ajax loader
+  $('#btnSetupEdit').on('click', function () {
+    const setupId = getSelectedSetupId();
+    if (!setupId) return;
+
+    const $tmp = $(`<button class="edit-setup" data-setup-id="${setupId}"></button>`);
+    $('body').append($tmp);
+    $tmp.trigger('click').remove();
+  });
+
+  // DELETE => set form action dynamically then confirm
+  $('#setupDeleteForm').on('submit', function(e) {
+    e.preventDefault();
+
+    const setupId = getSelectedSetupId();
+    if (!setupId) return;
+
+    const actionUrl = destroyRouteTemplate.replace(':id', setupId);
+    $(this).attr('action', actionUrl);
+
+    const form = this;
+    Swal.fire({
+      title: 'Are you sure?',
+      text: "This will delete the setup and ALL associated timetables!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it!'
+    }).then((result) => {
+      if (result.isConfirmed) form.submit();
+    });
+  });
+
   /* =========================
-     EDIT SETUP MODAL (AJAX load)
+     EDIT SETUP MODAL (AJAX load) - your original handler (unchanged)
   ========================= */
   $(document).on('click', '.edit-setup', function() {
     const setupId = $(this).data('setup-id');
@@ -990,24 +1089,8 @@ $(document).ready(function() {
   });
 
   /* =========================
-     CONFIRM DELETE / CLEAR
+     CLEAR TIMETABLE CONFIRM (your original)
   ========================= */
-  $('.delete-setup-form').submit(function(e) {
-    e.preventDefault();
-    const form = this;
-    Swal.fire({
-      title: 'Are you sure?',
-      text: "This will delete the setup and ALL associated timetables!",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Yes, delete it!'
-    }).then((result) => {
-      if (result.isConfirmed) form.submit();
-    });
-  });
-
   $('.clear-timetables-form').submit(function(e) {
     e.preventDefault();
     const form = this;
@@ -1023,6 +1106,9 @@ $(document).ready(function() {
     });
   });
 
+  /* =========================
+     DELETE EXAM CONFIRM (your original)
+  ========================= */
   $(document).on('submit', '.delete-exam-form', function(e) {
     e.preventDefault();
     const form = this;
@@ -1038,7 +1124,7 @@ $(document).ready(function() {
   });
 
   /* =========================
-     SHOW EXAM MODAL (VIEW)
+     SHOW EXAM MODAL (your original)
   ========================= */
   $(document).on('click', '.show-exam', function(e) {
     e.preventDefault();
@@ -1091,7 +1177,7 @@ $(document).ready(function() {
   });
 
   /* =========================
-     GENERATE MODAL OPTIONS
+     GENERATE MODAL OPTIONS (your original)
   ========================= */
   $('#venue_strategy').on('change', function() {
     if ($(this).val() === 'single') {
@@ -1103,198 +1189,21 @@ $(document).ready(function() {
     }
   });
 
- $('#program_id').on('change', function() {
-  const programId = $(this).val() || 'all';
-  const facultySelect = $('#faculty_id');
+  $('#program_id').on('change', function() {
+    const programId = $(this).val() || 'all';
+    const facultySelect = $('#faculty_id');
 
-  facultySelect.prop('disabled', true).html('<option value="all">All Faculties</option>');
+    facultySelect.prop('disabled', true).html('<option value="all">All Faculties</option>');
 
-  $.get('{{ route("examination.getFacultiesByProgram") }}', { program_id: programId })
-    .done(function(data) {
-      let options = '<option value="all">All Faculties</option>';
-      (data.faculties || []).forEach(f => options += `<option value="${f.id}">${f.name}</option>`);
-      facultySelect.html(options).prop('disabled', false);
-    })
-    .fail(function() {
-      facultySelect.html('<option value="">Error loading faculties</option>');
-    });
-});
-
- 
-  /* =========================
-     EXAM FORM MODAL (CREATE/EDIT)
-  ========================= */
-  function initExamModalSelect2() {
-    reinitSelect2($('#examFormModal'), $('#examFormModal'));
-  }
-
-  function loadCoursesForFaculty(facultyId, selectedCourseCode = null) {
-    $('#course_code').html('<option value=""></option>');
-
-    $.get('{{ route("examination.getFacultyCourses") }}', { faculty_id: facultyId })
-      .done(function(resp){
-        let options = '<option value=""></option>';
-
-        (resp.course_codes || []).forEach(c => {
-          // you MUST return cross_catering from controller for this label to work
-          const tag = c.cross_catering ? ' [Cross]' : '';
-          options += `<option value="${c.course_code}">${c.course_code} - ${c.name}${tag}</option>`;
-        });
-
-        $('#course_code').html(options);
-
-        if (selectedCourseCode) $('#course_code').val(selectedCourseCode).trigger('change');
-        else $('#course_code').val(null).trigger('change');
+    $.get('{{ route("examination.getFacultiesByProgram") }}', { program_id: programId })
+      .done(function(data) {
+        let options = '<option value="all">All Faculties</option>';
+        (data.faculties || []).forEach(f => options += `<option value="${f.id}">${f.name}</option>`);
+        facultySelect.html(options).prop('disabled', false);
       })
-      .fail(function(){
-        $('#course_code').html('<option value="">Failed to load courses</option>');
+      .fail(function() {
+        facultySelect.html('<option value="">Error loading faculties</option>');
       });
-  }
-
-  // OPEN CREATE modal from "+"
-  $(document).on('click', '.add-exam', function(e){
-    e.preventDefault();
-
-    const facultyId = $(this).data('faculty-id');
-    const examDate  = $(this).data('exam-date');
-    const startTime = $(this).data('start-time');
-    const endTime   = $(this).data('end-time');
-
-    $('#examFormTitle').text('Add Exam');
-    $('#examFormSubmitBtn').text('Save');
-
-    $('#examForm').attr('action', '{{ route("timetables.store") }}');
-    $('#examFormMethod').val('POST');
-
-    $('#faculty_id_hidden').val(facultyId);
-    $('#exam_date').val(examDate);
-    $('#start_time').val(startTime);
-    $('#end_time').val(endTime);
-
-    $('#exam_venues').val(null).trigger('change');
-    $('#course_code').val(null).trigger('change');
-
-    initExamModalSelect2();
-    loadCoursesForFaculty(facultyId);
-
-    $('#examFormModal').modal('show');
-  });
-
-  // OPEN EDIT modal from pencil
-  $(document).on('click', '.edit-exam', function(e){
-    e.preventDefault();
-
-    const examId = $(this).data('id');
-
-    $('#examFormTitle').text('Edit Exam');
-    $('#examFormSubmitBtn').text('Update');
-
-    const updateUrl = `{{ url('/timetables') }}/${examId}`;
-    $('#examForm').attr('action', updateUrl);
-    $('#examFormMethod').val('PUT');
-
-    initExamModalSelect2();
-
-    $.ajax({
-      url: `{{ url('/timetables') }}/${examId}`,
-      method: 'GET',
-      success: function(data){
-        // IMPORTANT: your controller show() should return faculty_id
-        const facultyId = data.faculty_id || data.faculty?.id;
-
-        $('#faculty_id_hidden').val(facultyId);
-        $('#exam_date').val((data.exam_date || '').substring(0,10));
-        $('#start_time').val((data.start_time || '').substring(0,5));
-        $('#end_time').val((data.end_time || '').substring(0,5));
-
-        const venueIds = (data.venues || []).map(v => String(v.id));
-        $('#exam_venues').val(venueIds).trigger('change');
-
-        loadCoursesForFaculty(facultyId, data.course_code);
-
-        $('#examFormModal').modal('show');
-      },
-      error: function(){
-        Swal.fire('Error', 'Failed to load exam for editing.', 'error');
-      }
-    });
-  });
-
-  /* =========================
-     SAVE EXAM (CREATE + EDIT) -> SweetAlert uses controller message
-  ========================= */
-  $('#examForm').on('submit', function(e){
-    e.preventDefault();
-
-    const form = $(this);
-    const actionUrl = form.attr('action');
-    const method = ($('#examFormMethod').val() || 'POST').toUpperCase();
-
-    swalLoading(method === 'PUT' ? 'Updating exam...' : 'Saving exam...', 'Please wait');
-
-    $.ajax({
-      url: actionUrl,
-      method: 'POST', // always POST; Laravel uses _method
-      data: form.serialize() + `&_method=${method}`,
-      success: function(resp){
-        Swal.fire({
-          icon: 'success',
-          title: 'Success',
-          text: resp.message || 'Saved successfully.',
-          timer: 2500
-        }).then(() => location.reload());
-      },
-      error: function(xhr){
-        const msg = extractAjaxMessage(xhr, 'Failed to save exam.');
-        Swal.fire({ icon: 'error', title: 'Error', text: msg });
-      }
-    });
-  });
-
-  /* =========================
-     GENERATE TIMETABLE -> SweetAlert loading + controller message
-  ========================= */
-  $('#generateModal').on('show.bs.modal', function () {
-    $('#program_id').trigger('change');
-    reinitSelect2($('#generateModal'), $('#generateModal'));
-  });
-
-  $('#generateForm').on('submit', function(e) {
-    e.preventDefault();
-
-    const form = $(this);
-
-    Swal.fire({
-      title: 'Generate Timetable?',
-      text: "This may take a few moments depending on the number of courses.",
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Yes, Generate',
-      cancelButtonText: 'Cancel'
-    }).then((result) => {
-      if (!result.isConfirmed) return;
-
-      // SWEETALERT LOADING (instead of button loader)
-      swalLoading('Generating timetable...', 'Please wait');
-
-      $.ajax({
-        url: '{{ route("timetables.generate") }}',
-        method: 'POST',
-        data: form.serialize(),
-        success: function(response) {
-          Swal.fire({
-            icon: 'success',
-            title: 'Success!',
-            text: response.message || 'Timetable generated successfully.',
-            timer: 2500
-          }).then(() => location.reload());
-        },
-        error: function(xhr) {
-          const msg = extractAjaxMessage(xhr, 'An error occurred while generating the timetable.');
-          Swal.fire('Error', msg, 'error');
-        }
-      });
-    });
   });
 
   /* =========================
