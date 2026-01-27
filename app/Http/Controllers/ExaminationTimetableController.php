@@ -276,7 +276,7 @@ public function exportPdf(Request $request, ExamSetup $setup)
     // TIMETABLE CRUD (manual)
     // ----------------------------
 
-    public function store(Request $request)
+public function store(Request $request)
 {
     $validated = $request->validate([
         'exam_setup_id' => 'required|exists:exam_setups,id',
@@ -285,11 +285,16 @@ public function exportPdf(Request $request, ExamSetup $setup)
         'exam_date' => 'required|date',
         'start_time' => 'required|date_format:H:i',
         'end_time' => 'required|date_format:H:i|after:start_time',
+
+        'marking_date' => 'required|date',
+        'uploading_date' => 'required|date|after_or_equal:marking_date',
+        'nature' => 'required|in:Theory,Practical',
+
         'selected_venues' => 'required|array|min:1',
         'selected_venues.*' => 'exists:venues,id',
     ]);
 
-    $setup = ExamSetup::findOrFail($validated['exam_setup_id']);
+    $setup = ExamSetup::findOrFail((int)$validated['exam_setup_id']);
 
     // ensure date is in setup range (and weekends rule)
     $validDates = $this->getValidDates($setup);
@@ -298,10 +303,15 @@ public function exportPdf(Request $request, ExamSetup $setup)
         return response()->json(['errors' => ['exam_date' => 'Invalid date for this setup']], 422);
     }
 
+    // normalize dates
+    $markingDate   = Carbon::parse($validated['marking_date'])->format('Y-m-d');
+    $uploadingDate = Carbon::parse($validated['uploading_date'])->format('Y-m-d');
+    $nature        = $validated['nature'];
+
     $courseCode = $validated['course_code'];
-    $startTime = $validated['start_time'];
-    $endTime   = $validated['end_time'];
-    $venueIds  = array_map('intval', $validated['selected_venues']);
+    $startTime  = $validated['start_time'];
+    $endTime    = $validated['end_time'];
+    $venueIds   = array_map('intval', $validated['selected_venues']);
 
     $isCross = $this->isCrossCateringCourse($courseCode);
 
@@ -333,13 +343,18 @@ public function exportPdf(Request $request, ExamSetup $setup)
             // create one row per faculty
             foreach ($faculties as $f) {
                 $created = ExaminationTimetable::create([
-                    'exam_setup_id' => (int)$setup->id,
-                    'program_id' => (int)$f->program_id,
-                    'faculty_id' => (int)$f->id,
-                    'course_code' => $courseCode,
-                    'exam_date' => $examDate,
-                    'start_time' => $startTime,
-                    'end_time' => $endTime,
+                    'exam_setup_id'   => (int)$setup->id,
+                    'program_id'      => (int)$f->program_id,
+                    'faculty_id'      => (int)$f->id,
+                    'course_code'     => $courseCode,
+                    'exam_date'       => $examDate,
+                    'start_time'      => $startTime,
+                    'end_time'        => $endTime,
+
+                    // ✅ new fields
+                    'marking_date'    => $markingDate,
+                    'uploading_date'  => $uploadingDate,
+                    'nature'          => $nature,
                 ]);
 
                 // attach venues with allocated_capacity for THIS faculty
@@ -360,16 +375,21 @@ public function exportPdf(Request $request, ExamSetup $setup)
             );
 
             $created = ExaminationTimetable::create([
-                'exam_setup_id' => (int)$setup->id,
-                'program_id' => (int)$faculty->program_id,
-                'faculty_id' => (int)$faculty->id,
-                'course_code' => $courseCode,
-                'exam_date' => $examDate,
-                'start_time' => $startTime,
-                'end_time' => $endTime,
+                'exam_setup_id'   => (int)$setup->id,
+                'program_id'      => (int)$faculty->program_id,
+                'faculty_id'      => (int)$faculty->id,
+                'course_code'     => $courseCode,
+                'exam_date'       => $examDate,
+                'start_time'      => $startTime,
+                'end_time'        => $endTime,
+
+                // ✅ new fields
+                'marking_date'    => $markingDate,
+                'uploading_date'  => $uploadingDate,
+                'nature'          => $nature,
             ]);
 
-            // for non-cross, store allocated_capacity as total_students_no (best available)
+            // for non-cross, store allocated_capacity as total_students_no
             $students = (int)($faculty->total_students_no ?? 0);
             $venueModels = Venue::whereIn('id', $venueIds)->get();
 
@@ -386,6 +406,7 @@ public function exportPdf(Request $request, ExamSetup $setup)
         }
 
         DB::commit();
+
         return response()->json([
             'status' => 'success',
             'type' => $isCross ? 'cross' : 'normal',
@@ -394,19 +415,17 @@ public function exportPdf(Request $request, ExamSetup $setup)
                 : "Exam created successfully for selected class."
         ]);
 
-
     } catch (\Exception $e) {
-    DB::rollBack();
-    return response()->json([
-        'status' => 'error',
-        'message' => $e->getMessage()
-    ], 422);
+        DB::rollBack();
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage()
+        ], 422);
+    }
 }
 
-}
 
-
-    public function update(Request $request, ExaminationTimetable $timetable)
+public function update(Request $request, ExaminationTimetable $timetable)
 {
     $validated = $request->validate([
         'faculty_id' => 'required|exists:faculties,id',
@@ -414,6 +433,11 @@ public function exportPdf(Request $request, ExamSetup $setup)
         'exam_date' => 'required|date',
         'start_time' => 'required|date_format:H:i',
         'end_time' => 'required|date_format:H:i|after:start_time',
+
+        'marking_date' => 'required|date',
+        'uploading_date' => 'required|date|after_or_equal:marking_date',
+        'nature' => 'required|in:Theory,Practical',
+
         'selected_venues' => 'required|array|min:1',
         'selected_venues.*' => 'exists:venues,id',
     ]);
@@ -426,6 +450,11 @@ public function exportPdf(Request $request, ExamSetup $setup)
         return response()->json(['errors' => ['exam_date' => 'Invalid date for this setup']], 422);
     }
 
+    // normalize new dates
+    $markingDate   = Carbon::parse($validated['marking_date'])->format('Y-m-d');
+    $uploadingDate = Carbon::parse($validated['uploading_date'])->format('Y-m-d');
+    $nature        = $validated['nature'];
+
     $courseCode = $validated['course_code'];
     $startTime  = $validated['start_time'];
     $endTime    = $validated['end_time'];
@@ -435,7 +464,7 @@ public function exportPdf(Request $request, ExamSetup $setup)
     DB::beginTransaction();
     try {
         if ($isCross) {
-            $faculties = $this->getFacultiesForCourse($courseCode);
+            $faculties  = $this->getFacultiesForCourse($courseCode);
             $facultyIds = $faculties->pluck('id')->map(fn($x)=>(int)$x)->all();
 
             // Delete ALL old cross-catering rows in that slot (including current)
@@ -449,7 +478,7 @@ public function exportPdf(Request $request, ExamSetup $setup)
             }
 
             $venueModels = Venue::whereIn('id', $venueIds)->get();
-            $allocation = $this->distributeStudentsAcrossVenues($facultyStudentMap, $venueModels);
+            $allocation  = $this->distributeStudentsAcrossVenues($facultyStudentMap, $venueModels);
 
             if (empty($allocation)) {
                 throw new \Exception("Not enough venue capacity for cross-catering {$courseCode}.");
@@ -457,13 +486,18 @@ public function exportPdf(Request $request, ExamSetup $setup)
 
             foreach ($faculties as $f) {
                 $created = ExaminationTimetable::create([
-                    'exam_setup_id' => (int)$setup->id,
-                    'program_id' => (int)$f->program_id,
-                    'faculty_id' => (int)$f->id,
-                    'course_code' => $courseCode,
-                    'exam_date' => $examDate,
-                    'start_time' => $startTime,
-                    'end_time' => $endTime,
+                    'exam_setup_id'  => (int)$setup->id,
+                    'program_id'     => (int)$f->program_id,
+                    'faculty_id'     => (int)$f->id,
+                    'course_code'    => $courseCode,
+                    'exam_date'      => $examDate,
+                    'start_time'     => $startTime,
+                    'end_time'       => $endTime,
+
+                    // ✅ new fields
+                    'marking_date'   => $markingDate,
+                    'uploading_date' => $uploadingDate,
+                    'nature'         => $nature,
                 ]);
 
                 $attach = [];
@@ -473,30 +507,45 @@ public function exportPdf(Request $request, ExamSetup $setup)
                 $created->venues()->sync($attach);
             }
 
-            // since we recreated, the "original id" is gone - return success
             DB::commit();
-            return response()->json(['success' => 'Cross-catering exam updated for all classes.']);
+            return response()->json([
+                'status' => 'success',
+                'type' => 'cross',
+                'message' => 'Cross-catering exam updated for all classes.'
+            ]);
 
         } else {
-            // normal update -> replace only this faculty row
+            // normal update -> update only this row
             $faculty = Faculty::findOrFail((int)$validated['faculty_id']);
 
             // remove any previous same slot for this faculty+course, excluding this row
             $this->deleteExistingSlotExams(
-                (int)$setup->id, $courseCode, $examDate, $startTime, $endTime, [(int)$faculty->id], (int)$timetable->id
+                (int)$setup->id,
+                $courseCode,
+                $examDate,
+                $startTime,
+                $endTime,
+                [(int)$faculty->id],
+                (int)$timetable->id
             );
 
-            $timetable->program_id = (int)$faculty->program_id;
-            $timetable->faculty_id = (int)$faculty->id;
-            $timetable->course_code = $courseCode;
-            $timetable->exam_date = $examDate;
-            $timetable->start_time = $startTime;
-            $timetable->end_time = $endTime;
+            $timetable->program_id     = (int)$faculty->program_id;
+            $timetable->faculty_id     = (int)$faculty->id;
+            $timetable->course_code    = $courseCode;
+            $timetable->exam_date      = $examDate;
+            $timetable->start_time     = $startTime;
+            $timetable->end_time       = $endTime;
+
+            // ✅ new fields
+            $timetable->marking_date   = $markingDate;
+            $timetable->uploading_date = $uploadingDate;
+            $timetable->nature         = $nature;
+
             $timetable->save();
 
-            $students = (int)($faculty->total_students_no ?? 0);
+            $students    = (int)($faculty->total_students_no ?? 0);
             $venueModels = Venue::whereIn('id', $venueIds)->get();
-            $allocation = $this->distributeStudentsAcrossVenues([(int)$faculty->id => $students], $venueModels);
+            $allocation  = $this->distributeStudentsAcrossVenues([(int)$faculty->id => $students], $venueModels);
 
             if (empty($allocation)) {
                 throw new \Exception("Not enough venue capacity for {$courseCode}.");
@@ -511,12 +560,9 @@ public function exportPdf(Request $request, ExamSetup $setup)
             DB::commit();
             return response()->json([
                 'status' => 'success',
-                'type' => $isCross ? 'cross' : 'normal',
-                'message' => $isCross
-                    ? "Cross-catering exam updated for ALL classes that study {$courseCode}."
-                    : "Exam updated successfully."
+                'type' => 'normal',
+                'message' => 'Exam updated successfully.'
             ]);
-
         }
 
     } catch (\Exception $e) {
@@ -563,56 +609,67 @@ public function exportPdf(Request $request, ExamSetup $setup)
     // ----------------------------
 
     public function show($id)
-    {
-        $timetable = ExaminationTimetable::with([
-            'course',
-            'program',
-            'faculty',
-            'venues',
-            'supervisors',
-        ])->findOrFail($id);
+{
+    $timetable = ExaminationTimetable::with([
+        'course',
+        'program',
+        'faculty',
+        'venues',
+        'supervisors',
+    ])->findOrFail($id);
 
-        return response()->json([
-            'id' => $timetable->id,
-            'course_code' => $timetable->course_code,
-            'exam_date' => $timetable->exam_date,
-            'start_time' => $timetable->start_time,
-            'end_time' => $timetable->end_time,
+    return response()->json([
+        'id' => $timetable->id,
 
-            'course' => $timetable->course ? [
-                'name' => $timetable->course->name,
-            ] : null,
+        // ✅ important ids for edit modal
+        'exam_setup_id' => (int) $timetable->exam_setup_id,
+        'program_id' => (int) $timetable->program_id,
+        'faculty_id' => (int) $timetable->faculty_id,
 
-            'program' => $timetable->program ? [
-                'short_name' => $timetable->program->short_name,
-                'name' => $timetable->program->name,
-            ] : null,
+        'course_code' => $timetable->course_code,
+        'exam_date' => $timetable->exam_date,
+        'start_time' => $timetable->start_time,
+        'end_time' => $timetable->end_time,
 
-            'faculty' => $timetable->faculty ? [
-                'name' => $timetable->faculty->name,
-            ] : null,
+        // ✅ new fields
+        'marking_date' => $timetable->marking_date ? Carbon::parse($timetable->marking_date)->format('Y-m-d') : null,
+        'uploading_date' => $timetable->uploading_date ? Carbon::parse($timetable->uploading_date)->format('Y-m-d') : null,
+        'nature' => $timetable->nature ?? 'Theory',
 
-            'venues' => $timetable->venues->map(function ($v) {
-                return [
-                    'id' => $v->id,
-                    'name' => $v->name,
-                    'pivot' => [
-                        'allocated_capacity' => $v->pivot->allocated_capacity ?? null
-                    ]
-                ];
-            })->values(),
+        'course' => $timetable->course ? [
+            'name' => $timetable->course->name,
+        ] : null,
 
-            'supervisors' => $timetable->supervisors->map(function ($s) {
-                return [
-                    'id' => $s->id,
-                    'name' => $s->name,
-                    'pivot' => [
-                        'supervisor_role' => $s->pivot->supervisor_role ?? 'Invigilator'
-                    ]
-                ];
-            })->values(),
-        ]);
-    }
+        'program' => $timetable->program ? [
+            'short_name' => $timetable->program->short_name,
+            'name' => $timetable->program->name,
+        ] : null,
+
+        'faculty' => $timetable->faculty ? [
+            'name' => $timetable->faculty->name,
+        ] : null,
+
+        'venues' => $timetable->venues->map(function ($v) {
+            return [
+                'id' => $v->id,
+                'name' => $v->name,
+                'pivot' => [
+                    'allocated_capacity' => $v->pivot->allocated_capacity ?? null
+                ]
+            ];
+        })->values(),
+
+        'supervisors' => $timetable->supervisors->map(function ($s) {
+            return [
+                'id' => $s->id,
+                'name' => $s->name,
+                'pivot' => [
+                    'supervisor_role' => $s->pivot->supervisor_role ?? 'Invigilator'
+                ]
+            ];
+        })->values(),
+    ]);
+}
 
     // ----------------------------
     // DROPDOWNS / HELPERS
@@ -752,153 +809,194 @@ public function exportPdf(Request $request, ExamSetup $setup)
     // ----------------------------
 
     public function generateTimetable(Request $request)
-    {
-        Log::info('Generate timetable request:', $request->all());
+{
+    Log::info('Generate timetable request:', $request->all());
 
-        try {
-            $validated = $request->validate([
-                'exam_setup_id' => 'required|exists:exam_setups,id',
-                'program_id'    => 'required|integer|exists:programs,id',
-                'faculty_id'    => 'nullable',
-                'venue_strategy' => 'required|in:distribute,single',
-                'selected_venues' => 'nullable|array',
-                'selected_venues.*' => 'exists:venues,id',
-            ]);
+    try {
+        $validated = $request->validate([
+            'exam_setup_id'   => 'required|exists:exam_setups,id',
+            'program_id'      => 'required|integer|exists:programs,id',
+            'faculty_id'      => 'nullable',
+            'venue_strategy'  => 'required|in:distribute,single',
+            'selected_venues' => 'nullable|array',
+            'selected_venues.*' => 'exists:venues,id',
 
-            $venuesQuery = Venue::query()->select('id','name','capacity');
+            // ✅ NEW (Generate only these 2; nature auto = Theory)
+            'marking_date'    => 'required|date',
+            'uploading_date'  => 'required|date|after_or_equal:marking_date',
+        ]);
 
-            if (!empty($validated['selected_venues'])) {
-                // FORCE venues from modal
-                $venuesQuery->whereIn('id', $validated['selected_venues']);
-            }
+        // ✅ normalize generate meta
+        $markingDate   = Carbon::parse($validated['marking_date'])->format('Y-m-d');
+        $uploadingDate = Carbon::parse($validated['uploading_date'])->format('Y-m-d');
+        $nature        = 'Theory';
 
-            $venues = $venuesQuery->get();
+        $venuesQuery = Venue::query()->select('id', 'name', 'capacity');
 
-            if ($venues->isEmpty()) {
-                return response()->json(['errors' => ['venues' => 'No venues selected/available.']], 422);
-            }
+        if (!empty($validated['selected_venues'])) {
+            // FORCE venues from modal (single strategy)
+            $venuesQuery->whereIn('id', $validated['selected_venues']);
+        }
 
-            if ($validated['program_id'] === 'all') {
-                return response()->json(['errors' => ['program_id' => 'Please select a single program.']], 422);
-            }
+        $venues = $venuesQuery->get();
 
-            $setup = ExamSetup::findOrFail($validated['exam_setup_id']);
+        if ($venues->isEmpty()) {
+            return response()->json(['errors' => ['venues' => 'No venues selected/available.']], 422);
+        }
 
-            $facultiesQuery = Faculty::query()->where('program_id', (int)$validated['program_id']);
+        // NOTE: program_id is validated as integer, so "all" should never reach here
+        $setup = ExamSetup::findOrFail((int)$validated['exam_setup_id']);
 
-            if (!empty($validated['faculty_id']) && $validated['faculty_id'] !== 'all') {
-                $facultiesQuery->where('id', (int)$validated['faculty_id']);
-            }
+        // ✅ Preload existing exams for this setup to avoid re-generating duplicates
+$existing = ExaminationTimetable::where('exam_setup_id', (int)$setup->id)
+    ->select('course_code', 'faculty_id')
+    ->get();
 
-            $faculties = $facultiesQuery->get();
+// For cross-catering: if any row exists for course_code => consider generated already
+$existingCrossCourse = [];
+foreach ($existing as $row) {
+    $existingCrossCourse[$row->course_code] = true;
+}
 
-            $days = $this->getValidDates($setup);
+// For normal courses: prevent regenerating same (faculty_id + course_code)
+$existingFacultyCourse = [];
+foreach ($existing as $row) {
+    $existingFacultyCourse[(int)$row->faculty_id . '|' . $row->course_code] = true;
+}
 
-            $timeSlots = collect($setup->time_slots ?? [])->map(function ($slot) {
-                return [
-                    'name' => $slot['name'] ?? null,
-                    'start_time' => $slot['start_time'],
-                    'end_time' => $slot['end_time'],
-                ];
-            })->toArray();
+// Optional: count skipped (for response message)
+$skippedCross = 0;
+$skippedNormal = 0;
 
-            if (empty($days) || empty($timeSlots)) {
-                return response()->json(['errors' => ['setup' => 'Setup has no valid days or no time slots.']], 422);
-            }
+        $facultiesQuery = Faculty::query()->where('program_id', (int)$validated['program_id']);
 
-            
+        if (!empty($validated['faculty_id']) && $validated['faculty_id'] !== 'all') {
+            $facultiesQuery->where('id', (int)$validated['faculty_id']);
+        }
 
-            // Build sessions:
-            // - Non cross-catering: separate by (course_code + faculty_id)
-            // - Cross-catering: group by course_code only (multi faculties together)
-            $courseGroups = [];
+        $faculties = $facultiesQuery->get();
 
-            foreach ($faculties as $faculty) {
-                $courses = Course::whereHas('faculties', function ($q) use ($faculty) {
-                    $q->where('faculties.id', $faculty->id);
-                })->get();
+        $days = $this->getValidDates($setup);
+
+        $timeSlots = collect($setup->time_slots ?? [])->map(function ($slot) {
+            return [
+                'name' => $slot['name'] ?? null,
+                'start_time' => $slot['start_time'],
+                'end_time' => $slot['end_time'],
+            ];
+        })->toArray();
+
+        if (empty($days) || empty($timeSlots)) {
+            return response()->json(['errors' => ['setup' => 'Setup has no valid days or no time slots.']], 422);
+        }
+
+        // Build sessions:
+        // - Non cross-catering: separate by (course_code + faculty_id)
+        // - Cross-catering: group by course_code only (multi faculties together)
+        $courseGroups = [];
+
+        foreach ($faculties as $faculty) {
+            $courses = Course::whereHas('faculties', function ($q) use ($faculty) {
+                $q->where('faculties.id', $faculty->id);
+            })->get();
 
                 foreach ($courses as $course) {
-                    $lecturerIds = $course->lecturers()->pluck('id')->toArray();
+    $lecturerIds = $course->lecturers()->pluck('id')->toArray();
 
-                    if ($course->cross_catering) {
-                        $allFaculties = $course->faculties()->select('faculties.id','faculties.program_id')->get();
+    if ($course->cross_catering) {
 
-                        $key = $course->course_code;
+        // ✅ SKIP if this cross course already exists in this setup
+        if (isset($existingCrossCourse[$course->course_code])) {
+            $skippedCross++;
+            continue;
+        }
 
-                        $courseGroups[$key]['course_code'] = $course->course_code;
-                        $courseGroups[$key]['course_name'] = $course->name;
-                        $courseGroups[$key]['cross_catering'] = true;
+        $allFaculties = $course->faculties()->select('faculties.id','faculties.program_id')->get();
 
-                        foreach ($allFaculties as $f) {
-                            $courseGroups[$key]['faculties'][] = [
-                                'faculty_id' => $f->id,
-                                'program_id' => $f->program_id, // IMPORTANT
-                                'lecturer_ids' => $lecturerIds,
-                            ];
-                        }
+        $key = $course->course_code;
 
-                    } else {
-                        $key = $course->course_code . '|' . $faculty->id;
+        $courseGroups[$key]['course_code'] = $course->course_code;
+        $courseGroups[$key]['course_name'] = $course->name;
+        $courseGroups[$key]['cross_catering'] = true;
 
-                        $courseGroups[$key]['course_code'] = $course->course_code;
-                        $courseGroups[$key]['course_name'] = $course->name;
-                        $courseGroups[$key]['cross_catering'] = false;
+        foreach ($allFaculties as $f) {
+            $courseGroups[$key]['faculties'][] = [
+                'faculty_id'   => $f->id,
+                'program_id'   => $f->program_id,
+                'lecturer_ids' => $lecturerIds,
+            ];
+        }
 
-                        $courseGroups[$key]['faculties'][] = [
-                            'faculty_id' => $faculty->id,
-                            'program_id' => $faculty->program_id,
-                            'lecturer_ids' => $lecturerIds,
-                        ];
-                    }
+    } else {
 
-                }
-            }
+        // ✅ SKIP if this faculty already has this course in this setup
+        $keyCheck = (int)$faculty->id . '|' . $course->course_code;
+        if (isset($existingFacultyCourse[$keyCheck])) {
+            $skippedNormal++;
+            continue;
+        }
 
-            $sessions = array_values($courseGroups);
+        $key = $course->course_code . '|' . $faculty->id;
 
-            $result = $this->scheduleTimetable($sessions, $days, $timeSlots, $venues);
+        $courseGroups[$key]['course_code'] = $course->course_code;
+        $courseGroups[$key]['course_name'] = $course->name;
+        $courseGroups[$key]['cross_catering'] = false;
 
-            if (empty($result['timetables'])) {
-                return response()->json([
-                    'errors' => [
-                        'scheduling' => !empty($result['errors'])
-                            ? implode(' ', $result['errors'])
-                            : 'Unable to generate a conflict-free timetable.'
-                    ]
-                ], 422);
-            }
+        $courseGroups[$key]['faculties'][] = [
+            'faculty_id'   => $faculty->id,
+            'program_id'   => $faculty->program_id,
+            'lecturer_ids' => $lecturerIds,
+        ];
+    }
+}
+        }
 
-            DB::beginTransaction();
-            try {
-                $createdTimetables = [];
-                
+        $sessions = array_values($courseGroups);
 
-                foreach ($result['timetables'] as $entry) {
-                    // OPTION A:
-                    // create one exam row per faculty, attach SAME venues list to each row.
-                    foreach ($entry['faculty_rows'] as $row) {
-                        $facultyModel = Faculty::findOrFail($row['faculty_id']);
-                        $created = ExaminationTimetable::create([
-                            'exam_setup_id' => $setup->id,
-                            'program_id' => (int) $facultyModel->program_id,
-                            'faculty_id' => (int)$row['faculty_id'],
-                            'course_code' => $entry['course_code'],
-                            'exam_date' => $entry['exam_date'],
-                            'start_time' => $entry['start_time'],
-                            'end_time' => $entry['end_time'],
-                        ]);
+        $result = $this->scheduleTimetable($sessions, $days, $timeSlots, $venues);
 
-                        $created->lecturers()->sync($row['lecturer_ids'] ?? []);
+        if (empty($result['timetables'])) {
+            return response()->json([
+                'errors' => [
+                    'scheduling' => !empty($result['errors'])
+                        ? implode(' ', $result['errors'])
+                        : 'Unable to generate a conflict-free timetable.'
+                ]
+            ], 422);
+        }
 
-                        // build faculty student map using total_students_no (best available)
+        DB::beginTransaction();
+        try {
+            $createdTimetables = [];
+
+            foreach ($result['timetables'] as $entry) {
+                // create one exam row per faculty, attach SAME venues list to each row.
+                foreach ($entry['faculty_rows'] as $row) {
+                    $facultyModel = Faculty::findOrFail((int)$row['faculty_id']);
+
+                    $created = ExaminationTimetable::create([
+                        'exam_setup_id'  => (int)$setup->id,
+                        'program_id'     => (int)$facultyModel->program_id,
+                        'faculty_id'     => (int)$row['faculty_id'],
+                        'course_code'    => $entry['course_code'],
+                        'exam_date'      => $entry['exam_date'],
+                        'start_time'     => $entry['start_time'],
+                        'end_time'       => $entry['end_time'],
+
+                        // ✅ NEW META saved for generated exams
+                        'marking_date'   => $markingDate,
+                        'uploading_date' => $uploadingDate,
+                        'nature'         => $nature, // Theory
+                    ]);
+
+                    $created->lecturers()->sync($row['lecturer_ids'] ?? []);
+
+                    // build faculty student map using total_students_no
                     $facultyStudentMap = [];
                     foreach ($entry['faculty_rows'] as $r) {
-                        $f = Faculty::find($r['faculty_id']);
-                        $facultyStudentMap[$r['faculty_id']] = (int) ($f->total_students_no ?? 0);
+                        $f = Faculty::find((int)$r['faculty_id']);
+                        $facultyStudentMap[(int)$r['faculty_id']] = (int)($f->total_students_no ?? 0);
                     }
-
-                   
 
                     // Only venues you selected
                     $venueModels = $venues->whereIn('id', $entry['venue_ids'])->values();
@@ -906,39 +1004,42 @@ public function exportPdf(Request $request, ExamSetup $setup)
                     // distribute
                     $allocation = $this->distributeStudentsAcrossVenues($facultyStudentMap, $venueModels);
                     if (empty($allocation)) {
-                        throw new \Exception("Not enough venue capacity for {$entry['course_code']} on {$entry['exam_date']} {$entry['start_time']}.");
+                        throw new \Exception(
+                            "Not enough venue capacity for {$entry['course_code']} on {$entry['exam_date']} {$entry['start_time']}."
+                        );
                     }
 
                     // attach for THIS faculty
                     $attachData = [];
                     foreach ($entry['venue_ids'] as $vid) {
-                        $attachData[$vid] = ['allocated_capacity' => $allocation[$vid][$row['faculty_id']] ?? 0];
+                        $attachData[$vid] = [
+                            'allocated_capacity' => (int)($allocation[$vid][(int)$row['faculty_id']] ?? 0)
+                        ];
                     }
                     $created->venues()->sync($attachData);
 
-
-                        $createdTimetables[] = $created;
-                    }
+                    $createdTimetables[] = $created;
                 }
-
-                DB::commit();
-
-                return response()->json([
-                    'message' => 'Timetable generated successfully.',
-                    'timetables' => $createdTimetables
-                ]);
-            } catch (\Exception $e) {
-                DB::rollBack();
-                Log::error('Error saving generated timetable', ['error' => $e->getMessage()]);
-                return response()->json(['errors' => ['database' => 'Failed to save timetable: ' . $e->getMessage()]], 422);
             }
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json(['errors' => $e->errors()], 422);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => "Timetable generated successfully. Skipped cross: {$skippedCross}, skipped normal: {$skippedNormal}.",
+                'timetables' => $createdTimetables
+            ]);
         } catch (\Exception $e) {
-            Log::error('Unexpected error in generateTimetable', ['error' => $e->getMessage()]);
-            return response()->json(['errors' => ['error' => 'Unexpected error: ' . $e->getMessage()]], 422);
+            DB::rollBack();
+            Log::error('Error saving generated timetable', ['error' => $e->getMessage()]);
+            return response()->json(['errors' => ['database' => 'Failed to save timetable: ' . $e->getMessage()]], 422);
         }
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json(['errors' => $e->errors()], 422);
+    } catch (\Exception $e) {
+        Log::error('Unexpected error in generateTimetable', ['error' => $e->getMessage()]);
+        return response()->json(['errors' => ['error' => 'Unexpected error: ' . $e->getMessage()]], 422);
     }
+}
     
 
     private function distributeStudentsAcrossVenues(array $facultyStudentMap, $venues): array

@@ -550,8 +550,8 @@ use Carbon\Carbon;
     <div class="modal fade" id="generateModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
-                <form id="generateForm">
-                    @csrf
+                <form id="generateForm" method="POST" action="{{ route('timetables.generate') }}">
+                @csrf
                     <input type="hidden" name="exam_setup_id" value="{{ $setup->id }}">
                     <div class="modal-header">
                         <h5 class="modal-title">Auto-Generate Examination Timetable</h5>
@@ -595,6 +595,16 @@ use Carbon\Carbon;
                                             <option value="afternoon">Afternoon</option>
                                         </select>
                                     </div>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                <label class="form-label">Marking Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" name="marking_date" id="gen_marking_date" required>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                <label class="form-label">Uploading Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" name="uploading_date" id="gen_uploading_date" required>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Venue Strategy <span class="text-danger">*</span></label>
@@ -680,6 +690,24 @@ use Carbon\Carbon;
                                 <input type="time" class="form-control" name="end_time" id="end_time" required readonly>
                             </div>
 
+                            <div class="col-md-6">
+                            <label class="form-label">Marking Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="marking_date" id="marking_date" required>
+                            </div>
+
+                            <div class="col-md-6">
+                            <label class="form-label">Uploading Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="uploading_date" id="uploading_date" required>
+                            </div>
+
+                            <div class="col-md-12">
+                            <label class="form-label">Nature <span class="text-danger">*</span></label>
+                            <select class="form-control" name="nature" id="nature" required>
+                                <option value="Theory">Theory</option>
+                                <option value="Practical">Practical</option>
+                            </select>
+                            </div>
+
                             <div class="col-md-12">
                                 <label class="form-label">Course</label>
                                 <select class="form-control select2" name="course_code" id="course_code" required
@@ -750,6 +778,27 @@ function extractAjaxMessage(xhr, fallback = 'Something went wrong.') {
   return fallback;
 }
 
+function openModal(modalId) {
+  const el = document.getElementById(modalId);
+  if (!el) {
+    console.error('Modal not found:', modalId);
+    return;
+  }
+
+  // Bootstrap 5
+  if (window.bootstrap && bootstrap.Modal) {
+    bootstrap.Modal.getOrCreateInstance(el).show();
+    return;
+  }
+
+  // Bootstrap 4 (jQuery plugin)
+  if (window.jQuery && typeof $(el).modal === 'function') {
+    $(el).modal('show');
+    return;
+  }
+
+  console.error('No Bootstrap modal API found. Check if bootstrap JS is loaded.');
+}
 function swalLoading(title = 'Please wait...', text = 'Processing...') {
   Swal.fire({
     title, text,
@@ -757,6 +806,18 @@ function swalLoading(title = 'Please wait...', text = 'Processing...') {
     allowEscapeKey: false,
     didOpen: () => Swal.showLoading()
   });
+}
+
+function showBsModal(modalId) {
+  const el = document.getElementById(modalId);
+  if (!el) return;
+  bootstrap.Modal.getOrCreateInstance(el).show();
+}
+
+function hideBsModal(modalId) {
+  const el = document.getElementById(modalId);
+  if (!el) return;
+  bootstrap.Modal.getOrCreateInstance(el).hide();
 }
 
 // Fix Select2 in ALL modals - including #setupModal
@@ -870,6 +931,15 @@ $(document).ready(function() {
     }
   }
 
+  $('#generateModal').on('show.bs.modal', function () {
+  const today = new Date().toISOString().substring(0,10);
+
+  // if empty, set defaults
+  if (!$('#gen_marking_date').val()) $('#gen_marking_date').val(today);
+  if (!$('#gen_uploading_date').val()) $('#gen_uploading_date').val(today);
+
+  reinitSelect2($('#generateModal'), $('#generateModal'));
+});
   // initial state when page loads
   setSetupActionsState();
 
@@ -942,7 +1012,7 @@ $(document).ready(function() {
     if (!setupId) return;
 
     $('#setupDetailsContent').html('<div class="text-center py-4">Loading...</div>');
-    $('#viewSetupModal').modal('show');
+    showBsModal('viewSetupModal');
 
     $.get(`{{ url('/examination/setup') }}/${setupId}`)
       .done(function(data) {
@@ -1080,7 +1150,7 @@ $(document).ready(function() {
 
         $('#editSetupModal .modal-body').html(html);
         reinitSelect2($('#editSetupModal'), $('#editSetupModal'));
-        $('#editSetupModal').modal('show');
+        showBsModal('editSetupModal');
       },
       error: function() {
         Swal.fire('Error', 'Could not load setup data', 'error');
@@ -1133,7 +1203,7 @@ $(document).ready(function() {
     $('#examDetailsContent').html(
       '<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-3x text-primary"></i><p class="mt-3">Loading...</p></div>'
     );
-    $('#viewExamModal').modal('show');
+    showBsModal('viewExamModal');
 
     $.ajax({
       url: `{{ url('/timetables') }}/${examId}`,
@@ -1157,6 +1227,13 @@ $(document).ready(function() {
               <h6 class="mb-1">${new Date(data.exam_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</h6>
               <h6>${data.start_time} – ${data.end_time}</h6>
             </div>
+
+            <div class="col-12">
+                <hr class="my-2">
+                <strong>Marking Date:</strong> ${data.marking_date ? new Date(data.marking_date).toLocaleDateString() : '<span class="text-muted">N/A</span>'}<br>
+                <strong>Uploading Date:</strong> ${data.uploading_date ? new Date(data.uploading_date).toLocaleDateString() : '<span class="text-muted">N/A</span>'}<br>
+                <strong>Nature:</strong> ${data.nature || 'Theory'}
+            </div>
             <div class="col-12">
               <hr class="my-2">
               <strong>Venues:</strong><br>
@@ -1177,6 +1254,137 @@ $(document).ready(function() {
   });
 
   /* =========================
+   EXAM FORM MODAL (CREATE/EDIT)
+========================= */
+function initExamModalSelect2() {
+  reinitSelect2($('#examFormModal'), $('#examFormModal'));
+}
+
+function loadCoursesForFaculty(facultyId, selectedCourseCode = null) {
+  $('#course_code').html('<option value=""></option>');
+
+  $.get('{{ route("examination.getFacultyCourses") }}', { faculty_id: facultyId })
+    .done(function(resp){
+      let options = '<option value=""></option>';
+      (resp.course_codes || []).forEach(c => {
+        const tag = c.cross_catering ? ' [Cross]' : '';
+        options += `<option value="${c.course_code}">${c.course_code} - ${c.name}${tag}</option>`;
+      });
+
+      $('#course_code').html(options);
+
+      if (selectedCourseCode) $('#course_code').val(selectedCourseCode).trigger('change');
+      else $('#course_code').val(null).trigger('change');
+    })
+    .fail(function(){
+      $('#course_code').html('<option value="">Failed to load courses</option>');
+    });
+}
+
+/* ---- OPEN CREATE modal from "+" ---- */
+$(document).on('click', '.add-exam', function(e){
+  e.preventDefault();
+
+  const facultyId = $(this).data('faculty-id');
+  const examDate  = $(this).data('exam-date');
+  const startTime = $(this).data('start-time');
+  const endTime   = $(this).data('end-time');
+
+  $('#examFormTitle').text('Add Exam');
+  $('#examFormSubmitBtn').text('Save');
+
+  $('#examForm').attr('action', '{{ route("timetables.store") }}');
+  $('#examFormMethod').val('POST');
+
+  $('#faculty_id_hidden').val(facultyId);
+  $('#exam_date').val(examDate);
+  $('#start_time').val(startTime);
+  $('#end_time').val(endTime);
+  $('#marking_date').val(examDate);
+  $('#uploading_date').val(examDate);
+  $('#nature').val('Theory');
+
+  initExamModalSelect2();
+  $('#exam_venues').val(null).trigger('change');
+  $('#course_code').val(null).trigger('change');
+
+  loadCoursesForFaculty(facultyId);
+
+  showBsModal('examFormModal'); // ✅ BOOTSTRAP 5
+});
+
+/* ---- OPEN EDIT modal from pencil ---- */
+$(document).on('click', '.edit-exam', function(e){
+  e.preventDefault();
+
+  const examId = $(this).data('id');
+
+  $('#examFormTitle').text('Edit Exam');
+  $('#examFormSubmitBtn').text('Update');
+
+  const updateUrl = `{{ url('/timetables') }}/${examId}`;
+  $('#examForm').attr('action', updateUrl);
+  $('#examFormMethod').val('PUT');
+
+  initExamModalSelect2();
+
+  $.ajax({
+    url: `{{ url('/timetables') }}/${examId}`,
+    method: 'GET',
+    success: function(data){
+      const facultyId = data.faculty_id || data.faculty?.id;
+
+      $('#faculty_id_hidden').val(facultyId);
+      $('#exam_date').val((data.exam_date || '').substring(0,10));
+      $('#start_time').val((data.start_time || '').substring(0,5));
+      $('#end_time').val((data.end_time || '').substring(0,5));
+      $('#marking_date').val((data.marking_date || '').substring(0,10));
+      $('#uploading_date').val((data.uploading_date || '').substring(0,10));
+      $('#nature').val(data.nature || 'Theory');
+
+      const venueIds = (data.venues || []).map(v => String(v.id));
+      $('#exam_venues').val(venueIds).trigger('change');
+
+      loadCoursesForFaculty(facultyId, data.course_code);
+
+      showBsModal('examFormModal'); // ✅ BOOTSTRAP 5
+    },
+    error: function(xhr){
+      Swal.fire('Error', extractAjaxMessage(xhr, 'Failed to load exam for editing.'), 'error');
+    }
+  });
+});
+
+/* ---- SAVE EXAM (CREATE + EDIT) ---- */
+$('#examForm').on('submit', function(e){
+  e.preventDefault();
+
+  const form = $(this);
+  const actionUrl = form.attr('action');
+  const method = ($('#examFormMethod').val() || 'POST').toUpperCase();
+
+  swalLoading(method === 'PUT' ? 'Updating exam...' : 'Saving exam...', 'Please wait');
+
+  $.ajax({
+    url: actionUrl,
+    method: 'POST',
+    data: form.serialize() + `&_method=${method}`,
+    success: function(resp){
+      Swal.fire({
+        icon: 'success',
+        title: 'Success',
+        text: resp.message || 'Saved successfully.',
+        timer: 2000
+      }).then(() => location.reload());
+    },
+    error: function(xhr){
+      const msg = extractAjaxMessage(xhr, 'Failed to save exam.');
+      Swal.fire({ icon: 'error', title: 'Error', text: msg });
+    }
+  });
+});
+
+  /* =========================
      GENERATE MODAL OPTIONS (your original)
   ========================= */
   $('#venue_strategy').on('change', function() {
@@ -1188,6 +1396,44 @@ $(document).ready(function() {
       $('#selected_venues').prop('required', false);
     }
   });
+
+  // ✅ GENERATE TIMETABLE (AJAX) - prevent normal form submit
+$('#generateForm').on('submit', function(e) {
+  e.preventDefault();
+
+  const form = $(this);
+
+  Swal.fire({
+    title: 'Generate Timetable?',
+    text: "This may take a few moments depending on the number of courses.",
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, Generate',
+    cancelButtonText: 'Cancel'
+  }).then((result) => {
+    if (!result.isConfirmed) return;
+
+    swalLoading('Generating timetable...', 'Please wait');
+
+    $.ajax({
+      url: form.attr('action'),
+      method: 'POST',
+      data: form.serialize(),
+      success: function(resp) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Success',
+          text: resp.message || 'Timetable generated successfully.',
+          timer: 2000
+        }).then(() => location.reload());
+      },
+      error: function(xhr) {
+        const msg = extractAjaxMessage(xhr, 'An error occurred while generating the timetable.');
+        Swal.fire({ icon: 'error', title: 'Error', text: msg });
+      }
+    });
+  });
+});
 
   $('#program_id').on('change', function() {
     const programId = $(this).val() || 'all';

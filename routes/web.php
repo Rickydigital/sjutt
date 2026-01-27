@@ -164,7 +164,7 @@ Route::get('/examination/supervisors', [ExaminationTimetableController::class, '
     Route::put('/timetables/{timetable}', [ExaminationTimetableController::class, 'update'])->name('timetables.update')->middleware(['permission:edit examination timetables']);
     Route::delete('/timetables/{timetable}', [ExaminationTimetableController::class, 'destroy'])->name('timetables.destroy')->middleware(['permission:delete examination timetables']);
     Route::post('/timetable/generate', [TimetableController::class, 'generateTimetable'])->name('timetable.generate');
-    Route::post('/timetables/generate', [ExaminationTimetableController::class, 'generateTimetable'])->name('timetables.generate');
+
 
     //students
     Route::middleware(['auth'])->group(function () {

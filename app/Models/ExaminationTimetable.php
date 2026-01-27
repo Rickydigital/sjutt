@@ -19,10 +19,15 @@ class ExaminationTimetable extends Model
         'start_time',
         'end_time',
         'exam_setup_id',
+        'marking_date',
+        'uploading_date',
+        'nature',
     ];
 
     protected $casts = [
         'exam_date' => 'date',
+        'marking_date' => 'date',
+        'uploading_date' => 'date',
     ];
 
     /**
