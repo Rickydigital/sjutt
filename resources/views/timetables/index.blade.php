@@ -690,15 +690,15 @@ use Carbon\Carbon;
                                 <input type="time" class="form-control" name="end_time" id="end_time" required readonly>
                             </div>
 
-                            <div class="col-md-6">
-                            <label class="form-label">Marking Date <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" name="marking_date" id="marking_date" required>
-                            </div>
+                           <div class="col-md-6">
+                              <label class="form-label">Marking Date</label>
+                              <input type="date" class="form-control" name="marking_date" id="marking_date">
+                          </div>
 
-                            <div class="col-md-6">
-                            <label class="form-label">Uploading Date <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" name="uploading_date" id="uploading_date" required>
-                            </div>
+                          <div class="col-md-6">
+                              <label class="form-label">Uploading Date</label>
+                              <input type="date" class="form-control" name="uploading_date" id="uploading_date">
+                          </div>
 
                             <div class="col-md-12">
                             <label class="form-label">Nature <span class="text-danger">*</span></label>

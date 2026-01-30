@@ -286,8 +286,8 @@ public function store(Request $request)
         'start_time' => 'required|date_format:H:i',
         'end_time' => 'required|date_format:H:i|after:start_time',
 
-        'marking_date' => 'required|date',
-        'uploading_date' => 'required|date|after_or_equal:marking_date',
+        'marking_date'   => 'nullable|date',
+        'uploading_date' => 'nullable|date|after_or_equal:marking_date',
         'nature' => 'required|in:Theory,Practical',
 
         'selected_venues' => 'required|array|min:1',
@@ -304,8 +304,13 @@ public function store(Request $request)
     }
 
     // normalize dates
-    $markingDate   = Carbon::parse($validated['marking_date'])->format('Y-m-d');
-    $uploadingDate = Carbon::parse($validated['uploading_date'])->format('Y-m-d');
+    $markingDate   = isset($validated['marking_date']) 
+    ? Carbon::parse($validated['marking_date'])->format('Y-m-d') 
+    : null;
+
+$uploadingDate = isset($validated['uploading_date']) 
+    ? Carbon::parse($validated['uploading_date'])->format('Y-m-d') 
+    : null;
     $nature        = $validated['nature'];
 
     $courseCode = $validated['course_code'];
@@ -434,8 +439,8 @@ public function update(Request $request, ExaminationTimetable $timetable)
         'start_time' => 'required|date_format:H:i',
         'end_time' => 'required|date_format:H:i|after:start_time',
 
-        'marking_date' => 'required|date',
-        'uploading_date' => 'required|date|after_or_equal:marking_date',
+        'marking_date' => 'nullable|date',
+        'uploading_date' => 'nullable|date|after_or_equal:marking_date',
         'nature' => 'required|in:Theory,Practical',
 
         'selected_venues' => 'required|array|min:1',
@@ -451,8 +456,13 @@ public function update(Request $request, ExaminationTimetable $timetable)
     }
 
     // normalize new dates
-    $markingDate   = Carbon::parse($validated['marking_date'])->format('Y-m-d');
-    $uploadingDate = Carbon::parse($validated['uploading_date'])->format('Y-m-d');
+    $markingDate   = isset($validated['marking_date']) 
+    ? Carbon::parse($validated['marking_date'])->format('Y-m-d') 
+    : null;
+
+$uploadingDate = isset($validated['uploading_date']) 
+    ? Carbon::parse($validated['uploading_date'])->format('Y-m-d') 
+    : null;
     $nature        = $validated['nature'];
 
     $courseCode = $validated['course_code'];
