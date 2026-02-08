@@ -113,6 +113,36 @@
                 </li>
                 @endcanany
 
+                @role('Admin|Dean Of Students')
+<li class="nav-item">
+    <a data-bs-toggle="collapse" href="#electionsMenu">
+        <i class="bi bi-check2-square"></i>
+        <p>Elections</p>
+        <span class="caret"></span>
+    </a>
+
+    <div class="collapse" id="electionsMenu">
+        <ul class="nav nav-collapse">
+
+            {{-- Elections --}}
+            <li>
+                <a href="{{ route('elections.index') }}">
+                    <span class="sub-item">Elections</span>
+                </a>
+            </li>
+
+            {{-- Position Definitions --}}
+            <li>
+                <a href="{{ route('position-definitions.index') }}">
+                    <span class="sub-item">Position Definitions</span>
+                </a>
+            </li>
+
+        </ul>
+    </div>
+</li>
+@endrole
+
                 {{-- Academics  --}}
                 @canany(['view programs', 'view faculties', 'view courses'])
                 <li class="nav-item">

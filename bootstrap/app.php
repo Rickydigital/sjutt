@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureStudentIsElectionOfficer;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\MobileAuthMiddleware;
 use App\Jobs\SendCalendarNotifications;
@@ -20,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission'        => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission'=> \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'mobile-auth'       => MobileAuthMiddleware::class,
+            'officer'           => EnsureStudentIsElectionOfficer::class,
         ]);
 
         // Optional: apply globally if needed

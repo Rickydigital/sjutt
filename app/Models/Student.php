@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -62,6 +63,55 @@ class Student extends Authenticatable
         return $this->hasMany(Reaction::class, 'user_id');
     }
 
+
+    public function generalOfficerElections()
+{
+    return $this->belongsToMany(
+        \App\Models\Election::class,
+        'student_general_election_officers',
+        'student_id',
+        'election_id'
+    )->withPivot(['is_active'])->withTimestamps();
+}
+
+    public function votes(): HasMany
+{
+    return $this->hasMany(ElectionVote::class, 'student_id');
+}
+
+public function hasActiveOfficerElection(): bool
+{
+    return $this->generalOfficerElections()
+        ->wherePivot('is_active', 1)
+        ->where('elections.is_active', 1)
+        ->where('elections.status', 'open')
+        ->get()
+        ->filter(fn ($election) => $election->isStillOpen())
+        ->isNotEmpty();
+}
+
+/**
+ * Check if this student is assigned as an election officer in at least one election
+ * (no filters on status, active flag, dates — just existence in the pivot table)
+ */
+public function isOfficer(): bool
+{
+    return $this->generalOfficerElections()->exists();
+    // or: return $this->managedElections()->exists();  // if you prefer this relation
+}
+
+public function candidacies(): HasMany
+{
+    return $this->hasMany(ElectionCandidate::class, 'student_id');
+}
+
+// Optional convenience: elections the student participated in
+public function participatedElections()
+{
+    return $this->belongsToMany(Election::class, 'election_votes', 'student_id', 'election_id')
+        ->distinct();
+}
+
     public function comments()
     {
         return $this->hasMany(Comment::class, 'user_id');
@@ -80,4 +130,15 @@ class Student extends Authenticatable
             static::where('id', $studentId)->update(['fcm_token' => $newToken]);
         }
     }
+
+    public function managedElections()
+{
+    return $this->belongsToMany(
+        Election::class,
+        'student_general_election_officers',
+        'student_id',
+        'election_id'
+    )->withPivot(['is_active'])->withTimestamps();
+}
+
 }

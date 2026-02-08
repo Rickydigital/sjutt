@@ -29,6 +29,17 @@ class Faculty extends Model
         return $this->hasMany(Timetable::class);
     }
 
+    public function electionPositions()
+{
+    return $this->belongsToMany(
+        ElectionPosition::class,
+        'election_position_faculty',
+        'faculty_id',
+        'election_position_id'
+    )->withTimestamps();
+}
+
+
     public function examinationTimetables(): HasMany
     {
         return $this->hasMany(ExaminationTimetable::class);

@@ -11,6 +11,7 @@ use App\Http\Controllers\ExaminationTimetableController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\GalleryController;
 use App\Http\Controllers\Admin\AboutController;
+use App\Http\Controllers\Admin\ElectionCandidateApprovalController;
 use App\Http\Controllers\Admin\FeeStructureController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CourseController;
@@ -37,6 +38,16 @@ use App\Http\Controllers\TalentController;
 use App\Http\Controllers\TimetableSemesterController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use App\Http\Controllers\Admin\ElectionController;
+use App\Http\Controllers\Admin\PositionDefinitionController;
+use App\Http\Controllers\Officer\OfficerDashboardController;
+use App\Http\Controllers\Officer\OfficerElectionController;
+use App\Http\Controllers\Officer\OfficerResultController;
+use App\Http\Controllers\Officer\ElectionPositionController;
+use App\Http\Controllers\Officer\ElectionCandidateController;
+use App\Http\Controllers\officer\OfficerPublishResultsController;
+use App\Http\Controllers\Student\ElectionVotingController;
+use App\Http\Controllers\StudentWeb\Auth\StudentLoginController;
 
 //APK DOWNLOAD URL
 Route::get('/download-app/{filename}', function ($filename) {
@@ -62,7 +73,7 @@ Route::get('/download-app/{filename}', function ($filename) {
 })->name('app.download');
 
 Route::get('/', function () {
-    return view('auth.login');
+    return view('welcome');
 });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('auth');
@@ -110,40 +121,40 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     // Missing routes - add these to your web.php:
 
-// Export PDF for specific setup
-Route::get('/examination/{setup}/export/options', [ExaminationTimetableController::class, 'exportOptions'])
-->name('examination.export.options');
+    // Export PDF for specific setup
+    Route::get('/examination/{setup}/export/options', [ExaminationTimetableController::class, 'exportOptions'])
+        ->name('examination.export.options');
 
 
-Route::post('/examination/{setup}/export/pdf', [ExaminationTimetableController::class, 'exportPdf'])
-->name('examination.export.pdf');
-Route::get('/examination/get-faculty-courses', [ExaminationTimetableController::class, 'getFacultyCourses'])->name('examination.getFacultyCourses');
+    Route::post('/examination/{setup}/export/pdf', [ExaminationTimetableController::class, 'exportPdf'])
+        ->name('examination.export.pdf');
+    Route::get('/examination/get-faculty-courses', [ExaminationTimetableController::class, 'getFacultyCourses'])->name('examination.getFacultyCourses');
 
-Route::get('/examination/setup/{setup}', [ExaminationTimetableController::class, 'showSetup'])
-    ->name('examination.setup.show');
-
-
-Route::get('/examination/setup/{setup}/edit', [ExaminationTimetableController::class, 'editSetup'])
-    ->name('examination.setup.edit');
+    Route::get('/examination/setup/{setup}', [ExaminationTimetableController::class, 'showSetup'])
+        ->name('examination.setup.show');
 
 
-// Delete specific exam setup
-Route::delete('/examination/setup/{setup}', [ExaminationTimetableController::class, 'destroySetup'])
-    ->name('examination.destroySetup');
+    Route::get('/examination/setup/{setup}/edit', [ExaminationTimetableController::class, 'editSetup'])
+        ->name('examination.setup.edit');
 
-// Clear all timetables for a setup
-Route::delete('/examination/setup/{setup}/clear', [ExaminationTimetableController::class, 'clearTimetables'])
-    ->name('examination.clearTimetables');
 
-// Get programs (for dropdowns)
-Route::get('/examination/programs', [ExaminationTimetableController::class, 'getPrograms'])
-    ->name('examination.getPrograms');
+    // Delete specific exam setup
+    Route::delete('/examination/setup/{setup}', [ExaminationTimetableController::class, 'destroySetup'])
+        ->name('examination.destroySetup');
+
+    // Clear all timetables for a setup
+    Route::delete('/examination/setup/{setup}/clear', [ExaminationTimetableController::class, 'clearTimetables'])
+        ->name('examination.clearTimetables');
+
+    // Get programs (for dropdowns)
+    Route::get('/examination/programs', [ExaminationTimetableController::class, 'getPrograms'])
+        ->name('examination.getPrograms');
 
     Route::get('/examination/faculties-by-program', [ExaminationTimetableController::class, 'getFacultiesByProgram'])
-    ->name('examination.getFacultiesByProgram');
+        ->name('examination.getFacultiesByProgram');
 
-Route::get('/examination/supervisors', [ExaminationTimetableController::class, 'getSupervisors'])
-    ->name('examination.getSupervisors');
+    Route::get('/examination/supervisors', [ExaminationTimetableController::class, 'getSupervisors'])
+        ->name('examination.getSupervisors');
     Route::post('/timetables/generate', [ExaminationTimetableController::class, 'generateTimetable'])->name('timetables.generate');
     Route::get('/timetables/faculty/{program_id}/{year_num}', [ExaminationTimetableController::class, 'getFacultyByProgramYear'])->name('timetables.getFacultyByProgramYear')->middleware(['permission:view examination timetables']);
     Route::get('/timetables/faculty-courses', [ExaminationTimetableController::class, 'getFacultyCourses'])->name('timetables.getFacultyCourses')->middleware(['permission:view examination timetables']);
@@ -168,26 +179,26 @@ Route::get('/examination/supervisors', [ExaminationTimetableController::class, '
 
     //students
     Route::middleware(['auth'])->group(function () {
-    Route::resource('roles', RolePermissionController::class)
-         ->except(['show'])
-         ->names([
-             'index'   => 'roles.index',
-             'store'   => 'roles.store',
-             'update'  => 'roles.update',
-             'destroy' => 'roles.destroy',
-         ]);
+        Route::resource('roles', RolePermissionController::class)
+            ->except(['show'])
+            ->names([
+                'index'   => 'roles.index',
+                'store'   => 'roles.store',
+                'update'  => 'roles.update',
+                'destroy' => 'roles.destroy',
+            ]);
 
-    // Ajax helper
-    Route::get('roles/{role}/permissions', [RolePermissionController::class, 'permissions'])
-         ->name('roles.permissions');
-});
+        // Ajax helper
+        Route::get('roles/{role}/permissions', [RolePermissionController::class, 'permissions'])
+            ->name('roles.permissions');
+    });
 
-       
+
     Route::get('/students/export/excel', [StudentController::class, 'exportExcel'])->name('students.export.excel');
     Route::get('/students/export/attendance-pdf', [StudentController::class, 'exportAttendancePdf'])
-     ->name('students.export.attendance.pdf');
+        ->name('students.export.attendance.pdf');
     Route::post('/students/import', [StudentController::class, 'import'])
-    ->name('students.import');
+        ->name('students.import');
     Route::middleware(['auth', 'role:Admin|Administrator|Dean Of Students|Timetable Officer|Lecturer'])->get('/students', [StudentController::class, 'index'])->name('students.index');
     Route::post('/students', [StudentController::class, 'store'])->name('students.store');
     Route::put('/students/{student}', [StudentController::class, 'update'])->name('students.update');
@@ -271,7 +282,7 @@ Route::get('/examination/supervisors', [ExaminationTimetableController::class, '
 
     //app-version
     Route::middleware(['auth', 'role:Admin'])->prefix('admin')->name('admin.')->group(function () {
-     Route::resource('app-versions', AppVersionController::class)->except(['show']);
+        Route::resource('app-versions', AppVersionController::class)->except(['show']);
     });
 
     // Events
@@ -383,6 +394,126 @@ Route::get('/examination/supervisors', [ExaminationTimetableController::class, '
     Route::get('/enrolled-courses/{enrolled_course}/edit', [EnrolledCourseController::class, 'edit'])->name('enrolled-courses.edit')->middleware(['permission:view enrolled courses']);
     Route::put('/enrolled-courses/{enrolled_course}', [EnrolledCourseController::class, 'update'])->name('enrolled-courses.update')->middleware(['permission:edit enrolled courses']);
     Route::delete('/enrolled-courses/{enrolled_course}', [EnrolledCourseController::class, 'destroy'])->name('enrolled-courses.destroy')->middleware(['permission:delete enrolled courses']);
+});
+
+
+// =======================================================================
+// ELECTIONS ADMIN SIDE (Admin + Dean Of Students ONLY)
+// IMPORTANT: remove open/close routes from admin group (as you asked)
+// =======================================================================
+Route::middleware(['auth', 'role:Admin|Dean Of Students'])->group(function () {
+
+    // Position Definitions
+    Route::resource('position-definitions', PositionDefinitionController::class)->except(['show']);
+
+    // Elections (admin can CRUD + assign officer, but NOT open/close)
+    Route::get('/elections', [ElectionController::class, 'index'])->name('elections.index');
+    Route::get('/elections/{election}', [ElectionController::class, 'show'])->name('elections.show');
+
+    Route::post('/elections', [ElectionController::class, 'store'])->name('elections.store');
+    Route::put('/elections/{election}', [ElectionController::class, 'update'])->name('elections.update');
+    Route::delete('/elections/{election}', [ElectionController::class, 'destroy'])->name('elections.destroy');
+
+    // assign / update general officer
+    Route::post('/elections/{election}/officers', [ElectionController::class, 'addOfficer'])
+        ->name('elections.officers.add');
+
+    Route::put('/elections/{election}/officers/{student}', [ElectionController::class, 'updateOfficer'])
+        ->name('elections.officers.update');
+
+    Route::get('/elections/{election}/candidates', [ElectionCandidateApprovalController::class, 'index'])
+        ->name('admin.elections.candidates.index');
+
+    Route::put('/elections/{election}/candidates/approve-all', [ElectionCandidateApprovalController::class, 'approveAll'])
+        ->name('admin.elections.candidates.approveAll');
+
+    Route::put('/elections/{election}/candidates/{candidate}/approve', [ElectionCandidateApprovalController::class, 'approve'])
+        ->name('admin.elections.candidates.approve');
+
+    Route::put('/elections/{election}/candidates/{candidate}/unapprove', [ElectionCandidateApprovalController::class, 'unapprove'])
+        ->name('admin.elections.candidates.unapprove');
+    Route::get('/admin/elections/{election}/candidates/pdf', [ElectionCandidateApprovalController::class, 'exportPdf'])
+        ->name('admin.elections.candidates.pdf');
+});
+
+
+// =======================================================================
+// OFFICER PANEL (student web guard)
+// =======================================================================
+Route::prefix('officer')
+    ->name('officer.')
+    ->middleware(['auth:stuofficer', 'officer'])
+    ->group(function () {
+
+        // Dashboard
+        Route::get('/dashboard', [OfficerDashboardController::class, 'index'])
+            ->name('dashboard');
+
+        // Elections assigned to officer
+        Route::get('/elections', [OfficerElectionController::class, 'index'])
+            ->name('elections.index');
+
+        Route::get('/elections/{election}', [OfficerElectionController::class, 'show'])
+            ->name('elections.show');
+
+        // Officer-only actions
+        Route::post('/elections/{election}/open', [OfficerElectionController::class, 'open'])
+            ->name('elections.open');
+
+        Route::post('/elections/{election}/close', [OfficerElectionController::class, 'close'])
+            ->name('elections.close');
+
+        Route::post('/elections/{election}/publish', [OfficerElectionController::class, 'publish'])
+            ->name('elections.publish');
+
+        Route::get('/elections/{election}/positions', [ElectionPositionController::class, 'index'])
+            ->name('elections.positions.index');
+
+        Route::post('/elections/{election}/positions', [ElectionPositionController::class, 'store'])
+            ->name('elections.positions.store');
+
+        Route::put('/elections/{election}/positions/{position}', [ElectionPositionController::class, 'update'])
+            ->name('elections.positions.update');
+
+        Route::delete('/elections/{election}/positions/{position}', [ElectionPositionController::class, 'destroy'])
+            ->name('elections.positions.destroy');
+
+        Route::get('/elections/{election}/candidates', [ElectionCandidateController::class, 'index'])
+            ->name('elections.candidates.index');
+
+        Route::post('/elections/{election}/candidates', [ElectionCandidateController::class, 'store'])
+            ->name('elections.candidates.store');
+
+        Route::delete('/elections/{election}/candidates/{candidate}', [ElectionCandidateController::class, 'destroy'])
+            ->name('elections.candidates.destroy');
+
+        // Results
+        Route::get('/results', [OfficerResultController::class, 'index'])->name('results.index');
+        Route::get('/results/{election}', [OfficerResultController::class, 'show'])->name('results.show');
+
+        Route::post('/officer/results/{election}/publish', [OfficerPublishResultsController::class, 'publish'])->name('results.publish');
+        Route::get('/officer/results/{election}/published', [OfficerPublishResultsController::class, 'published'])->name('results.published');
+    });
+
+
+// =======================================================================
+// STUDENT WEB LOGIN (stuofficer guard)
+// =======================================================================
+Route::prefix('stu')->name('stu.')->group(function () {
+
+    Route::middleware('guest:stuofficer')->group(function () {
+        Route::get('/login', [StudentLoginController::class, 'showLogin'])->name('login');
+        Route::post('/login', [StudentLoginController::class, 'login'])->name('login.submit');
+    });
+
+    Route::middleware('auth:stuofficer')->group(function () {
+        Route::post('/logout', [StudentLoginController::class, 'logout'])->name('logout');
+    });
+});
+
+Route::prefix('student')->name('student.')->middleware(['auth:stuofficer'])->group(function () {
+    Route::get('/vote', [ElectionVotingController::class, 'index'])->name('vote.index');
+    Route::post('/vote', [ElectionVotingController::class, 'store'])->name('vote.store');
 });
 
 require __DIR__ . '/auth.php';

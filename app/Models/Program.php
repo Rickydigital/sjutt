@@ -30,6 +30,17 @@ class Program extends Model
         return $this->hasMany(Faculty::class);
     }
 
+
+    public function electionPositions()
+{
+    return $this->belongsToMany(
+        ElectionPosition::class,
+        'election_position_program',
+        'program_id',
+        'election_position_id'
+    )->withTimestamps();
+}
+
     public function calendarEvents(): HasMany
     {
         return $this->hasMany(CalendarEvent::class);

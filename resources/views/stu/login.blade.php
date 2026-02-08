@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-     <title>SJUT Loin</title>
+     <title>Student Portal - SJUT</title>
     <meta content="width=device-width, initial-scale=1.0, shrink-to-fit=no" name="viewport" />
     <link rel="icon" href="{{ asset('app-assets/img/kaiadmin/favicon.ico') }}" type="image/x-icon" />
 
@@ -36,19 +36,20 @@
         @endif
 
         <!-- Form -->
-        <form method="POST" action="{{ route('login') }}">
+        <form method="POST" action="{{ route('stu.login.submit') }}">
             @csrf
 
             <!-- Email -->
             <div class="mb-4">
-                <label for="email" class="block text-gray-700 text-sm font-medium mb-1">Email Address</label>
-                <input id="email"
-                       type="email"
-                       name="email"
-                       value="{{ old('email') }}"
+                <label for="reg_no" class="block text-gray-700 text-sm font-medium mb-1">Registration Number</label>
+                <input id="reg_no"
+                       type="text"
+                       name="reg_no"
+                       value="{{ old('reg_no') }}"
                        required
                        autofocus
                        class="w-full px-3 py-2 border rounded-lg focus:ring-purple-500 focus:border-purple-500">
+
             </div>
 
             <!-- Password -->
