@@ -20,5 +20,6 @@ class AppVersion extends Model
 
     protected $casts = [
         'is_force_update' => 'boolean',
+        'version_code' => 'integer',
     ];
 }
