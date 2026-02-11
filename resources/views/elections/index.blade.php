@@ -137,8 +137,8 @@
                                     </a>
 
                                     {{-- Results (only CLOSED is clickable) --}}
-@if($election->status === 'closed')
-    <a href="{{ route('admin.elections.candidates.index', $election) }}"
+@if($election->status === 'published')
+    <a href="{{ route('officer.results.published.pdf', $election) }}"
        class="action-icon text-warning me-2"
        title="Results">
         <i class="bi bi-bar-chart-fill"></i>
@@ -148,6 +148,20 @@
         <i class="bi bi-bar-chart-fill"></i>
     </span>
 @endif
+
+{{-- Voters (only CLOSED/PUBLISHED) --}}
+@if(in_array($election->status, ['closed','published']))
+    <a href="{{ route('officer.results.voters', $election) }}"
+       class="action-icon text-dark me-2"
+       title="Voters (who voted)">
+        <i class="bi bi-person-check-fill"></i>
+    </a>
+@else
+    <span class="text-muted me-2" title="Voters list available after election is CLOSED">
+        <i class="bi bi-person-check-fill"></i>
+    </span>
+@endif
+
 
 
                                     {{-- Officer action: Add or Edit --}}

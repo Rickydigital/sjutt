@@ -7,6 +7,8 @@ use App\Models\Election;
 use App\Models\ElectionVote;
 use App\Models\Student;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class OfficerResultController extends Controller
 {
@@ -539,4 +541,131 @@ class OfficerResultController extends Controller
             'resultsPerPosition'
         ));
     }
+
+
+public function voters(Election $election, Request $request)
+{
+    $q         = trim((string) $request->get('q', ''));
+    $facultyId = $request->integer('faculty_id');
+    $programId = $request->integer('program_id');
+
+    $rows = DB::table('election_votes as v')
+        ->join('students as s', 's.id', '=', 'v.student_id')
+        ->leftJoin('faculties as f', 'f.id', '=', 's.faculty_id')
+        ->leftJoin('programs as p', 'p.id', '=', 's.program_id')
+        ->leftJoin('election_positions as ep', 'ep.id', '=', 'v.election_position_id')
+        ->where('v.election_id', $election->id)
+        ->when($facultyId, fn($qq) => $qq->where('s.faculty_id', $facultyId))
+        ->when($programId, fn($qq) => $qq->where('s.program_id', $programId))
+        ->when($q !== '', function ($qq) use ($q) {
+            $qq->where(function ($w) use ($q) {
+                $w->where('s.reg_no', 'like', "%{$q}%")
+                  ->orWhereRaw("CONCAT(s.first_name,' ',COALESCE(s.last_name,'')) LIKE ?", ["%{$q}%"]);
+            });
+        })
+        ->selectRaw("
+            s.id as student_id,
+            CONCAT(s.first_name,' ',COALESCE(s.last_name,'')) as student_name,
+            s.reg_no,
+            f.name as faculty_name,
+            p.name as program_name,
+            COUNT(*) as total_votes,
+            COUNT(DISTINCT v.election_position_id) as positions_voted,
+            SUM(CASE WHEN ep.scope_type = 'global'  THEN 1 ELSE 0 END) as global_votes,
+            SUM(CASE WHEN ep.scope_type = 'faculty' THEN 1 ELSE 0 END) as faculty_votes,
+            SUM(CASE WHEN ep.scope_type = 'program' THEN 1 ELSE 0 END) as program_votes,
+            COUNT(DISTINCT ep.scope_type) as categories_participated
+        ")
+        ->groupBy('s.id', 's.first_name', 's.last_name', 's.reg_no', 'f.name', 'p.name')
+        ->orderByDesc('total_votes')
+        ->orderBy('student_name')
+        ->paginate(30)
+        ->withQueryString();
+
+    $totalVoters = DB::table('election_votes')
+        ->where('election_id', $election->id)
+        ->distinct('student_id')
+        ->count('student_id');
+
+    $totalVotes = DB::table('election_votes')
+        ->where('election_id', $election->id)
+        ->count();
+
+    // ✅ add these
+    $faculties = DB::table('faculties')->select('id','name')->orderBy('name')->get();
+    $programs  = DB::table('programs')->select('id','name')->orderBy('name')->get();
+
+    // ✅ return the correct blade path you are using
+    return view('elections.voters', compact(
+        'election', 'rows', 'totalVoters', 'totalVotes', 'faculties', 'programs'
+    ));
+}
+
+
+public function votersPdf(Election $election, Request $request)
+{
+    $q         = trim((string) $request->get('q', ''));
+    $facultyId = $request->integer('faculty_id');
+    $programId = $request->integer('program_id');
+    $scope     = $request->get('export_scope', 'all'); // all|faculty|program
+
+    // enforce selection if user chose a specific scope
+    if ($scope === 'faculty' && !$facultyId) {
+        return back()->with('error', 'Please select a faculty to export by faculty.');
+    }
+    if ($scope === 'program' && !$programId) {
+        return back()->with('error', 'Please select a program to export by program.');
+    }
+
+    $rows = DB::table('election_votes as v')
+        ->join('students as s', 's.id', '=', 'v.student_id')
+        ->leftJoin('faculties as f', 'f.id', '=', 's.faculty_id')
+        ->leftJoin('programs as p', 'p.id', '=', 's.program_id')
+        ->leftJoin('election_positions as ep', 'ep.id', '=', 'v.election_position_id')
+        ->where('v.election_id', $election->id)
+        ->when($facultyId, fn($qq) => $qq->where('s.faculty_id', $facultyId))
+        ->when($programId, fn($qq) => $qq->where('s.program_id', $programId))
+        ->when($q !== '', function ($qq) use ($q) {
+            $qq->where(function ($w) use ($q) {
+                $w->where('s.reg_no', 'like', "%{$q}%")
+                  ->orWhereRaw("CONCAT(s.first_name,' ',COALESCE(s.last_name,'')) LIKE ?", ["%{$q}%"]);
+            });
+        })
+        ->selectRaw("
+            s.id as student_id,
+            CONCAT(s.first_name,' ',COALESCE(s.last_name,'')) as student_name,
+            s.reg_no,
+            f.name as faculty_name,
+            p.name as program_name,
+            COUNT(*) as total_votes,
+            SUM(CASE WHEN ep.scope_type = 'global'  THEN 1 ELSE 0 END) as global_votes,
+            SUM(CASE WHEN ep.scope_type = 'faculty' THEN 1 ELSE 0 END) as faculty_votes,
+            SUM(CASE WHEN ep.scope_type = 'program' THEN 1 ELSE 0 END) as program_votes,
+            COUNT(DISTINCT ep.scope_type) as categories_participated
+        ")
+        ->groupBy('s.id','s.first_name','s.last_name','s.reg_no','f.name','p.name')
+        ->orderBy('student_name')
+        ->get();
+
+    $title = match($scope){
+        'faculty' => 'Voters List (By Faculty)',
+        'program' => 'Voters List (By Program)',
+        default   => 'Voters List (All)',
+    };
+
+    $pdf = Pdf::loadView('elections.voters_pdf', [
+        'election'   => $election,
+        'rows'       => $rows,
+        'title'      => $title,
+        'scope'      => $scope,
+        'facultyId'  => $facultyId,
+        'programId'  => $programId,
+        'q'          => $q,
+        'generatedAt'=> now(),
+    ])->setPaper('a4', 'portrait');
+
+    $filename = 'voters_' . str($election->title)->slug('_') . '_' . now()->format('Ymd_His') . '.pdf';
+    return $pdf->download($filename);
+}
+
 }

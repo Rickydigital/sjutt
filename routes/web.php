@@ -434,6 +434,15 @@ Route::middleware(['auth', 'role:Admin|Dean Of Students'])->group(function () {
         ->name('admin.elections.candidates.unapprove');
     Route::get('/admin/elections/{election}/candidates/pdf', [ElectionCandidateApprovalController::class, 'exportPdf'])
         ->name('admin.elections.candidates.pdf');
+    Route::get('election/{election}/voters', [OfficerResultController::class, 'voters'])
+    ->name('officer.results.voters');
+    Route::get('officer/results/{election}/voters/pdf', [OfficerResultController::class, 'votersPdf'])
+    ->name('officer.results.voters.pdf');
+    Route::get('/election/{election}/published/pdf', [OfficerPublishResultsController::class, 'publishedPdf'])
+    ->name('officer.results.published.pdf');
+
+
+
 });
 
 

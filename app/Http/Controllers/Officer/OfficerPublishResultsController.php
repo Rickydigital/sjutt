@@ -15,6 +15,7 @@ use App\Models\Student;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 
 class OfficerPublishResultsController extends Controller
@@ -447,17 +448,25 @@ public function published(Election $election)
     $scopes = ElectionResultScope::where('result_publish_id', $publish->id)->get();
     abort_if($scopes->isEmpty(), 404, 'Published results found, but scopes missing.');
 
-    $scopesByType = $scopes->keyBy('scope_type');
+    $globalScope   = $scopes->firstWhere('scope_type', 'global');
+    $programScopes = $scopes->where('scope_type', 'program')->values();
+    $facultyScopes = $scopes->where('scope_type', 'faculty')->values();
     $scopeIds = $scopes->pluck('id')->all();
 
     // 3) Positions (JOIN scopes to sort by scope_type)
     $positions = ElectionResultPosition::query()
-        ->join('election_result_scopes as ers', 'ers.id', '=', 'election_result_positions.result_scope_id')
-        ->whereIn('election_result_positions.result_scope_id', $scopeIds)
-        ->select('election_result_positions.*') // important: avoid column collisions
-        ->orderByRaw("FIELD(ers.scope_type, 'global','program','faculty')")
-        ->orderBy('election_result_positions.position_name')
-        ->get();
+    ->join('election_result_scopes as ers', 'ers.id', '=', 'election_result_positions.result_scope_id')
+    ->whereIn('election_result_positions.result_scope_id', $scopeIds)
+    ->select([
+        'election_result_positions.*',
+        'ers.scope_type as scope_type',
+        'ers.program_id as program_id',
+        'ers.faculty_id as faculty_id',
+    ])
+    ->orderByRaw("FIELD(ers.scope_type, 'global','program','faculty')")
+    ->orderBy('election_result_positions.position_name')
+    ->get();
+
 
     $positionIds = $positions->pluck('id')->all();
 
@@ -466,6 +475,14 @@ public function published(Election $election)
         ->orderByDesc('vote_count')
         ->get()
         ->groupBy('result_position_id');
+
+    $programMap = DB::table('programs')
+    ->selectRaw('id, COALESCE(NULLIF(short_name,""), name) as label')
+    ->pluck('label', 'id')
+    ->toArray();
+
+    $facultyMap = DB::table('faculties')->pluck('name', 'id')->toArray();
+
 
     // 5) Attach candidates + ranks (ties share rank)
     $positions = $positions->map(function ($position) use ($candidates) {
@@ -483,13 +500,107 @@ public function published(Election $election)
         return $position;
     });
 
-    return view('officer.results.published', [
-        'election'  => $election,
-        'publish'   => $publish,
-        'scopes'    => $scopesByType,
-        'positions' => $positions,
-    ]);
+   return view('officer.results.published', [
+    'election'    => $election,
+    'publish'     => $publish,
+    'positions'   => $positions,
+    'globalScope' => $globalScope ?? null,      // if you pass it
+    'programScopes' => $programScopes ?? collect(),
+    'facultyScopes' => $facultyScopes ?? collect(),
+    'programMap'  => $programMap,
+    'facultyMap'  => $facultyMap,
+]);
+
+
 }
+
+   public function publishedPdf(Election $election, Request $request)
+    {
+        // 1) Latest publish
+        $publish = ElectionResultPublish::where('election_id', $election->id)
+            ->orderByDesc('version')
+            ->first();
+
+        abort_if(!$publish, 404, 'No published results found for this election.');
+
+        // 2) Scopes
+        $scopes = ElectionResultScope::where('result_publish_id', $publish->id)->get();
+        abort_if($scopes->isEmpty(), 404, 'Published results found, but scopes missing.');
+
+        $globalScope   = $scopes->firstWhere('scope_type', 'global');
+        $programScopes = $scopes->where('scope_type', 'program')->values();
+        $facultyScopes = $scopes->where('scope_type', 'faculty')->values();
+        $scopeIds      = $scopes->pluck('id')->all();
+
+        // maps for labels in headers
+        $programMap = DB::table('programs')
+            ->selectRaw('id, COALESCE(NULLIF(name,""), name) as label')
+            ->pluck('label', 'id')
+            ->toArray();
+
+        $facultyMap = DB::table('faculties')->pluck('name', 'id')->toArray();
+
+        // 3) Positions + include scope ids so we can group by scope
+        $positions = ElectionResultPosition::query()
+            ->join('election_result_scopes as ers', 'ers.id', '=', 'election_result_positions.result_scope_id')
+            ->whereIn('election_result_positions.result_scope_id', $scopeIds)
+            ->select([
+                'election_result_positions.*',
+                'ers.scope_type as scope_type',
+                'ers.program_id as program_id',
+                'ers.faculty_id as faculty_id',
+            ])
+            ->orderByRaw("FIELD(ers.scope_type, 'global','program','faculty')")
+            ->orderBy('election_result_positions.position_name')
+            ->get();
+
+        $positionIds = $positions->pluck('id')->all();
+
+        // 4) Candidates for those positions
+        $candidatesByPos = ElectionResultCandidate::whereIn('result_position_id', $positionIds)
+            ->orderByDesc('vote_count')
+            ->get()
+            ->groupBy('result_position_id');
+
+        // attach candidates + ranks (ties share rank)
+        $positions = $positions->map(function ($position) use ($candidatesByPos) {
+            $candList = $candidatesByPos->get($position->id, collect())->values();
+
+            $rank = 1;
+            foreach ($candList as $i => $cand) {
+                if ($i > 0 && (int)$cand->vote_count < (int)$candList[$i - 1]->vote_count) {
+                    $rank = $i + 1;
+                }
+                $cand->rank = $rank;
+            }
+
+            $position->setRelation('candidates', $candList);
+            return $position;
+        });
+
+        // 5) Group positions by scope row (result_scope_id) to print each scope on its own page
+        $positionsByScopeId = $positions->groupBy('result_scope_id');
+
+        // 6) Build PDF
+        $pdf = Pdf::loadView('elections.published_pdf', [
+            'election'            => $election,
+            'publish'             => $publish,
+
+            'globalScope'         => $globalScope,
+            'programScopes'       => $programScopes,
+            'facultyScopes'       => $facultyScopes,
+
+            'positionsByScopeId'  => $positionsByScopeId,
+
+            'programMap'          => $programMap,
+            'facultyMap'          => $facultyMap,
+
+            'generatedAt'         => now(),
+        ])->setPaper('a4', 'portrait');
+
+        $filename = 'published_results_' . str($election->title)->slug('_') . '_v' . $publish->version . '_' . now()->format('Ymd_His') . '.pdf';
+        return $pdf->download($filename);
+    }
 
 
 }

@@ -27,7 +27,7 @@ class ElectionCandidateApprovalController extends Controller
             ->latest();
 
         // filter: pending/approved/all
-        $status = $request->get('status', 'pending'); // pending | approved | all
+        $status = $request->get('status', 'all'); // pending | approved | all
         if ($status === 'pending') {
             $query->where('is_approved', false);
         } elseif ($status === 'approved') {

@@ -29,73 +29,271 @@
                         <i class="bi bi-arrow-left me-1"></i> Back
                     </a>
 
-                    <button class="btn btn-primary" onclick="window.print()">
-                        <i class="bi bi-printer me-1"></i> Print
-                    </button>
+                    
                 </div>
             </div>
         </div>
     </div>
 
-    {{-- Scope summary cards --}}
+    {{-- Scopes Summary --}}
     @php
-        $global = $scopes['global'] ?? null;
-        $program = $scopes['program'] ?? null;
-        $faculty = $scopes['faculty'] ?? null;
+        /** expected from controller:
+         * $globalScope (single)
+         * $programScopes (collection)
+         * $facultyScopes (collection)
+         * $programMap (id => short_name or name)  (optional but recommended)
+         * $facultyMap (id => name)                (optional but recommended)
+         */
 
-        $card = function($title, $icon, $row, $badge) {
-            $eligible = (int)($row->eligible_students ?? 0);
-            $voters   = (int)($row->voters ?? 0);
-            $turnout  = (float)($row->turnout_percent ?? 0);
-            $turnout  = min(100, max(0, $turnout));
-            $votedPct = (float)($row->voted_percent ?? 0); // optional
-            return compact('title','icon','eligible','voters','turnout','badge','votedPct');
-        };
+        $global   = $globalScope ?? null;
+        $programs = $programScopes ?? collect();
+        $faculties= $facultyScopes ?? collect();
 
-        $cards = collect([
-            $card('Global Scope',  'bi-globe',      $global,  'bg-success'),
-            $card('Program Scope', 'bi-diagram-3',  $program, 'bg-info text-dark'),
-            $card('Faculty Scope', 'bi-buildings',  $faculty, 'bg-primary'),
-        ]);
+        $globalEligible = (int)($global?->eligible_students ?? 0);
+        $globalVoters   = (int)($global?->voters ?? 0);
+        $globalTurnout  = min(100, max(0, (float)($global?->turnout_percent ?? 0)));
+
+        $programEligible = (int)$programs->sum('eligible_students');
+        $programVoters   = (int)$programs->sum('voters');
+        $programTurnout  = $programEligible > 0 ? round(($programVoters / $programEligible) * 100, 2) : 0;
+
+        $facultyEligible = (int)$faculties->sum('eligible_students');
+        $facultyVoters   = (int)$faculties->sum('voters');
+        $facultyTurnout  = $facultyEligible > 0 ? round(($facultyVoters / $facultyEligible) * 100, 2) : 0;
     @endphp
 
     <div class="row g-4 mb-4">
-        @foreach($cards as $c)
-            <div class="col-lg-4 col-md-6">
-                <div class="card border-0 shadow-sm h-100">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <div class="text-uppercase text-muted small fw-semibold mb-1">{{ $c['title'] }}</div>
-                                <span class="badge {{ $c['badge'] }} px-3 py-2">
-                                    <i class="bi {{ $c['icon'] }} me-1"></i>
-                                    {{ strtoupper(str_replace(' scope','',$c['title'])) }}
-                                </span>
-                            </div>
-                            <div class="text-muted small">
-                                Turnout
-                                <div class="h4 fw-bold mb-0">{{ $c['turnout'] }}%</div>
-                            </div>
+        {{-- Global --}}
+        <div class="col-lg-4 col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-uppercase text-muted small fw-semibold mb-1">Global Scope</div>
+                            <span class="badge bg-success px-3 py-2">
+                                <i class="bi bi-globe me-1"></i> GLOBAL
+                            </span>
                         </div>
-
-                        <div class="mt-3 text-muted">
-                            Eligible: <strong class="text-dark">{{ number_format($c['eligible']) }}</strong><br>
-                            Voters: <strong class="text-dark">{{ number_format($c['voters']) }}</strong>
+                        <div class="text-muted small">
+                            Turnout
+                            <div class="h4 fw-bold mb-0">{{ $globalTurnout }}%</div>
                         </div>
-
-                        <div class="progress mt-3" style="height: 10px;">
-                            <div class="progress-bar" role="progressbar" style="width: {{ $c['turnout'] }}%"></div>
-                        </div>
-
-                        @if($c['eligible'] <= 0)
-                            <div class="alert alert-warning mt-3 mb-0 py-2 small">
-                                No eligible active students detected for this scope.
-                            </div>
-                        @endif
                     </div>
+
+                    <div class="mt-3 text-muted">
+                        Eligible: <strong class="text-dark">{{ number_format($globalEligible) }}</strong><br>
+                        Voters: <strong class="text-dark">{{ number_format($globalVoters) }}</strong>
+                    </div>
+
+                    <div class="progress mt-3" style="height: 10px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ $globalTurnout }}%"></div>
+                    </div>
+
+                    @if($globalEligible <= 0)
+                        <div class="alert alert-warning mt-3 mb-0 py-2 small">
+                            No eligible active students detected for global scope.
+                        </div>
+                    @endif
                 </div>
             </div>
-        @endforeach
+        </div>
+
+        {{-- Program aggregate --}}
+        <div class="col-lg-4 col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-uppercase text-muted small fw-semibold mb-1">Program Scope (Aggregate)</div>
+                            <span class="badge bg-info text-dark px-3 py-2">
+                                <i class="bi bi-diagram-3 me-1"></i> PROGRAM
+                            </span>
+                            <div class="text-muted small mt-2">
+                                Programs: <strong class="text-dark">{{ number_format($programs->count()) }}</strong>
+                            </div>
+                        </div>
+                        <div class="text-muted small">
+                            Turnout
+                            <div class="h4 fw-bold mb-0">{{ $programTurnout }}%</div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 text-muted">
+                        Eligible: <strong class="text-dark">{{ number_format($programEligible) }}</strong><br>
+                        Voters: <strong class="text-dark">{{ number_format($programVoters) }}</strong>
+                    </div>
+
+                    <div class="progress mt-3" style="height: 10px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ min(100,max(0,$programTurnout)) }}%"></div>
+                    </div>
+
+                    @if($programEligible <= 0)
+                        <div class="alert alert-warning mt-3 mb-0 py-2 small">
+                            No eligible active students detected for program scope.
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        {{-- Faculty aggregate --}}
+        <div class="col-lg-4 col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-uppercase text-muted small fw-semibold mb-1">Faculty Scope (Aggregate)</div>
+                            <span class="badge bg-primary px-3 py-2">
+                                <i class="bi bi-buildings me-1"></i> FACULTY
+                            </span>
+                            <div class="text-muted small mt-2">
+                                Faculties: <strong class="text-dark">{{ number_format($faculties->count()) }}</strong>
+                            </div>
+                        </div>
+                        <div class="text-muted small">
+                            Turnout
+                            <div class="h4 fw-bold mb-0">{{ $facultyTurnout }}%</div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 text-muted">
+                        Eligible: <strong class="text-dark">{{ number_format($facultyEligible) }}</strong><br>
+                        Voters: <strong class="text-dark">{{ number_format($facultyVoters) }}</strong>
+                    </div>
+
+                    <div class="progress mt-3" style="height: 10px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ min(100,max(0,$facultyTurnout)) }}%"></div>
+                    </div>
+
+                    @if($facultyEligible <= 0)
+                        <div class="alert alert-warning mt-3 mb-0 py-2 small">
+                            No eligible active students detected for faculty scope.
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Program/Faculty detailed lists (so you can see ALL programs/faculties) --}}
+    <div class="row g-4 mb-4">
+        {{-- Programs list --}}
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="fw-bold">
+                        <i class="bi bi-diagram-3 me-1"></i> Program Scope Details
+                    </div>
+                    <span class="text-muted small">{{ number_format($programs->count()) }} programs</span>
+                </div>
+
+                <div class="card-body">
+                    @if($programs->isEmpty())
+                        <div class="text-muted">No program scopes found in this published version.</div>
+                    @else
+                        <div class="accordion" id="programScopesAccordion">
+                            @foreach($programs as $i => $row)
+                                @php
+                                    $pid = (int)($row->program_id ?? 0);
+                                    $pname = $programMap[$pid] ?? ('Program #' . $pid);
+                                    $eligible = (int)($row->eligible_students ?? 0);
+                                    $voters   = (int)($row->voters ?? 0);
+                                    $turnout  = (float)($row->turnout_percent ?? 0);
+                                    $turnout  = min(100, max(0, $turnout));
+                                @endphp
+
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="progScopeHead{{ $i }}">
+                                        <button class="accordion-button collapsed" type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#progScopeCol{{ $i }}">
+                                            <div class="d-flex justify-content-between w-100 align-items-center">
+                                                <span class="fw-semibold">{{ $pname }}</span>
+                                                <span class="text-muted small">
+                                                    Eligible: <strong class="text-dark">{{ number_format($eligible) }}</strong>
+                                                    • Voters: <strong class="text-dark">{{ number_format($voters) }}</strong>
+                                                    • Turnout: <strong class="text-dark">{{ $turnout }}%</strong>
+                                                </span>
+                                            </div>
+                                        </button>
+                                    </h2>
+                                    <div id="progScopeCol{{ $i }}" class="accordion-collapse collapse"
+                                         data-bs-parent="#programScopesAccordion">
+                                        <div class="accordion-body">
+                                            <div class="progress" style="height: 10px;">
+                                                <div class="progress-bar" style="width: {{ $turnout }}%"></div>
+                                            </div>
+                                            <div class="text-muted small mt-2">
+                                                This is the snapshot for voters who belong to <strong>{{ $pname }}</strong>.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        {{-- Faculties list --}}
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="fw-bold">
+                        <i class="bi bi-buildings me-1"></i> Faculty Scope Details
+                    </div>
+                    <span class="text-muted small">{{ number_format($faculties->count()) }} faculties</span>
+                </div>
+
+                <div class="card-body">
+                    @if($faculties->isEmpty())
+                        <div class="text-muted">No faculty scopes found in this published version.</div>
+                    @else
+                        <div class="accordion" id="facultyScopesAccordion">
+                            @foreach($faculties as $i => $row)
+                                @php
+                                    $fid = (int)($row->faculty_id ?? 0);
+                                    $fname = $facultyMap[$fid] ?? ('Faculty #' . $fid);
+                                    $eligible = (int)($row->eligible_students ?? 0);
+                                    $voters   = (int)($row->voters ?? 0);
+                                    $turnout  = (float)($row->turnout_percent ?? 0);
+                                    $turnout  = min(100, max(0, $turnout));
+                                @endphp
+
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="facScopeHead{{ $i }}">
+                                        <button class="accordion-button collapsed" type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#facScopeCol{{ $i }}">
+                                            <div class="d-flex justify-content-between w-100 align-items-center">
+                                                <span class="fw-semibold">{{ $fname }}</span>
+                                                <span class="text-muted small">
+                                                    Eligible: <strong class="text-dark">{{ number_format($eligible) }}</strong>
+                                                    • Voters: <strong class="text-dark">{{ number_format($voters) }}</strong>
+                                                    • Turnout: <strong class="text-dark">{{ $turnout }}%</strong>
+                                                </span>
+                                            </div>
+                                        </button>
+                                    </h2>
+                                    <div id="facScopeCol{{ $i }}" class="accordion-collapse collapse"
+                                         data-bs-parent="#facultyScopesAccordion">
+                                        <div class="accordion-body">
+                                            <div class="progress" style="height: 10px;">
+                                                <div class="progress-bar" style="width: {{ $turnout }}%"></div>
+                                            </div>
+                                            <div class="text-muted small mt-2">
+                                                This is the snapshot for voters who belong to <strong>{{ $fname }}</strong>.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- Positions --}}
@@ -115,6 +313,8 @@
 
                     @foreach($positions as $pos)
                         @php
+
+                            $scopeLabel = null;
                             $scopeBadge = match($pos->scope_type) {
                                 'global' => 'bg-success',
                                 'program' => 'bg-info text-dark',
@@ -128,6 +328,15 @@
                                 'faculty' => 'bi-buildings',
                                 default => 'bi-circle',
                             };
+
+                            if ($pos->scope_type === 'program' && !empty($pos->program_id)) {
+                                    $scopeLabel = $programMap[$pos->program_id] ?? null;
+                                }
+
+                                // faculty scope position: show faculty name
+                                if ($pos->scope_type === 'faculty' && !empty($pos->faculty_id)) {
+                                    $scopeLabel = $facultyMap[$pos->faculty_id] ?? null;
+                                }
 
                             $eligible = (int)($pos->eligible_students ?? 0);
                             $voters   = (int)($pos->voters ?? 0);
@@ -148,7 +357,12 @@
                                         <div class="d-flex align-items-center gap-2">
                                             <i class="bi {{ $scopeIcon }}"></i>
                                             <span>{{ $pos->position_name }}</span>
-                                            <span class="badge {{ $scopeBadge }}">{{ strtoupper($pos->scope_type) }}</span>
+                                            <span class="badge {{ $scopeBadge }}">
+                                                {{ strtoupper($pos->scope_type) }}
+                                                @if($scopeLabel)
+                                                    <span class="ms-1">({{ $scopeLabel }})</span>
+                                                @endif
+                                            </span>
                                         </div>
 
                                         <div class="text-muted small">
