@@ -247,40 +247,40 @@ class OfficerResultController extends Controller
         // (kept)
         // ------------------------------------------------------------
         $supportByFaculty = DB::table('election_votes as v')
-            ->join('students as voter', 'voter.id', '=', 'v.student_id')
-            ->join('faculties as f', 'f.id', '=', 'voter.faculty_id')
-            ->where('v.election_id', $election->id)
-            ->selectRaw('
-                v.election_position_id as position_id,
-                v.candidate_id,
-                f.id as faculty_id,
-                f.name as faculty_name,
-                COUNT(*) as votes_from_group
-            ')
-            ->groupBy('position_id', 'candidate_id', 'faculty_id', 'faculty_name')
-            ->orderBy('position_id')
-            ->orderBy('candidate_id')
-            ->orderByDesc('votes_from_group')
-            ->get()
-            ->groupBy('position_id');
+    ->join('students as voter', 'voter.id', '=', 'v.student_id')
+    ->join('faculties as f', 'f.id', '=', 'voter.faculty_id')
+    ->where('v.election_id', $election->id)
+    ->selectRaw('
+        v.election_position_id as position_id,
+        v.candidate_id,
+        f.id as faculty_id,
+        f.name as faculty_name,
+        COUNT(*) as votes_from_group
+    ')
+    ->groupBy('v.election_position_id', 'v.candidate_id', 'f.id', 'f.name')   // ✅ real columns
+    ->orderBy('v.election_position_id')
+    ->orderBy('v.candidate_id')
+    ->orderByDesc('votes_from_group')
+    ->get()
+    ->groupBy('position_id');
 
-        $supportByProgram = DB::table('election_votes as v')
-            ->join('students as voter', 'voter.id', '=', 'v.student_id')
-            ->join('programs as p', 'p.id', '=', 'voter.program_id')
-            ->where('v.election_id', $election->id)
-            ->selectRaw('
-                v.election_position_id as position_id,
-                v.candidate_id,
-                p.id as program_id,
-                p.name as program_name,
-                COUNT(*) as votes_from_group
-            ')
-            ->groupBy('position_id', 'candidate_id', 'program_id', 'program_name')
-            ->orderBy('position_id')
-            ->orderBy('candidate_id')
-            ->orderByDesc('votes_from_group')
-            ->get()
-            ->groupBy('position_id');
+       $supportByProgram = DB::table('election_votes as v')
+    ->join('students as voter', 'voter.id', '=', 'v.student_id')
+    ->join('programs as p', 'p.id', '=', 'voter.program_id')
+    ->where('v.election_id', $election->id)
+    ->selectRaw('
+        v.election_position_id as position_id,
+        v.candidate_id,
+        p.id as program_id,
+        p.name as program_name,
+        COUNT(*) as votes_from_group
+    ')
+    ->groupBy('v.election_position_id', 'v.candidate_id', 'p.id', 'p.name')   // ✅ real columns
+    ->orderBy('v.election_position_id')
+    ->orderBy('v.candidate_id')
+    ->orderByDesc('votes_from_group')
+    ->get()
+    ->groupBy('position_id');
 
         // ------------------------------------------------------------
         // 5) ✅ RESULTS PER FACULTY / PER PROGRAM for ALL scopes (global included),
