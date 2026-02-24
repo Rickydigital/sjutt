@@ -24,6 +24,8 @@
             Welcome Back
         </h2>
 
+        
+
         <!-- Error Messages -->
         @if ($errors->any())
             <div class="mb-4 text-red-600 text-sm">
@@ -71,6 +73,11 @@
                 <label for="remember_me" class="ml-2 text-sm text-gray-700">
                     Remember me
                 </label>
+
+                <a href="{{ route('stu.login') }}"
+                       class="text-sm text-purple-700 hover:underline">
+                        Are yous student?
+              </a>
             </div>
 
             <!-- Footer Row -->

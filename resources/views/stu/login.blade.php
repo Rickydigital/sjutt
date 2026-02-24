@@ -76,12 +76,11 @@
 
             <!-- Footer Row -->
             <div class="flex items-center justify-between">
-                @if (Route::has('password.request'))
-                    <a href="{{ route('password.request') }}"
+                
+                    <a href="{{ route('login') }}"
                        class="text-sm text-purple-700 hover:underline">
-                        Forgot password?
+                        Are you a staff member?
                     </a>
-                @endif
 
                 <button type="submit"
                         class="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg shadow">
