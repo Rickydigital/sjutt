@@ -68,7 +68,7 @@
         <div class="robot"></div>
         <div class="error-code">@yield('code')</div>
         <div class="error-message">@yield('message')</div>
-        <a href="{{ route('dashboard') }}" class="dashboard-btn pulse">Back to Dashboard</a>
+        <a href="{{ route('student.vote.index') }}" class="dashboard-btn pulse">Back</a>
     </div>
 </body>
 </html>
