@@ -207,7 +207,7 @@ public function exportPdf(Request $request, ExamSetup $setup)
 
     $draft = $validated['draft'];
 
-    $days = $this->getValidDates($setup); // your weekend-aware function
+    $days = $this->getValidDates($setup);
     $dateChunks = array_chunk($days, 5);
 
     $timeSlots = collect($setup->time_slots ?? [])->map(function($slot){
@@ -222,11 +222,22 @@ public function exportPdf(Request $request, ExamSetup $setup)
         return back()->withErrors(['export' => 'Setup has no valid days or time slots.']);
     }
 
-    $programs = ($validated['scope'] === 'single')
-        ? Program::where('id', (int)$validated['program_id'])->get()
-        : Program::orderBy('name')->get();
+    // ✅ ONLY programs that have exams in THIS setup (and within valid dates)
+    if ($validated['scope'] === 'single') {
+        $programs = Program::where('id', (int)$validated['program_id'])->get();
+    } else {
+        $programs = Program::whereHas('examinationTimetables', function ($q) use ($setup, $days) {
+                $q->where('exam_setup_id', (int)$setup->id)
+                  ->whereIn('exam_date', $days);
+            })
+            ->orderBy('name')
+            ->get();
+    }
 
-    // preload all exams for these programs
+    if ($programs->isEmpty()) {
+        return back()->withErrors(['export' => 'No exams found for this setup to export.']);
+    }
+
     $programIds = $programs->pluck('id')->map(fn($x)=>(int)$x)->all();
 
     $timetables = ExaminationTimetable::with(['venues','course','faculty','program'])
@@ -235,29 +246,27 @@ public function exportPdf(Request $request, ExamSetup $setup)
         ->whereIn('exam_date', $days)
         ->get();
 
-    // Build grid per program:
-    // $grid[program_id][faculty_id][date][start_time] = [tt...]
+    // grid[program_id][faculty_id][date][start_time] = [...]
     $grid = [];
     foreach ($timetables as $tt) {
         $p = (int)$tt->program_id;
         $f = (int)$tt->faculty_id;
-        $dateKey = Carbon::parse($tt->exam_date)->format('Y-m-d');
+        $dateKey  = Carbon::parse($tt->exam_date)->format('Y-m-d');
         $startKey = Carbon::parse($tt->start_time)->format('H:i');
         $grid[$p][$f][$dateKey][$startKey][] = $tt;
     }
 
-    // Classes per program (faculties)
+    // ✅ classes only for programs being exported (and optionally only faculties that have exams)
     $classesByProgram = Faculty::whereIn('program_id', $programIds)
         ->select('id','name','program_id')
         ->orderBy('name')
         ->get()
         ->groupBy('program_id');
 
-    // Filename
     $safeDraft = str_replace([' ', '/', '\\'], '-', $draft);
-    $safeSem = str_replace([' ', '/', '\\'], '-', ($setup->semester?->name ?? 'Semester'));
-    $safeYear = str_replace(['/', '\\'], '-', $setup->academic_year ?? 'Year');
-    $filename = "exam_timetable_{$safeYear}_{$safeSem}_{$safeDraft}.pdf";
+    $safeSem   = str_replace([' ', '/', '\\'], '-', ($setup->semester?->name ?? 'Semester'));
+    $safeYear  = str_replace(['/', '\\'], '-', $setup->academic_year ?? 'Year');
+    $filename  = "exam_timetable_{$safeYear}_{$safeSem}_{$safeDraft}.pdf";
 
     $pdf = Pdf::loadView('timetables.pdf', [
         'setup' => $setup,
