@@ -1065,7 +1065,7 @@ $skippedNormal = 0;
 {
     $venueCaps = $venues->map(fn($v) => [
         'id' => (int) $v->id,
-        'cap' => (int) floor($v->capacity * 0.75),
+        'cap' => (int) floor($v->capacity * 0.50),
     ])
     ->filter(fn($x) => $x['cap'] > 0)
     ->sortBy('cap')  // SMALL to BIG helps reduce waste
@@ -1282,7 +1282,7 @@ $skippedNormal = 0;
         return (object)[
             'id' => (int)$v->id,
             'name' => $v->name,
-            'eff' => (int) floor($v->capacity * 0.75),
+            'eff' => (int) floor($v->capacity * 0.50),
         ];
     })->filter(fn($v) => $v->eff > 0)->values();
 
