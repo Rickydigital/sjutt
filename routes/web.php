@@ -45,7 +45,7 @@ use App\Http\Controllers\Officer\OfficerElectionController;
 use App\Http\Controllers\Officer\OfficerResultController;
 use App\Http\Controllers\Officer\ElectionPositionController;
 use App\Http\Controllers\Officer\ElectionCandidateController;
-use App\Http\Controllers\officer\OfficerPublishResultsController;
+use App\Http\Controllers\Officer\OfficerPublishResultsController;
 use App\Http\Controllers\Student\ElectionVotingController;
 use App\Http\Controllers\StudentWeb\Auth\StudentLoginController;
 

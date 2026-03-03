@@ -465,7 +465,10 @@ public function published(Election $election)
     ])
     ->orderByRaw("FIELD(ers.scope_type, 'global','program','faculty')")
     ->orderBy('election_result_positions.position_name')
-    ->get();
+    ->get()
+    ->keyBy('id')
+    ->map(fn($pos) => ElectionResultPosition::find($pos->id))
+    ->values();
 
 
     $positionIds = $positions->pluck('id')->all();
@@ -552,7 +555,10 @@ public function published(Election $election)
             ])
             ->orderByRaw("FIELD(ers.scope_type, 'global','program','faculty')")
             ->orderBy('election_result_positions.position_name')
-            ->get();
+            ->get()
+            ->keyBy('id')
+            ->map(fn($pos) => ElectionResultPosition::find($pos->id))
+            ->values();
 
         $positionIds = $positions->pluck('id')->all();
 
