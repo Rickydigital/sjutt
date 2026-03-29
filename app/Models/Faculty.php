@@ -16,7 +16,11 @@ class Faculty extends Model
         'name',
         'total_students_no',
         'description',
-        'program_id'
+        'program_id',
+    ];
+
+    protected $casts = [
+        'total_students_no' => 'integer',
     ];
 
     public function students(): HasMany
@@ -29,20 +33,19 @@ class Faculty extends Model
         return $this->hasMany(Timetable::class);
     }
 
-    public function electionPositions()
-{
-    return $this->belongsToMany(
-        ElectionPosition::class,
-        'election_position_faculty',
-        'faculty_id',
-        'election_position_id'
-    )->withTimestamps();
-}
-
-
     public function examinationTimetables(): HasMany
     {
         return $this->hasMany(ExaminationTimetable::class);
+    }
+
+    public function electionPositions(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            ElectionPosition::class,
+            'election_position_faculty',
+            'faculty_id',
+            'election_position_id'
+        )->withTimestamps();
     }
 
     public function program(): BelongsTo
@@ -50,17 +53,11 @@ class Faculty extends Model
         return $this->belongsTo(Program::class);
     }
 
-    /**
-     * A faculty has many courses.
-     */
     public function courses(): BelongsToMany
     {
         return $this->belongsToMany(Course::class, 'course_faculty');
     }
 
-    /**
-     * A faculty has many groups.
-     */
     public function groups(): HasMany
     {
         return $this->hasMany(FacultyGroup::class);

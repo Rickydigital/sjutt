@@ -4,8 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Course extends Model
@@ -20,15 +20,17 @@ class Course extends Model
         'hours',
         'practical_hrs',
         'session',
-        'semester_id', 
+        'semester_id',
         'cross_catering',
-        'is_workshop'
+        'is_workshop',
     ];
 
     protected $casts = [
         'cross_catering' => 'boolean',
         'is_workshop' => 'boolean',
         'practical_hrs' => 'integer',
+        'hours' => 'integer',
+        'session' => 'integer',
     ];
 
     public function faculties(): BelongsToMany
@@ -41,27 +43,20 @@ class Course extends Model
         return $this->hasMany(Timetable::class, 'course_code', 'course_code');
     }
 
-    /**
-     * Get examination timetables for this course
-     */
     public function examinationTimetables(): HasMany
     {
         return $this->hasMany(ExaminationTimetable::class, 'course_code', 'course_code');
     }
 
     public function lecturers(): BelongsToMany
-    {
-        return $this->belongsToMany(
-            User::class,
-            'course_lecturer',
-            'course_id',  
-            'user_id'     
-        )
-        ->whereHas('roles', function ($query) {
-            $query->where('name', 'Lecturer');
-        })
-        ->select('users.id', 'users.name');
-    }
+{
+    return $this->belongsToMany(
+        User::class,
+        'course_lecturer',
+        'course_id',
+        'user_id'
+    )->select('users.id', 'users.name');
+}
 
     public function semester(): BelongsTo
     {
