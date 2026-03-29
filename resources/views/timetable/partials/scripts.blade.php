@@ -479,6 +479,7 @@
         $(document).on('click', '.edit-timetable', function () {
             const id = $(this).data('id');
 
+
             $.ajax({
                 url: '{{ route('timetable.show', ':id') }}'.replace(':id', id),
                 method: 'GET',
@@ -536,6 +537,7 @@
 
                     $('#edit_modal_activity').val(data.activity || '').trigger('change');
                     $('#edit_modal_cross_note').toggle(!!data.is_cross_catering);
+                    $('#edit_modal_venue_id').data('selected-venues', data.venue_ids || []);
 
                     $('#editTimetableModal').modal('show');
                 }
@@ -568,59 +570,82 @@
             });
         });
 
-        function loadAvailableVenues(prefix, excludeId = null) {
-            const day = $(`#${prefix}_day`).val();
-            const start = $(`#${prefix}_time_start`).val();
-            const end = $(`#${prefix}_time_end`).val();
-            const facultyId = $(`#${prefix}_faculty_id`).val();
-            const setupId = $(`#${prefix}_setup_id`).val()
-                || $('#setup_id').val()
-                || $('#setup_id_filter').val()
-                || $('#generate_setup_id').val()
-                || '';
-            const $venueSelect = $(`#${prefix}_venue_id`);
+        function loadAvailableVenues(prefix, excludeId = null, selectedVenueIds = []) {
+    const day = $(`#${prefix}_day`).val();
+    const start = $(`#${prefix}_time_start`).val();
+    const end = $(`#${prefix}_time_end`).val();
+    const facultyId = $(`#${prefix}_faculty_id`).val();
+    const setupId = $(`#${prefix}_setup_id`).val()
+        || $('#setup_id').val()
+        || $('#setup_id_filter').val()
+        || $('#generate_setup_id').val()
+        || '';
 
-            if (!day || !start || !end || !facultyId) {
-                $venueSelect.empty()
-                    .append('<option value="">Select day, start and end time first</option>')
-                    .trigger('change');
-                return;
+    const $venueSelect = $(`#${prefix}_venue_id`);
+    const isMultiple = $venueSelect.prop('multiple');
+
+    if (!day || !start || !end || !facultyId) {
+        $venueSelect.empty();
+        if (!isMultiple) {
+            $venueSelect.append('<option value="">Select day, start and end time first</option>');
+        }
+        $venueSelect.trigger('change');
+        return;
+    }
+
+    $.ajax({
+        url: '{{ route('timetables.available-venues') }}',
+        method: 'GET',
+        data: {
+            day: day,
+            time_start: start,
+            time_end: end,
+            faculty_id: facultyId,
+            setup_id: setupId,
+            exclude_id: excludeId
+        },
+        success: function (response) {
+            const selectedIds = (selectedVenueIds || []).map(v => String(v));
+
+            $venueSelect.empty();
+
+            if (!isMultiple) {
+                $venueSelect.append('<option value="">Select Venue</option>');
             }
 
-            $.ajax({
-                url: '{{ route('timetables.available-venues') }}',
-                method: 'GET',
-                data: {
-                    day: day,
-                    time_start: start,
-                    time_end: end,
-                    faculty_id: facultyId,
-                    setup_id: setupId,
-                    exclude_id: excludeId
-                },
-                success: function (response) {
-                    $venueSelect.empty().append('<option value="">Select Venue</option>');
-
-                    (response.venues || []).forEach(venue => {
-                        $venueSelect.append(new Option(venue.text, venue.id));
-                    });
-
-                    $venueSelect.trigger('change');
-                },
-                error: function (xhr) {
-                    $venueSelect.empty()
-                        .append('<option value="">No available venues</option>')
-                        .trigger('change');
-
-                    const msg = Object.values(xhr.responseJSON?.errors || {}).flat().join('<br>')
-                        || xhr.responseJSON?.message
-                        || 'Could not load available venues.';
-
-                    showAlert('error', 'Venue Loading Failed', msg);
-                }
+            (response.venues || []).forEach(venue => {
+                const option = new Option(
+                    venue.text,
+                    venue.id,
+                    false,
+                    selectedIds.includes(String(venue.id))
+                );
+                $venueSelect.append(option);
             });
-        }
 
+            if (selectedIds.length) {
+                $venueSelect.val(selectedIds);
+            }
+
+            $venueSelect.trigger('change');
+        },
+        error: function (xhr) {
+            $venueSelect.empty();
+
+            if (!isMultiple) {
+                $venueSelect.append('<option value="">No available venues</option>');
+            }
+
+            $venueSelect.trigger('change');
+
+            const msg = Object.values(xhr.responseJSON?.errors || {}).flat().join('<br>')
+                || xhr.responseJSON?.message
+                || 'Could not load available venues.';
+
+            showAlert('error', 'Venue Loading Failed', msg);
+        }
+    });
+}
         $(document).on('change', '#modal_time_end', function () {
             loadAvailableVenues('modal');
         });
@@ -636,7 +661,8 @@
         });
 
         $('#editTimetableModal').on('shown.bs.modal', function () {
-            loadAvailableVenues('edit_modal', $('#edit_modal_id').val());
+            const selectedVenueIds = $('#edit_modal_venue_id').data('selected-venues') || [];
+            loadAvailableVenues('edit_modal', $('#edit_modal_id').val(), selectedVenueIds);
         });
 
         $('#generateTimetableForm').on('submit', function (e) {
@@ -695,26 +721,46 @@
     });
 });
         $('#addTimetableForm, #editTimetableForm, #addTimetableSemesterForm, #editTimetableSemesterForm').on('submit', function (e) {
-            e.preventDefault();
+    e.preventDefault();
 
-            $.ajax({
-                url: $(this).attr('action'),
-                method: 'POST',
-                data: $(this).serialize(),
-                success: function (response) {
-                    showAlert('success', 'Success', response.message || 'Operation completed successfully.');
-                    $('.modal').modal('hide');
-                    location.reload();
-                },
-                error: function (xhr) {
-                    const msg = Object.values(xhr.responseJSON?.errors || {}).flat().join('<br>')
-                        || xhr.responseJSON?.message
-                        || 'Operation failed.';
-                    showAlert('error', 'Error', msg);
-                }
-            });
+    const $form = $(this);
+    let payload = $form.serializeArray();
+
+    if ($form.attr('id') === 'editTimetableForm') {
+        const venueValues = $('#edit_modal_venue_id').val() || [];
+        payload = payload.filter(item => item.name !== 'venue_id[]' && item.name !== 'venue_id');
+        payload.push({
+            name: 'venue_id',
+            value: venueValues.join(',')
         });
+    }
 
+    if ($form.attr('id') === 'addTimetableForm') {
+        const venueValues = $('#modal_venue_id').val() || [];
+        payload = payload.filter(item => item.name !== 'venue_id[]' && item.name !== 'venue_id');
+        payload.push({
+            name: 'venue_id',
+            value: venueValues.join(',')
+        });
+    }
+
+    $.ajax({
+        url: $form.attr('action'),
+        method: 'POST',
+        data: $.param(payload),
+        success: function (response) {
+            showAlert('success', 'Success', response.message || 'Operation completed successfully.');
+            $('.modal').modal('hide');
+            location.reload();
+        },
+        error: function (xhr) {
+            const msg = Object.values(xhr.responseJSON?.errors || {}).flat().join('<br>')
+                || xhr.responseJSON?.message
+                || 'Operation failed.';
+            showAlert('error', 'Error', msg);
+        }
+    });
+});
         $(document).on('click', '.show-timetable', function () {
             const id = $(this).data('id');
 
@@ -751,23 +797,40 @@
                     $('#collision_card').hide();
                     $('#no_extra_info_card').hide();
 
-                    function renderRowCards(items, typeLabel = '') {
-                        if (!items || !items.length) {
-                            return '<div class="text-muted">No details found</div>';
-                        }
+     function renderRowCards(items, typeLabel = '') {
+    if (!items || !items.length) {
+        return '<div class="text-muted">No details found</div>';
+    }
 
-                        return items.map(item => `
-                            <div class="border rounded p-2 mb-2 bg-light">
-                                <div><strong>${item.course_code}</strong> - ${item.course_name ?? 'N/A'}</div>
-                                <div><strong>Faculty:</strong> ${item.faculty_name ?? 'N/A'}</div>
-                                <div><strong>Assigned User:</strong> ${item.assigned_user ?? 'N/A'}</div>
-                                <div><strong>Groups:</strong> ${item.groups ?? 'N/A'}</div>
-                                <div><strong>Venue(s):</strong> ${(item.venue_names || []).join(', ') || 'N/A'}</div>
-                                <div><strong>Time:</strong> ${item.time_start ?? ''} - ${item.time_end ?? ''}</div>
-                                <div><strong>Activity:</strong> ${item.activity ?? 'N/A'}</div>
-                            </div>
-                        `).join('');
-                    }
+    return items.map(item => `
+        <div class="border rounded p-2 mb-2 bg-light d-flex justify-content-between align-items-start">
+            <div>
+                <div><strong>${item.course_code}</strong> - ${item.course_name ?? 'N/A'}</div>
+                <div><strong>Faculty:</strong> ${item.faculty_name ?? 'N/A'}</div>
+                <div><strong>Assigned User:</strong> ${item.assigned_user ?? 'N/A'}</div>
+                <div><strong>Groups:</strong> ${item.groups ?? 'N/A'}</div>
+                <div><strong>Venue(s):</strong> ${(item.venue_names || []).join(', ') || 'N/A'}</div>
+                <div><strong>Time:</strong> ${item.time_start ?? ''} - ${item.time_end ?? ''}</div>
+                <div><strong>Activity:</strong> ${item.activity ?? 'N/A'}</div>
+            </div>
+
+            <div class="ms-2 d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary auto-resolve-btn"
+                        data-id="${item.id}"
+                        title="Auto resolve this collision">
+                    <i class="bi bi-magic"></i>
+                </button>
+
+                <button class="btn btn-sm btn-outline-danger delete-collision-btn"
+                        data-id="${item.id}"
+                        title="Delete this conflicting session">
+                    <i class="bi bi-trash-fill"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
 
                     if (hasCross) {
                         const crossHtml = crossFaculties.map(item => `
@@ -802,6 +865,40 @@
                 }
             });
         });
+
+        $(document).on('click', '.auto-resolve-btn', function () {
+    const id = $(this).data('id');
+
+    Swal.fire({
+        icon: 'question',
+        title: 'Auto-resolve this collision?',
+        text: 'The system will try to move this timetable to the nearest valid free slot.',
+        showCancelButton: true,
+        confirmButtonText: 'Resolve',
+        confirmButtonColor: '#0d6efd'
+    }).then(result => {
+        if (!result.isConfirmed) return;
+
+        $.ajax({
+            url: `{{ url('timetable') }}/${id}/auto-resolve`,
+            method: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                setup_id: $('#setup_id').val() || $('#setup_id_filter').val() || ''
+            },
+            success: function (response) {
+                Swal.fire('Resolved', response.message || 'Collision resolved successfully.', 'success')
+                    .then(() => location.reload());
+            },
+            error: function (xhr) {
+                const msg = Object.values(xhr.responseJSON?.errors || {}).flat().join('<br>')
+                    || xhr.responseJSON?.message
+                    || 'Auto-resolve failed.';
+                Swal.fire('Error', msg, 'error');
+            }
+        });
+    });
+});
 
         $(document).on('submit', '.delete-timetable-form', function (e) {
             e.preventDefault();

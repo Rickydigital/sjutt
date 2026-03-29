@@ -184,6 +184,7 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::put('/timetable-setups/{timetableSemester}', [TimetableSemesterController::class, 'update'])->name('timetable-semesters.update');
     Route::post('/timetable-setups/{timetableSemester}/activate', [TimetableSemesterController::class, 'activate'])->name('timetable-semesters.activate');
     Route::delete('/timetable-setups/{timetableSemester}', [TimetableSemesterController::class, 'destroy'])->name('timetable-semesters.destroy');
+    Route::post('/timetable/{timetable}/auto-resolve', [TimetableController::class, 'autoResolve'])->name('timetable.autoResolve');
     Route::get('/timetables/setup-decision', [TimetableController::class, 'setupDecision'])->name('timetables.setupDecision');
 
 

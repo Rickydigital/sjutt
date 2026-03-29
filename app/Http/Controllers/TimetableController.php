@@ -695,6 +695,60 @@ public function getFacultyGroups(Request $request)
         ]);
     }
 
+    public function destroy(Request $request, Timetable $timetable)
+{
+    try {
+        DB::beginTransaction();
+
+        $setup = $this->resolveRequestedSetup($request->input('setup_id'));
+
+        if ($setup && (int) $timetable->semester_id !== (int) $setup->id) {
+            throw new \Exception('The selected timetable entry does not belong to the chosen setup.');
+        }
+
+        $isCross = $this->isCrossCateringCourse($timetable->course_code);
+
+        if ($isCross) {
+            $relatedRows = $this->getCrossSessionRows($timetable);
+            $deletedIds = $relatedRows->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+
+            if (empty($deletedIds)) {
+                throw new \Exception('No related cross-catering timetable rows found to delete.');
+            }
+
+            Timetable::whereIn('id', $deletedIds)->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Cross-catering timetable deleted successfully for all related faculties.',
+                'deleted_ids' => $deletedIds,
+                'deleted_count' => count($deletedIds),
+                'is_cross_catering' => true,
+            ]);
+        }
+
+        $deletedId = (int) $timetable->id;
+        $timetable->delete();
+
+        DB::commit();
+
+        return response()->json([
+            'message' => 'Timetable deleted successfully.',
+            'deleted_ids' => [$deletedId],
+            'deleted_count' => 1,
+            'is_cross_catering' => false,
+        ]);
+    } catch (\Exception $e) {
+        DB::rollBack();
+
+        return response()->json([
+            'errors' => [
+                'error' => $e->getMessage(),
+            ],
+        ], 422);
+    }
+}
     public function import(Request $request)
     {
         $request->validate([
@@ -861,6 +915,105 @@ public function getFacultyGroups(Request $request)
             ->get();
     }
 
+
+    public function autoResolve(Request $request, Timetable $timetable)
+{
+    try {
+        DB::beginTransaction();
+
+        $setup = $this->resolveRequestedSetup($request->input('setup_id'));
+
+        if ($setup && (int) $timetable->semester_id !== (int) $setup->id) {
+            throw new \Exception('The selected timetable entry does not belong to the chosen setup.');
+        }
+
+        $setupId = (int) ($setup?->id ?? $timetable->semester_id);
+
+        if ($this->isCrossCateringCourse($timetable->course_code)) {
+            throw new \Exception('Auto-resolve is not yet allowed for cross-catering sessions. Edit or regenerate them as a group.');
+        }
+
+        $durationHours = max(
+            1,
+            (int) ceil((strtotime($timetable->time_end) - strtotime($timetable->time_start)) / 3600)
+        );
+
+        $excludeIds = [(int) $timetable->id];
+        $candidateSlots = $this->getCandidateSlots($this->defaultDays, $this->defaultTimeSlots, $durationHours);
+
+        usort($candidateSlots, function ($a, $b) use ($timetable) {
+            $scoreA = ($a['day'] === $timetable->day ? 0 : 10) + abs(strtotime($a['start_time']) - strtotime(substr($timetable->time_start, 0, 5)));
+            $scoreB = ($b['day'] === $timetable->day ? 0 : 10) + abs(strtotime($b['start_time']) - strtotime(substr($timetable->time_start, 0, 5)));
+            return $scoreA <=> $scoreB;
+        });
+
+        foreach ($candidateSlots as $slot) {
+            if (
+                $slot['day'] === $timetable->day &&
+                $this->normalizeTime($slot['start_time']) === $timetable->time_start &&
+                $this->normalizeTime($slot['end_time']) === $timetable->time_end
+            ) {
+                continue;
+            }
+
+            $availableVenueIds = $this->findAvailableVenueIds(
+                setupId: $setupId,
+                day: $slot['day'],
+                startTime: $this->normalizeTime($slot['start_time']),
+                endTime: $this->normalizeTime($slot['end_time']),
+                excludeIds: $excludeIds
+            );
+
+            if (empty($availableVenueIds)) {
+                continue;
+            }
+
+            $selectedVenueId = (string) $availableVenueIds[0];
+
+            $payload = [
+                'day' => $slot['day'],
+                'faculty_id' => (int) $timetable->faculty_id,
+                'time_start' => $this->normalizeTime($slot['start_time']),
+                'time_end' => $this->normalizeTime($slot['end_time']),
+                'course_code' => $timetable->course_code,
+                'activity' => $timetable->activity ?? 'Lecture',
+                'venue_id' => $selectedVenueId,
+                'lecturer_id' => (int) $timetable->lecturer_id,
+                'group_selection' => $timetable->group_selection,
+                'semester_id' => $setupId,
+            ];
+
+            $conflicts = $this->checkConflicts($payload, $setupId, $excludeIds);
+
+            if (!empty($conflicts)) {
+                continue;
+            }
+
+            $timetable->update($payload);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Collision resolved successfully. Timetable moved to a new valid slot.',
+                'id' => $timetable->id,
+                'new_day' => $payload['day'],
+                'new_time_start' => $payload['time_start'],
+                'new_time_end' => $payload['time_end'],
+                'new_venue_id' => $payload['venue_id'],
+            ]);
+        }
+
+        throw new \Exception('No valid alternative slot was found for this timetable entry.');
+    } catch (\Exception $e) {
+        DB::rollBack();
+
+        return response()->json([
+            'errors' => [
+                'error' => $e->getMessage(),
+            ],
+        ], 422);
+    }
+}
     public function availableVenues(Request $request)
     {
         $request->validate([

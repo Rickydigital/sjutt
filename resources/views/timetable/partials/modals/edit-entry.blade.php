@@ -62,9 +62,9 @@
 
                         <div class="col-md-6">
                             <label class="form-label">Venue <span class="text-danger">*</span></label>
-                            <select name="venue_id" id="edit_modal_venue_id" class="form-control" required>
-                                <option value="">Loading available venues...</option>
+                            <select name="venue_id[]" id="edit_modal_venue_id" class="form-control" multiple required>
                             </select>
+                            <small class="text-muted">Select one or more available venues.</small>
                         </div>
 
                         <div class="col-md-6">
