@@ -1040,61 +1040,43 @@
             });
         });
 
-          $('#addTimetableForm, #editTimetableForm, #addTimetableSemesterForm, #editTimetableSemesterForm').on('submit', function (e) {
+       $('#addTimetableForm').on('submit', function (e) {
     e.preventDefault();
 
-    const $form = $(this);
-    let payload = $form.serializeArray();
+    const venueValue = normalizeVenueValue($('#modal_venue_id').val());
 
-    if ($form.attr('id') === 'editTimetableForm') {
-        let venueValues = $('#edit_modal_venue_id').val();
-
-        if (Array.isArray(venueValues)) {
-            venueValues = venueValues.join(',');
-        } else {
-            venueValues = venueValues ? String(venueValues) : '';
-        }
-
-        payload = payload.filter(item => item.name !== 'venue_id[]' && item.name !== 'venue_id');
-        payload.push({
-            name: 'venue_id',
-            value: venueValues
-        });
+    if (!venueValue) {
+        showAlert('error', 'Validation Error', 'Please select a venue.');
+        return;
     }
 
-    if ($form.attr('id') === 'addTimetableForm') {
-        let venueValues = $('#modal_venue_id').val();
-
-        if (Array.isArray(venueValues)) {
-            venueValues = venueValues.join(',');
-        } else {
-            venueValues = venueValues ? String(venueValues) : '';
-        }
-
-        payload = payload.filter(item => item.name !== 'venue_id[]' && item.name !== 'venue_id');
-        payload.push({
-            name: 'venue_id',
-            value: venueValues
-        });
-    }
+    const formData = $(this).serializeArray().filter(item => item.name !== 'venue_id');
+    formData.push({ name: 'venue_id', value: venueValue });
 
     $.ajax({
-        url: $form.attr('action'),
+        url: $(this).attr('action'),
         method: 'POST',
-        data: $.param(payload),
+        data: $.param(formData),
         success: function (response) {
-            showAlert('success', 'Success', response.message || 'Operation completed successfully.');
-            $('.modal').modal('hide');
-            location.reload();
+            Swal.fire('Success', response.message || 'Timetable entry saved.', 'success')
+                .then(() => location.reload());
         },
         error: function (xhr) {
             const msg = Object.values(xhr.responseJSON?.errors || {}).flat().join('<br>')
                 || xhr.responseJSON?.message
-                || 'Operation failed.';
+                || 'Failed to save timetable entry.';
             showAlert('error', 'Error', msg);
         }
     });
 });
+
+        function normalizeVenueValue(value) {
+            if (Array.isArray(value)) {
+                return value.filter(Boolean).join(',');
+            }
+            return value ? String(value) : '';
+        }
+
         $(document).on('click', '.show-timetable', function () {
             const id = $(this).data('id');
 
