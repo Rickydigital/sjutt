@@ -437,18 +437,21 @@ $venueMap = collect($venues ?? [])->keyBy('id');
                                                         <i class="bi bi-pencil-square"></i>
                                                     </a>
 
-                                                    <form action="{{ route('timetable.destroy', $activity->id) }}"
-                                                        method="POST"
-                                                        class="delete-timetable-form d-inline"
-                                                        data-cross="{{ $isCross ? 1 : 0 }}"
-                                                        data-workshop="{{ strtolower((string)($activity->activity ?? '')) === 'workshop' ? 1 : 0 }}">
+                                                   <form action="{{ route('timetable.destroy', $activity->id) }}"
+                                                    method="POST"
+                                                    class="delete-timetable-form d-inline"
+                                                    data-cross="{{ $isCross ? 1 : 0 }}"
+                                                    data-workshop="{{ strtolower((string)($activity->activity ?? '')) === 'workshop' ? 1 : 0 }}">
 
-                                                        <button type="submit"
-                                                            class="tt-action tt-action-danger border-0 bg-transparent p-0"
-                                                            title="Delete">
-                                                            <i class="bi bi-trash-fill"></i>
-                                                        </button>
-                                                    </form>
+                                                    @csrf
+                                                    @method('DELETE')
+
+                                                    <button type="submit"
+                                                        class="tt-action tt-action-danger border-0 bg-transparent p-0"
+                                                        title="Delete">
+                                                        <i class="bi bi-trash-fill"></i>
+                                                    </button>
+                                                </form>
                                                 </div>
                                             </div>
                                             @endforeach
