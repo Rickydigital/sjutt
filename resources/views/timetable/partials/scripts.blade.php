@@ -357,11 +357,13 @@
                         const options = availableCourses.map(course => ({
                             text: `${course.course_code} - ${course.completion_text}`,
                             value: course.course_code,
-                            disabled: course.is_complete && course.course_code !== current,
+                            disabled: course.is_fully_locked && course.course_code !== current,
                             attributes: {
                                 'data-cross': course.cross_catering ? 1 : 0,
-                                'data-complete': course.is_complete ? 1 : 0,
-                                'data-remaining': course.remaining_sessions ?? 0
+                                'data-complete': course.lecture_complete ? 1 : 0,
+                                'data-remaining': course.remaining_lecture_sessions ?? 0,
+                                'data-has-practical': course.has_practical ? 1 : 0,
+                                'data-fully-locked': course.is_fully_locked ? 1 : 0
                             }
                         }));
 
@@ -386,9 +388,11 @@
                                 ${availableCourses.map(c => `
                                     <option value="${c.course_code}"
                                             data-cross="${c.cross_catering ? 1 : 0}"
-                                            data-complete="${c.is_complete ? 1 : 0}"
-                                            data-remaining="${c.remaining_sessions ?? 0}"
-                                            ${c.is_complete ? 'disabled' : ''}>
+                                            data-complete="${c.lecture_complete ? 1 : 0}"
+                                            data-remaining="${c.remaining_lecture_sessions ?? 0}"
+                                            data-has-practical="${c.has_practical ? 1 : 0}"
+                                            data-fully-locked="${c.is_fully_locked ? 1 : 0}"
+                                            ${c.is_fully_locked ? 'disabled' : ''}>
                                         ${c.course_code} - ${c.completion_text}
                                     </option>
                                 `).join('')}
@@ -520,11 +524,17 @@
             const activity = $courseSelection.find('.activity-select').val();
 
             const isCross = String(selected.data('cross')) === '1';
-            const isComplete = String(selected.data('complete')) === '1';
-            const blocksByQuota = isComplete && String(activity).toLowerCase() === 'lecture';
+            const lectureComplete = String(selected.data('complete')) === '1';
+            const hasPractical = String(selected.data('has-practical')) === '1';
+            const activityLower = String(activity || '').toLowerCase();
+            const blocksByQuota = lectureComplete && activityLower === 'lecture';
 
             $courseSelection.find('.tt-cross-note').first().toggle(isCross);
-            $courseSelection.find('.tt-course-complete-note').first().toggle(blocksByQuota);
+            $courseSelection.find('.tt-course-complete-note').first().html(
+                hasPractical
+                    ? 'Lecture sessions are already complete. You can still schedule Practical.'
+                    : 'Lecture sessions for this course are already complete.'
+            ).toggle(blocksByQuota);
 
             resetSelect2Options($userSelect, [], {
                 placeholder: 'Select User',
@@ -616,11 +626,13 @@
                     const options = (response.course_codes || []).map(course => ({
                         text: `${course.course_code} - ${course.completion_text}`,
                         value: course.course_code,
-                        disabled: !!course.is_complete,
+                        disabled: !!course.is_fully_locked,
                         attributes: {
                             'data-cross': course.cross_catering ? 1 : 0,
-                            'data-complete': course.is_complete ? 1 : 0,
-                            'data-remaining': course.remaining_sessions ?? 0
+                            'data-complete': course.lecture_complete ? 1 : 0,
+                            'data-remaining': course.remaining_lecture_sessions ?? 0,
+                            'data-has-practical': course.has_practical ? 1 : 0,
+                            'data-fully-locked': course.is_fully_locked ? 1 : 0
                         }
                     }));
 

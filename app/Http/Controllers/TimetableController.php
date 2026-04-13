@@ -114,37 +114,53 @@ class TimetableController extends Controller
             ->orderBy('course_code')
             ->get()
             ->map(function ($course) use ($setup, $request) {
-                $countQuery = Timetable::where('semester_id', $setup->id)
-                    ->where('course_code', $course->course_code)
-                    ->where('activity', 'Lecture')
-                    ->select('day', 'time_start', 'time_end')
-                    ->distinct();
+            $lectureCountQuery = Timetable::where('semester_id', $setup->id)
+                ->where('course_code', $course->course_code)
+                ->where('activity', 'Lecture')
+                ->select('day', 'time_start', 'time_end')
+                ->distinct();
 
-                if (!(bool) $course->cross_catering) {
-                    $countQuery->where('faculty_id', $request->faculty_id);
-                }
+            if (!(bool) $course->cross_catering) {
+                $lectureCountQuery->where('faculty_id', $request->faculty_id);
+            }
 
-                $scheduledCount = $countQuery->count();
-                $requiredSessions = (int) $course->session;
-                $remainingSessions = max(0, $requiredSessions - $scheduledCount);
-                $isComplete = $remainingSessions <= 0;
+            $scheduledLectureCount = $lectureCountQuery->count();
+            $requiredLectureSessions = (int) $course->session;
+            $remainingLectureSessions = max(0, $requiredLectureSessions - $scheduledLectureCount);
+            $lectureComplete = $remainingLectureSessions <= 0;
 
-                return [
-                    'course_code' => $course->course_code,
-                    'name' => $course->name,
-                    'practical_hrs' => $course->practical_hrs,
-                    'cross_catering' => (bool) $course->cross_catering,
-                    'is_workshop' => (bool) $course->is_workshop,
-                    'hours' => $course->hours,
-                    'session' => $requiredSessions,
-                    'scheduled_count' => $scheduledCount,
-                    'remaining_sessions' => $remainingSessions,
-                    'is_complete' => $isComplete,
-                    'completion_text' => $isComplete
-                        ? "Lecture complete ({$scheduledCount}/{$requiredSessions})"
-                        : "Lecture remaining {$remainingSessions} of {$requiredSessions}",
-                ];
-            })
+            $hasPractical = (int) $course->practical_hrs > 0;
+
+            return [
+                'course_code' => $course->course_code,
+                'name' => $course->name,
+                'practical_hrs' => (int) $course->practical_hrs,
+                'cross_catering' => (bool) $course->cross_catering,
+                'is_workshop' => (bool) $course->is_workshop,
+                'hours' => (int) $course->hours,
+                'session' => $requiredLectureSessions,
+
+                'scheduled_lecture_count' => $scheduledLectureCount,
+                'remaining_lecture_sessions' => $remainingLectureSessions,
+                'lecture_complete' => $lectureComplete,
+
+                // keep old keys too if other places still use them
+                'scheduled_count' => $scheduledLectureCount,
+                'remaining_sessions' => $remainingLectureSessions,
+                'is_complete' => $lectureComplete,
+
+                'has_practical' => $hasPractical,
+
+                // disable only if there is nothing else meaningful to schedule
+                'is_fully_locked' => $lectureComplete && !$hasPractical && !(bool) $course->is_workshop,
+
+                'completion_text' => $lectureComplete
+                    ? ($hasPractical
+                        ? "Lecture complete ({$scheduledLectureCount}/{$requiredLectureSessions}) - Practical still allowed"
+                        : "Lecture complete ({$scheduledLectureCount}/{$requiredLectureSessions})")
+                    : "Lecture remaining {$remainingLectureSessions} of {$requiredLectureSessions}",
+            ];
+        })
             ->values();
 
         return response()->json([
@@ -2198,42 +2214,42 @@ private function validateWorkshopSchedulingCompleteness(array $sessions, array $
 
 
     private function assertCourseSessionQuotaAvailable(
-        TimetableSemester $setup,
-        string $courseCode,
-        int $facultyId,
-        bool $isCrossCatering,
-        string $activity
-    ): void {
-        // ✅ Only Lecture should respect course session quota
-        if (strtolower(trim($activity)) !== 'lecture') {
-            return;
-        }
-
-        $course = Course::where('course_code', $courseCode)
-            ->where('semester_id', $setup->semester_id)
-            ->firstOrFail();
-
-        if ($isCrossCatering) {
-            $scheduledCount = Timetable::where('semester_id', $setup->id)
-                ->where('course_code', $courseCode)
-                ->where('activity', 'Lecture')
-                ->select('day', 'time_start', 'time_end')
-                ->distinct()
-                ->count();
-        } else {
-            $scheduledCount = Timetable::where('semester_id', $setup->id)
-                ->where('course_code', $courseCode)
-                ->where('faculty_id', $facultyId)
-                ->where('activity', 'Lecture')
-                ->select('day', 'time_start', 'time_end')
-                ->distinct()
-                ->count();
-        }
-
-        if ($scheduledCount >= (int) $course->session) {
-            throw new \Exception("Lecture sessions for course {$courseCode} are already complete in the selected setup.");
-        }
+    TimetableSemester $setup,
+    string $courseCode,
+    int $facultyId,
+    bool $isCrossCatering,
+    string $activity
+): void {
+    if (strtolower(trim((string) $activity)) !== 'lecture') {
+        return;
     }
+
+    $course = Course::where('course_code', $courseCode)
+        ->where('semester_id', $setup->semester_id)
+        ->firstOrFail();
+
+    if ($isCrossCatering) {
+        $scheduledCount = Timetable::where('semester_id', $setup->id)
+            ->where('course_code', $courseCode)
+            ->where('activity', 'Lecture')
+            ->select('day', 'time_start', 'time_end')
+            ->distinct()
+            ->count();
+    } else {
+        $scheduledCount = Timetable::where('semester_id', $setup->id)
+            ->where('course_code', $courseCode)
+            ->where('faculty_id', $facultyId)
+            ->where('activity', 'Lecture')
+            ->select('day', 'time_start', 'time_end')
+            ->distinct()
+            ->count();
+    }
+
+    if ($scheduledCount >= (int) $course->session) {
+        throw new \Exception("Lecture sessions for course {$courseCode} are already complete in the selected setup.");
+    }
+}
+
     private function assertVenueAvailability(
         int $setupId,
         string $day,
@@ -2353,6 +2369,86 @@ private function validateWorkshopSchedulingCompleteness(array $sessions, array $
         return $conflicts;
     }
 
+        public function venuesTimetable(Request $request)
+{
+    $venueId = $request->input('venue');
+    $venues = Venue::orderBy('name')->get();
+
+    $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    $timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
+
+    $timetables = collect();
+    $selectedVenue = null;
+    $timetableSemester = null;
+    $error = null;
+
+    if (!TimetableSemester::exists()) {
+        $error = 'No timetable semester configured. Please add one first.';
+    } elseif ($venueId) {
+        $timetableSemester = TimetableSemester::getFirstSemester();
+        $selectedVenue = Venue::findOrFail($venueId);
+
+        $timetables = Timetable::where('venue_id', $venueId)
+            ->where('semester_id', $timetableSemester->semester_id)
+            ->with('faculty', 'lecturer', 'course')
+            ->orderBy('day')
+            ->orderBy('time_start')
+            ->get();
+    }
+
+    return view('timetable.venues', compact(
+        'timetables', 'venues', 'days', 'timeSlots',
+        'venueId', 'selectedVenue', 'timetableSemester', 'error'
+    ));
+}
+
+public function exportVenueTimetable(Request $request)
+{
+    $venueId = request()->query('venue');
+    if (!$venueId) {
+        return redirect()->route('venues.timetable')->with('error', 'Please select a venue to export.');
+    }
+
+    $venue = Venue::findOrFail($venueId);
+    $timetableSemester = TimetableSemester::getFirstSemester();
+
+    $timetables = Timetable::where('venue_id', $venueId)
+        ->where('semester_id', $timetableSemester->semester_id)
+        ->with('faculty', 'lecturer')
+        ->orderBy('day')
+        ->orderBy('time_start')
+        ->get();
+
+    $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    $timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
+
+    // SANITIZE EVERYTHING PROPERLY
+    $safeVenueName = preg_replace('/[^a-zA-Z0-9\-_]/', '_', $venue->name);
+    $safeAcademicYear = preg_replace('/[^a-zA-Z0-9\-_]/', '-', $timetableSemester->academic_year);
+
+    $filename = "Venue_Timetable_{$safeVenueName}_{$safeAcademicYear}.pdf";
+
+    // Optional: Limit length and remove double underscores
+    $filename = preg_replace('/_+/', '_', $filename);
+    $filename = substr($filename, 0, 200); // Max safe length
+
+    $pdf = Pdf::loadView('timetable.venue-pdf', compact(
+        'venue', 'timetables', 'days', 'timeSlots', 'timetableSemester'
+    ));
+
+    // This is the KEY: Use setOptions to avoid header issues
+    $pdf->getDomPDF()->setHttpContext(
+        stream_context_create([
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true
+            ]
+        ])
+    );
+
+    return $pdf->download($filename);
+}
 
     private function buildSessionsForGeneration(array $validated, TimetableSemester $setup, Collection $venues): array
 {
