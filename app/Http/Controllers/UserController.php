@@ -277,39 +277,57 @@ public function index(Request $request)
     }
 
   public function sessionsIndex(Request $request)
-    {
-        $semesterId = TimetableSemester::getFirstSemester()?->semester_id;
+{
+    $selectedSetupId = $request->query('setup_id');
+    $search = trim((string) $request->query('search', ''));
+    $currentUser = Auth::user();
 
-        if (!$semesterId) {
-            return view('users.sessions', ['users' => collect(), 'search' => '']);
-        }
+    $timetableSemesters = TimetableSemester::with('semester')->latest()->get();
+    $selectedSetup = $selectedSetupId
+        ? TimetableSemester::with('semester')->find($selectedSetupId)
+        : TimetableSemester::getCurrent();
 
-        $search      = $request->query('search', '');
-        $currentUser = Auth::user();
-
-        $query = User::with('roles')
-            ->withCount([
-                'timetables as total_sessions' => fn($q) => $q->where('semester_id', $semesterId)
-            ])
-            ->whereHas('roles', fn($q) => $q->where('name', 'Lecturer'));
-
-        // -------------------------------------------------------------
-        // Lecturer → show **only** his own row
-        // -------------------------------------------------------------
-        if ($currentUser->hasRole('Lecturer')) {
-            $query->where('id', $currentUser->id);
-        }
-
-        $query->when($search, function ($q) use ($search) {
-            $q->where('name', 'like', "%{$search}%")
-              ->orWhere('email', 'like', "%{$search}%");
-        })
-        ->orderByDesc('total_sessions');
-
-        $users = $query->paginate(15)->withQueryString();
-
-        return view('users.sessions', compact('users', 'semesterId', 'search'));
+    if (!$selectedSetup) {
+        return view('users.sessions', [
+            'users' => collect(),
+            'search' => $search,
+            'selectedSetupId' => null,
+            'selectedSetup' => null,
+            'timetableSemesters' => $timetableSemesters,
+        ]);
     }
+
+    $setupId = (int) $selectedSetup->id;
+
+    $query = User::with('roles')
+        ->withCount([
+            'timetables as total_sessions' => fn($q) => $q->where('semester_id', $setupId)
+        ])
+        ->whereHas('roles', fn($q) => $q->where('name', 'Lecturer'));
+
+    if ($currentUser->hasRole('Lecturer')) {
+        $query->where('id', $currentUser->id);
+    }
+
+    $query->when($search, function ($q) use ($search) {
+        $q->where(function ($sq) use ($search) {
+            $sq->where('name', 'like', "%{$search}%")
+               ->orWhere('email', 'like', "%{$search}%");
+        });
+    })
+    ->orderByDesc('total_sessions')
+    ->orderBy('name');
+
+    $users = $query->paginate(15)->withQueryString();
+
+    return view('users.sessions', compact(
+        'users',
+        'search',
+        'selectedSetupId',
+        'selectedSetup',
+        'timetableSemesters'
+    ));
+}
 
     /* ---------------------------------------------------------------
        sessionsShow() and sessionsPdf() – unchanged (they already
@@ -317,112 +335,155 @@ public function index(Request $request)
        route / middleware if you want to keep it safe).
        --------------------------------------------------------------- */
 
-    public function sessionsShow(User $user)
-    {
-        $semesterId = TimetableSemester::getFirstSemester()?->semester_id;
+  public function sessionsShow(Request $request, User $user)
+{
+    $selectedSetupId = $request->query('setup_id');
+    $timetableSemesters = TimetableSemester::with('semester')->latest()->get();
 
-        $slots = DB::table('timetables')
-            ->where('lecturer_id', $user->id)
-            ->where('semester_id', $semesterId)
-            ->leftJoin('faculties', 'timetables.faculty_id', '=', 'faculties.id')
-            ->leftJoin('venues', 'timetables.venue_id', '=', 'venues.id')
-            ->select(
-                'timetables.day',
-                DB::raw('TIME_FORMAT(timetables.time_start, "%H:%i") as start'),
-                DB::raw('TIME_FORMAT(timetables.time_end, "%H:%i") as end'),
-                'timetables.course_code',
-                'timetables.activity',
-                'timetables.group_selection',
-                'faculties.name as faculty_name',
-                'venues.name as venue_name',
-                'venues.longform as venue_longform'
-            )
-            ->orderBy('day')
-            ->orderBy('time_start')
-            ->get()
-            ->groupBy(fn($i) => "{$i->day}|{$i->start}|{$i->end}")
-            ->map(function ($group) {
-                $first = $group->first();
-                return [
-                    'day'       => $first->day,
-                    'start'     => $first->start,
-                    'end'       => $first->end,
-                    'courses'   => $group->pluck('course_code')->unique()->values()->toArray(),
-                    'groups'    => $group->map(fn($i) => $i->group_selection === 'All Groups' ? 'All Groups' : $i->group_selection)
-                                     ->unique()
-                                     ->implode(', '),
-                    'activity'  => $group->pluck('activity')->filter()->unique()->implode(' / '),
-                    'count'     => $group->count(),
-                    'faculty'   => $group->pluck('faculty_name')->filter()->unique()->implode(' / '),
-                    'venue'     => $group->pluck('venue_longform')->filter()->unique()->implode(' / '),
-                    'venue_code'=> $group->pluck('venue_name')->filter()->unique()->implode(' / '),
-                ];
-            })
-            ->values();
+    $selectedSetup = $selectedSetupId
+        ? TimetableSemester::with('semester')->find($selectedSetupId)
+        : TimetableSemester::getCurrent();
 
+    if (!$selectedSetup) {
         $user->load(['roles']);
 
-        return view('users.sessions-show', compact('user', 'slots', 'semesterId'));
+        return view('users.sessions-show', [
+            'user' => $user,
+            'slots' => collect(),
+            'selectedSetupId' => null,
+            'selectedSetup' => null,
+            'timetableSemesters' => $timetableSemesters,
+        ]);
     }
 
-    public function sessionsPdf(User $user)
-    {
-        $semester = TimetableSemester::getFirstSemester();
+    $setupId = (int) $selectedSetup->id;
 
-        $slots = DB::table('timetables')
-            ->where('lecturer_id', $user->id)
-            ->where('semester_id', $semester->semester_id)
-            ->leftJoin('faculties', 'timetables.faculty_id', '=', 'faculties.id')
-            ->leftJoin('venues', 'timetables.venue_id', '=', 'venues.id')
-            ->select(
-                'timetables.day',
-                DB::raw('TIME_FORMAT(timetables.time_start, "%H:%i") as start'),
-                DB::raw('TIME_FORMAT(timetables.time_end, "%H:%i") as end'),
-                'timetables.course_code',
-                'timetables.activity',
-                'timetables.group_selection',
-                'faculties.name as faculty_name',
-                'venues.name as venue_name',
-                'venues.longform as venue_longform'
-            )
-            ->orderBy('day')
-            ->orderBy('time_start')
-            ->get()
-            ->groupBy(fn($i) => "{$i->day}|{$i->start}|{$i->end}")
-            ->map(function ($group) {
-                $first = $group->first();
-                return [
-                    'day'       => $first->day,
-                    'start'     => $first->start,
-                    'end'       => $first->end,
-                    'courses'   => $group->pluck('course_code')->unique()->values()->toArray(),
-                    'groups'    => $group->map(fn($i) => $i->group_selection === 'All Groups' ? 'All Groups' : $i->group_selection)
-                                     ->unique()
-                                     ->implode(', '),
-                    'activity'  => $group->pluck('activity')->filter()->unique()->implode(' / '),
-                    'faculty'   => $group->pluck('faculty_name')->filter()->unique()->implode(' / '),
-                    'venue'     => $group->pluck('venue_longform')->filter()->unique()->implode(' / '),
-                    'venue_code'=> $group->pluck('venue_name')->filter()->unique()->implode(' / '),
-                ];
-            })
-            ->values();
+    $slots = DB::table('timetables')
+        ->where('lecturer_id', $user->id)
+        ->where('semester_id', $setupId)
+        ->leftJoin('faculties', 'timetables.faculty_id', '=', 'faculties.id')
+        ->leftJoin('venues', 'timetables.venue_id', '=', 'venues.id')
+        ->select(
+            'timetables.day',
+            DB::raw('TIME_FORMAT(timetables.time_start, "%H:%i") as start'),
+            DB::raw('TIME_FORMAT(timetables.time_end, "%H:%i") as end'),
+            'timetables.course_code',
+            'timetables.activity',
+            'timetables.group_selection',
+            'faculties.name as faculty_name',
+            'venues.name as venue_name',
+            'venues.longform as venue_longform'
+        )
+        ->orderBy('day')
+        ->orderBy('time_start')
+        ->get()
+        ->groupBy(fn($i) => "{$i->day}|{$i->start}|{$i->end}")
+        ->map(function ($group) {
+            $first = $group->first();
 
-        $user->load(['roles']);
+            return [
+                'day'        => $first->day,
+                'start'      => $first->start,
+                'end'        => $first->end,
+                'courses'    => $group->pluck('course_code')->unique()->values()->toArray(),
+                'groups'     => $group->map(fn($i) => $i->group_selection === 'All Groups' ? 'All Groups' : $i->group_selection)
+                                      ->unique()
+                                      ->implode(', '),
+                'activity'   => $group->pluck('activity')->filter()->unique()->implode(' / '),
+                'count'      => $group->count(),
+                'faculty'    => $group->pluck('faculty_name')->filter()->unique()->implode(' / '),
+                'venue'      => $group->pluck('venue_longform')->filter()->unique()->implode(' / '),
+                'venue_code' => $group->pluck('venue_name')->filter()->unique()->implode(' / '),
+            ];
+        })
+        ->values();
 
-        $pdf = Pdf::loadView('users.pdf.sessions', compact('user', 'slots', 'semester'))
-                  ->setPaper('a4', 'portrait')
-                  ->setOptions([
-                      'isRemoteEnabled' => true,
-                      'defaultFont'     => 'DejaVu Sans',
-                      'dpi'             => 150,
-                      'isHtml5ParserEnabled' => true,
-                      'margin_top'      => 0,
-                      'margin_right'    => 0,
-                      'margin_bottom'   => 0,
-                      'margin_left'     => 0,
-                  ]);
+    $user->load(['roles']);
 
-        $filename = "lecturer-schedule-{$user->name}-" . now()->format('Y-m-d') . ".pdf";
-        return $pdf->download($filename);
+    return view('users.sessions-show', compact(
+        'user',
+        'slots',
+        'selectedSetupId',
+        'selectedSetup',
+        'timetableSemesters'
+    ));
+}
+
+    public function sessionsPdf(Request $request, User $user)
+{
+    $selectedSetupId = $request->query('setup_id');
+
+    $selectedSetup = $selectedSetupId
+        ? TimetableSemester::with('semester')->find($selectedSetupId)
+        : TimetableSemester::getCurrent();
+
+    if (!$selectedSetup) {
+        return redirect()->route('user.sessions.index')
+            ->with('error', 'No timetable setup selected.');
     }
+
+    $setupId = (int) $selectedSetup->id;
+
+    $slots = DB::table('timetables')
+        ->where('lecturer_id', $user->id)
+        ->where('semester_id', $setupId)
+        ->leftJoin('faculties', 'timetables.faculty_id', '=', 'faculties.id')
+        ->leftJoin('venues', 'timetables.venue_id', '=', 'venues.id')
+        ->select(
+            'timetables.day',
+            DB::raw('TIME_FORMAT(timetables.time_start, "%H:%i") as start'),
+            DB::raw('TIME_FORMAT(timetables.time_end, "%H:%i") as end'),
+            'timetables.course_code',
+            'timetables.activity',
+            'timetables.group_selection',
+            'faculties.name as faculty_name',
+            'venues.name as venue_name',
+            'venues.longform as venue_longform'
+        )
+        ->orderBy('day')
+        ->orderBy('time_start')
+        ->get()
+        ->groupBy(fn($i) => "{$i->day}|{$i->start}|{$i->end}")
+        ->map(function ($group) {
+            $first = $group->first();
+
+            return [
+                'day'        => $first->day,
+                'start'      => $first->start,
+                'end'        => $first->end,
+                'courses'    => $group->pluck('course_code')->unique()->values()->toArray(),
+                'groups'     => $group->map(fn($i) => $i->group_selection === 'All Groups' ? 'All Groups' : $i->group_selection)
+                                      ->unique()
+                                      ->implode(', '),
+                'activity'   => $group->pluck('activity')->filter()->unique()->implode(' / '),
+                'faculty'    => $group->pluck('faculty_name')->filter()->unique()->implode(' / '),
+                'venue'      => $group->pluck('venue_longform')->filter()->unique()->implode(' / '),
+                'venue_code' => $group->pluck('venue_name')->filter()->unique()->implode(' / '),
+            ];
+        })
+        ->values();
+
+    $user->load(['roles']);
+
+    $pdf = Pdf::loadView('users.pdf.sessions', [
+        'user' => $user,
+        'slots' => $slots,
+        'semester' => $selectedSetup,
+    ])
+    ->setPaper('a4', 'portrait')
+    ->setOptions([
+        'isRemoteEnabled' => true,
+        'defaultFont' => 'DejaVu Sans',
+        'dpi' => 150,
+        'isHtml5ParserEnabled' => true,
+        'margin_top' => 0,
+        'margin_right' => 0,
+        'margin_bottom' => 0,
+        'margin_left' => 0,
+    ]);
+
+    $filename = "lecturer-schedule-{$user->name}-" . now()->format('Y-m-d') . ".pdf";
+
+    return $pdf->download($filename);
+}
 }
