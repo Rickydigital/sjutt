@@ -58,25 +58,15 @@
 
             $(document).off('wheel.select2modal', `${modalSelector} .select2-selection--multiple`);
             $(document).on('wheel.select2modal', `${modalSelector} .select2-selection--multiple`, function (e) {
-                if (!modalBody) return;
-
-                e.preventDefault();
-                e.stopPropagation();
-
                 modalBody.scrollTop += e.originalEvent.deltaY;
             });
 
             $(document).off('wheel.select2modalSingle', `${modalSelector} .select2-selection--single`);
             $(document).on('wheel.select2modalSingle', `${modalSelector} .select2-selection--single`, function (e) {
-                if (!modalBody) return;
-
-                e.preventDefault();
-                e.stopPropagation();
-
                 modalBody.scrollTop += e.originalEvent.deltaY;
             });
         }
-
+        
         enableModalWheelScroll('#generateTimetableModal');
         enableModalWheelScroll('#addTimetableModal');
         enableModalWheelScroll('#editTimetableModal');
@@ -797,32 +787,33 @@
                     $('#edit_modal_activity').val(data.activity || '').trigger('change.select2');
                     $('#edit_modal_cross_note').toggle(!!data.is_cross_catering);
                     $('#edit_modal_venue_id').data('selected-venues', data.venue_ids || []);
+                    const isCross = !!data.is_cross_catering;
+                    const isWorkshop = String(data.activity || '').toLowerCase() === 'workshop';
+
+                    if (isCross && !isWorkshop) {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Cross-catering edit',
+                            text: 'Editing this non-workshop cross-catering session will update all linked rows.',
+                            timer: 2500,
+                            showConfirmButton: false
+                        });
+                    } else if (isCross && isWorkshop) {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Workshop edit',
+                            text: 'This cross-catering workshop will be edited as a single row only.',
+                            timer: 2500,
+                            showConfirmButton: false
+                        });
+                    }
 
                     $('#editTimetableModal').modal('show');
                 }
             });
         });
 
-        const isCross = !!data.is_cross_catering;
-        const isWorkshop = String(data.activity || '').toLowerCase() === 'workshop';
-
-        if (isCross && !isWorkshop) {
-            Swal.fire({
-                icon: 'info',
-                title: 'Cross-catering edit',
-                text: 'Editing this non-workshop cross-catering session will update all linked rows.',
-                timer: 2500,
-                showConfirmButton: false
-            });
-        } else if (isCross && isWorkshop) {
-            Swal.fire({
-                icon: 'info',
-                title: 'Workshop edit',
-                text: 'This cross-catering workshop will be edited as a single row only.',
-                timer: 2500,
-                showConfirmButton: false
-            });
-        }
+       
 
         $(document).on('change', '#edit_modal_course_code', function () {
             const courseCode = $(this).val();
