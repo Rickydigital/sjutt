@@ -75,7 +75,12 @@
 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary tt-btn" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn tt-btn tt-btn-primary">Save Entry</button>
+                    <button type="submit" class="btn tt-btn tt-btn-primary" id="addTimetableSubmitBtn">
+                        <span class="btn-text">Save Entry</span>
+                        <span class="btn-loading d-none">
+                            <i class="fas fa-spinner fa-spin me-1"></i> Saving...
+                        </span>
+                    </button>
                 </div>
             </form>
         </div>
