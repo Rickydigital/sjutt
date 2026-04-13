@@ -46,6 +46,7 @@
         }
 
 
+
         function initSelect2Group(selector, modalSelector = null) {
             $(selector).each(function () {
                 initSelect2Element(this, modalSelector);
@@ -66,7 +67,7 @@
                 modalBody.scrollTop += e.originalEvent.deltaY;
             });
         }
-        
+
         enableModalWheelScroll('#generateTimetableModal');
         enableModalWheelScroll('#addTimetableModal');
         enableModalWheelScroll('#editTimetableModal');
@@ -109,6 +110,19 @@
             }
         }
 
+       function setAddTimetableButtonState(loading = false) {
+        const $btn = $('#addTimetableSubmitBtn');
+
+        if (loading) {
+            $btn.prop('disabled', true);
+            $btn.find('.btn-text').addClass('d-none');
+            $btn.find('.btn-loading').removeClass('d-none');
+        } else {
+            $btn.prop('disabled', false);
+            $btn.find('.btn-text').removeClass('d-none');
+            $btn.find('.btn-loading').addClass('d-none');
+        }
+    }
        
         function setGenerateButtonState(loading = false) {
             const $btn = $('#generateSubmitBtn');
@@ -1034,6 +1048,8 @@
        $('#addTimetableForm').on('submit', function (e) {
     e.preventDefault();
 
+    const $form = $(this);
+    const $submitBtn = $('#addTimetableSubmitBtn');
     const venueValue = normalizeVenueValue($('#modal_venue_id').val());
 
     if (!venueValue) {
@@ -1041,11 +1057,17 @@
         return;
     }
 
-    const formData = $(this).serializeArray().filter(item => item.name !== 'venue_id');
+    if ($submitBtn.prop('disabled')) {
+        return;
+    }
+
+    const formData = $form.serializeArray().filter(item => item.name !== 'venue_id');
     formData.push({ name: 'venue_id', value: venueValue });
 
+    setAddTimetableButtonState(true);
+
     $.ajax({
-        url: $(this).attr('action'),
+        url: $form.attr('action'),
         method: 'POST',
         data: $.param(formData),
         success: function (response) {
@@ -1057,10 +1079,12 @@
                 || xhr.responseJSON?.message
                 || 'Failed to save timetable entry.';
             showAlert('error', 'Error', msg);
+        },
+        complete: function () {
+            setAddTimetableButtonState(false);
         }
     });
 });
-
         function normalizeVenueValue(value) {
             if (Array.isArray(value)) {
                 return value.filter(Boolean).join(',');
@@ -1212,6 +1236,9 @@
             });
         });
 
+        $('#addTimetableModal').on('hidden.bs.modal', function () {
+    setAddTimetableButtonState(false);
+});
 
         $(document).on('submit', '.delete-timetable-form', function (e) {
     e.preventDefault();
