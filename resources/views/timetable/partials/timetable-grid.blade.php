@@ -387,7 +387,9 @@ $venueMap = collect($venues ?? [])->keyBy('id');
                                             $hasVenueCollision ? 'venue' : null,
                                             ])->filter()->values()->all();
 
-                                            $hasAnyCollision = !empty($conflictTypes);
+                                            $isWorkshop = strtolower((string)($activity->activity ?? '')) === 'workshop';
+                                            $isSharedCross = $isCross && !$isWorkshop;
+                                            $hasAnyCollision = !$isWorkshop && !empty($conflictTypes);
                                             @endphp
 
                                             <div class="tt-course-card {{ $hasAnyCollision ? 'tt-course-card-conflict' : '' }}"
@@ -436,11 +438,10 @@ $venueMap = collect($venues ?? [])->keyBy('id');
                                                     </a>
 
                                                     <form action="{{ route('timetable.destroy', $activity->id) }}"
-                                                        method="POST" class="delete-timetable-form d-inline">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <input type="hidden" name="setup_id"
-                                                            value="{{ $timetableSemester?->id }}">
+                                                        method="POST"
+                                                        class="delete-timetable-form d-inline"
+                                                        data-cross="{{ $isCross ? 1 : 0 }}"
+                                                        data-workshop="{{ strtolower((string)($activity->activity ?? '')) === 'workshop' ? 1 : 0 }}">
 
                                                         <button type="submit"
                                                             class="tt-action tt-action-danger border-0 bg-transparent p-0"
