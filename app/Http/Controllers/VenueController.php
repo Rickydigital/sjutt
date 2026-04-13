@@ -118,38 +118,82 @@ class VenueController extends Controller
     }
 
 
-  public function sessionsIndex(Request $request)
+public function sessionsIndex(Request $request)
 {
-    $semesterId = TimetableSemester::getFirstSemester()?->semester_id;
+    $selectedSetupId = $request->query('setup_id');
+    $search = trim((string) $request->query('search', ''));
 
-    if (!$semesterId) {
-        return view('venues.sessions', ['venues' => collect(), 'search' => '']);
+    $timetableSemesters = TimetableSemester::with('semester')->latest()->get();
+    $selectedSetup = $selectedSetupId
+        ? TimetableSemester::with('semester')->find($selectedSetupId)
+        : TimetableSemester::getCurrent();
+
+    if (!$selectedSetup) {
+        return view('venues.sessions', [
+            'venues' => collect(),
+            'search' => $search,
+            'selectedSetupId' => null,
+            'selectedSetup' => null,
+            'timetableSemesters' => $timetableSemesters,
+        ]);
     }
 
-    $search = $request->query('search', '');
+    $setupId = (int) $selectedSetup->id;
 
     $venues = Venue::with('building')
-        ->withCount(['timetables as total_sessions' => fn($q) => $q->where('semester_id', $semesterId)])
+        ->withCount([
+            'timetables as total_sessions' => fn($q) => $q->where('semester_id', $setupId)
+        ])
         ->when($search, function ($q) use ($search) {
             $q->where(function ($sq) use ($search) {
                 $sq->where('name', 'like', "%{$search}%")
-                   ->orWhere('longform', 'like', "%{$search}%");
+                    ->orWhere('longform', 'like', "%{$search}%");
             });
         })
         ->orderByDesc('total_sessions')
+        ->orderBy('longform')
         ->paginate(15)
-        ->withQueryString(); // preserves search
+        ->withQueryString();
 
-    return view('venues.sessions', compact('venues', 'semesterId', 'search'));
+    return view('venues.sessions', compact(
+        'venues',
+        'search',
+        'selectedSetupId',
+        'selectedSetup',
+        'timetableSemesters'
+    ));
 }
 
-public function sessionsShow(Venue $venue)
+public function sessionsShow(Request $request, Venue $venue)
 {
-    $semesterId = TimetableSemester::getFirstSemester()?->semester_id;
+    $selectedSetupId = $request->query('setup_id');
+    $timetableSemesters = TimetableSemester::with('semester')->latest()->get();
+
+    $selectedSetup = $selectedSetupId
+        ? TimetableSemester::with('semester')->find($selectedSetupId)
+        : TimetableSemester::getCurrent();
+
+    if (!$selectedSetup) {
+        return view('venues.sessions-show', [
+            'venue' => $venue->load('building'),
+            'slots' => collect(),
+            'selectedSetupId' => null,
+            'selectedSetup' => null,
+            'timetableSemesters' => $timetableSemesters,
+        ]);
+    }
+
+    $setupId = (int) $selectedSetup->id;
+    $venueId = (string) $venue->id;
 
     $slots = DB::table('timetables')
-        ->where('venue_id', $venue->id)
-        ->where('semester_id', $semesterId)
+        ->where('semester_id', $setupId)
+        ->where(function ($q) use ($venueId) {
+            $q->where('venue_id', $venueId)
+                ->orWhere('venue_id', 'like', $venueId . ',%')
+                ->orWhere('venue_id', 'like', '%,' . $venueId . ',%')
+                ->orWhere('venue_id', 'like', '%,' . $venueId);
+        })
         ->leftJoin('faculties', 'timetables.faculty_id', '=', 'faculties.id')
         ->select(
             'timetables.day',
@@ -167,6 +211,7 @@ public function sessionsShow(Venue $venue)
         ->groupBy(fn($i) => "{$i->day}|{$i->start}|{$i->end}")
         ->map(function ($group) {
             $first = $group->first();
+
             return [
                 'day' => $first->day,
                 'start' => $first->start,
@@ -174,8 +219,8 @@ public function sessionsShow(Venue $venue)
                 'courses' => $group->pluck('course_code')->unique()->values()->toArray(),
                 'lecturers' => $group->pluck('lecturer_id')->filter()->unique()->values()->toArray(),
                 'groups' => $group->map(fn($i) => $i->group_selection === 'All Groups' ? 'All Groups' : $i->group_selection)
-                                 ->unique()
-                                 ->implode(', '),
+                    ->unique()
+                    ->implode(', '),
                 'activity' => $group->pluck('activity')->filter()->unique()->implode(' / '),
                 'count' => $group->count(),
                 'faculty' => $group->pluck('faculty_name')->filter()->unique()->implode(' / '),
@@ -183,18 +228,41 @@ public function sessionsShow(Venue $venue)
         })
         ->values();
 
-    $venue->load(['building']);
+    $venue->load('building');
 
-    return view('venues.sessions-show', compact('venue', 'slots', 'semesterId'));
+    return view('venues.sessions-show', compact(
+        'venue',
+        'slots',
+        'selectedSetupId',
+        'selectedSetup',
+        'timetableSemesters'
+    ));
 }
 
-public function sessionsPdf(Venue $venue)
+public function sessionsPdf(Request $request, Venue $venue)
 {
-    $semester = TimetableSemester::getFirstSemester();
+    $selectedSetupId = $request->query('setup_id');
+
+    $selectedSetup = $selectedSetupId
+        ? TimetableSemester::with('semester')->find($selectedSetupId)
+        : TimetableSemester::getCurrent();
+
+    if (!$selectedSetup) {
+        return redirect()->route('venue.sessions.index')
+            ->with('error', 'No timetable setup selected.');
+    }
+
+    $setupId = (int) $selectedSetup->id;
+    $venueId = (string) $venue->id;
 
     $slots = DB::table('timetables')
-        ->where('venue_id', $venue->id)
-        ->where('semester_id', $semester->semester_id)
+        ->where('semester_id', $setupId)
+        ->where(function ($q) use ($venueId) {
+            $q->where('venue_id', $venueId)
+                ->orWhere('venue_id', 'like', $venueId . ',%')
+                ->orWhere('venue_id', 'like', '%,' . $venueId . ',%')
+                ->orWhere('venue_id', 'like', '%,' . $venueId);
+        })
         ->leftJoin('faculties', 'timetables.faculty_id', '=', 'faculties.id')
         ->leftJoin('users', 'timetables.lecturer_id', '=', 'users.id')
         ->select(
@@ -213,6 +281,7 @@ public function sessionsPdf(Venue $venue)
         ->groupBy(fn($i) => "{$i->day}|{$i->start}|{$i->end}")
         ->map(function ($group) {
             $first = $group->first();
+
             return [
                 'day' => $first->day,
                 'start' => $first->start,
@@ -220,8 +289,8 @@ public function sessionsPdf(Venue $venue)
                 'courses' => $group->pluck('course_code')->unique()->values()->toArray(),
                 'lecturers' => $group->pluck('lecturer_name')->filter()->unique()->implode(', '),
                 'groups' => $group->map(fn($i) => $i->group_selection === 'All Groups' ? 'All Groups' : $i->group_selection)
-                                 ->unique()
-                                 ->implode(', '),
+                    ->unique()
+                    ->implode(', '),
                 'activity' => $group->pluck('activity')->filter()->unique()->implode(' / '),
                 'faculty' => $group->pluck('faculty_name')->filter()->unique()->implode(' / '),
             ];
@@ -230,24 +299,25 @@ public function sessionsPdf(Venue $venue)
 
     $venue->load('building');
 
-    // In controller, before loadView():
-    Log::info('Logo path: ' . public_path('images/logo.png'));
-    Log::info('File exists: ' . (file_exists(public_path('images/logo.png')) ? 'YES' : 'NO'));
+    $pdf = Pdf::loadView('venues.pdf.sessions', [
+        'venue' => $venue,
+        'slots' => $slots,
+        'semester' => $selectedSetup,
+    ])
+    ->setPaper('a4', 'portrait')
+    ->setOptions([
+        'isRemoteEnabled' => true,
+        'defaultFont' => 'DejaVu Sans',
+        'dpi' => 150,
+        'isHtml5ParserEnabled' => true,
+        'margin_top'    => 0,
+        'margin_right'  => 0,
+        'margin_bottom' => 0,
+        'margin_left'   => 0,
+    ]);
 
-    $pdf = Pdf::loadView('venues.pdf.sessions', compact('venue', 'slots', 'semester'))
-              ->setPaper('a4', 'portrait')
-              ->setOptions([
-                  'isRemoteEnabled' => true,
-                  'defaultFont' => 'DejaVu Sans',
-                  'dpi' => 150,
-                  'isHtml5ParserEnabled' => true,
-                  'margin_top'    => 0,
-                  'margin_right'  => 0,
-                  'margin_bottom' => 0,
-                  'margin_left'   => 0,
-              ]);
+    $filename = 'venue-usage-' . $venue->name . '-' . now()->format('Y-m-d') . '.pdf';
 
-    $filename = "venue-usage-{$venue->name}-" . now()->format('Y-m-d') . ".pdf";
     return $pdf->download($filename);
 }
 

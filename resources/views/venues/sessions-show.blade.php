@@ -2,24 +2,53 @@
 
 @section('content')
 <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h5 class="mb-0">
             Sessions in <strong>{{ $venue->longform }}</strong> ({{ $venue->name }})
         </h5>
-        <div>
-            <a href="{{ route('venue.sessions.pdf', $venue) }}" class="btn btn-sm btn-success">
+
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ route('venue.sessions.pdf', ['venue' => $venue->id, 'setup_id' => $selectedSetupId]) }}"
+               class="btn btn-sm btn-success">
                 Download PDF
             </a>
-            <a href="{{ route('venue.sessions.index') }}" class="btn btn-sm btn-outline-secondary">
+
+            <a href="{{ route('venue.sessions.index', ['setup_id' => $selectedSetupId]) }}"
+               class="btn btn-sm btn-outline-secondary">
                 Back
             </a>
         </div>
     </div>
 
     <div class="card-body">
+        <form method="GET" action="{{ route('venue.sessions.show', $venue->id) }}" class="mb-3">
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <label for="setup_id" class="form-label">Setup</label>
+                    <select name="setup_id" id="setup_id" class="form-select" onchange="this.form.submit()">
+                        <option value="">Select setup</option>
+                        @foreach($timetableSemesters as $setup)
+                            <option value="{{ $setup->id }}" {{ (string) $selectedSetupId === (string) $setup->id ? 'selected' : '' }}>
+                                {{ $setup->semester?->name ?? 'N/A' }} - {{ $setup->academic_year }}
+                                @if(!empty($setup->is_current)) (Current) @endif
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+        </form>
+
+        <div class="mb-3">
+            <span class="badge bg-info">
+                Setup:
+                {{ $selectedSetup?->semester?->name ?? 'N/A' }}
+                ({{ $selectedSetup?->academic_year ?? 'N/A' }})
+            </span>
+        </div>
+
         @if($slots->isEmpty())
-            <div class="alert alert-info text-center">
-                No sessions booked for this venue.
+            <div class="alert alert-info text-center mb-0">
+                No sessions booked for this venue in the selected setup.
             </div>
         @else
             <div class="table-responsive">
@@ -38,31 +67,31 @@
                     </thead>
                     <tbody>
                         @foreach($slots as $slot)
-                        <tr>
-                            <td>{{ $slot['day'] }}</td>
-                            <td>{{ $slot['start'] }} – {{ $slot['end'] }}</td>
-                            <td>
-                                @foreach($slot['courses'] as $code)
-                                    <span class="badge bg-primary me-1">{{ $code }}</span>
-                                @endforeach
-                            </td>
-                            <td>{{ $slot['faculty'] ?: '—' }}</td>
-                            <td>
-                                @php
-                                    $names = \App\Models\User::whereIn('id', $slot['lecturers'])
-                                        ->pluck('name')
-                                        ->implode(', ');
-                                @endphp
-                                {{ $names ?: '—' }}
-                            </td>
-                            <td>{{ $slot['groups'] }}</td>
-                            <td>{{ $slot['activity'] }}</td>
-                            <td class="text-center">
-                                <span class="badge bg-{{ $slot['count'] > 1 ? 'warning' : 'success' }}">
-                                    {{ $slot['count'] }}
-                                </span>
-                            </td>
-                        </tr>
+                            <tr>
+                                <td>{{ $slot['day'] }}</td>
+                                <td>{{ $slot['start'] }} – {{ $slot['end'] }}</td>
+                                <td>
+                                    @foreach($slot['courses'] as $code)
+                                        <span class="badge bg-primary me-1">{{ $code }}</span>
+                                    @endforeach
+                                </td>
+                                <td>{{ $slot['faculty'] ?: '—' }}</td>
+                                <td>
+                                    @php
+                                        $names = \App\Models\User::whereIn('id', $slot['lecturers'])
+                                            ->pluck('name')
+                                            ->implode(', ');
+                                    @endphp
+                                    {{ $names ?: '—' }}
+                                </td>
+                                <td>{{ $slot['groups'] }}</td>
+                                <td>{{ $slot['activity'] }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-{{ $slot['count'] > 1 ? 'warning' : 'success' }}">
+                                        {{ $slot['count'] }}
+                                    </span>
+                                </td>
+                            </tr>
                         @endforeach
                     </tbody>
                 </table>
