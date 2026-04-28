@@ -922,7 +922,7 @@
         },
         success: function (response) {
             const options = (response.venues || []).map(venue => ({
-                text: `${venue.name}${venue.capacity ? ' (' + venue.capacity + ')' : ''}`,
+                text: venue.text || venue.name || `Venue ${venue.id}`,
                 value: String(venue.id)
             }));
 
