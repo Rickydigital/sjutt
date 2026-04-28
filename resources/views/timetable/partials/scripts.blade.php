@@ -957,11 +957,6 @@
             }
         });
 
-        $('#editTimetableModal').on('shown.bs.modal', function () {
-            const selectedVenueIds = $('#edit_modal_venue_id').data('selected-venues') || [];
-            loadAvailableVenues('edit_modal', $('#edit_modal_id').val(), selectedVenueIds);
-        });
-
         $('#generateTimetableForm').on('submit', function (e) {
             e.preventDefault();
 

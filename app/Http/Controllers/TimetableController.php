@@ -1228,8 +1228,12 @@ class TimetableController extends Controller
         $faculty = $timetable->faculty;
 
         if ($groupSelection === 'All Groups') {
-            $studentCount = $faculty->total_students_no
-                ?? FacultyGroup::where('faculty_id', $faculty->id)->sum('student_count');
+            $course = Course::where('course_code', $timetable->course_code)->first();
+
+            $studentCount = $course
+                ? $this->calculateStudentCount($faculty, 'All Groups', $course)
+                : (int) ($faculty->total_students_no
+                    ?? FacultyGroup::where('faculty_id', $faculty->id)->sum('student_count'));
 
             $groupDetails = "All Groups ({$studentCount} students)";
         } else {
@@ -1743,7 +1747,8 @@ class TimetableController extends Controller
                         'group_selection' => $row->group_selection,
                         'student_count' => $this->calculateStudentCount(
                             Faculty::findOrFail($row->faculty_id),
-                            $row->group_selection
+                            $row->group_selection,
+                            Course::where('course_code', $timetable->course_code)->first()
                         ),
                     ])->values()->all(),
                 ];
@@ -2560,7 +2565,7 @@ class TimetableController extends Controller
             'faculty_rows' => [[
                 'faculty_id' => $faculty->id,
                 'group_selection' => $groupSelection,
-                'student_count' => $this->calculateStudentCount($faculty, $groupSelection),
+                'student_count' => $this->calculateStudentCount($faculty, $groupSelection, $course),
             ]],
             'sessions_per_week' => $requiredSessions,
             'hours_per_session' => $this->calculateSessionDurations((int) $course->hours, (int) $requiredSessions),
@@ -2590,14 +2595,16 @@ class TimetableController extends Controller
 
         $facultiesData = $course->faculties()
             ->select('faculties.id', 'faculties.name', 'faculties.total_students_no')
+            ->withPivot('student_count')
             ->get()
             ->map(function ($faculty) {
                 return [
                     'id' => (int) $faculty->id,
                     'name' => $faculty->name ?? 'Unknown',
-                    'student_count' => (int) ($faculty->total_students_no ?? 0),
+                    'student_count' => (int) ($faculty->pivot->student_count ?? 0),
                 ];
             })
+            ->filter(fn ($faculty) => (int) $faculty['student_count'] > 0)
             ->sortByDesc('student_count')
             ->values();
 
@@ -3128,20 +3135,31 @@ class TimetableController extends Controller
         return $durations;
     }
 
-    private function calculateStudentCount(Faculty $faculty, string $groupSelection): int
-    {
-        if ($groupSelection === 'All Groups') {
-            return (int) ($faculty->total_students_no
-                ?? FacultyGroup::where('faculty_id', $faculty->id)->sum('student_count'));
+    private function calculateStudentCount(Faculty $faculty, string $groupSelection, ?Course $course = null): int
+{
+    $groupSelection = trim($groupSelection);
+
+    if ($groupSelection === 'All Groups') {
+        if ($course) {
+            $courseFaculty = $course->faculties()
+                ->where('faculties.id', $faculty->id)
+                ->first();
+
+            if ($courseFaculty && $courseFaculty->pivot) {
+                return (int) ($courseFaculty->pivot->student_count ?? 0);
+            }
         }
 
-        $groups = array_map('trim', explode(',', $groupSelection));
-
-        return (int) FacultyGroup::where('faculty_id', $faculty->id)
-            ->whereIn('group_name', $groups)
-            ->sum('student_count');
+        return (int) ($faculty->total_students_no
+            ?? FacultyGroup::where('faculty_id', $faculty->id)->sum('student_count'));
     }
 
+    $groups = array_map('trim', explode(',', $groupSelection));
+
+    return (int) FacultyGroup::where('faculty_id', $faculty->id)
+        ->whereIn('group_name', $groups)
+        ->sum('student_count');
+}
 
     private function getAutoResolveLinkedRows(Timetable $timetable): Collection
     {
