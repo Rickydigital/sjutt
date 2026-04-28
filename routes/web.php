@@ -265,6 +265,8 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/courses/{course}/edit', [CourseController::class, 'edit'])->name('courses.edit')->middleware(['permission:view courses']);
     Route::put('/courses/{course}', [CourseController::class, 'update'])->name('courses.update')->middleware(['permission:edit courses']);
     Route::delete('/courses/{course}', [CourseController::class, 'destroy'])->name('courses.destroy')->middleware(['permission:delete courses']);
+    Route::get('/courses/faculty-students/template', [CourseController::class, 'exportFacultyStudentTemplate'])->name('courses.faculty-students.template');
+    Route::post('/courses/faculty-students/import', [CourseController::class, 'importFacultyStudentCounts'])->name('courses.faculty-students.import');
 
     // Users
     Route::get('/user-sessions', [UserController::class, 'sessionsIndex'])->name('user.sessions.index');

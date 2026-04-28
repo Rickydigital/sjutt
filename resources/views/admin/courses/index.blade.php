@@ -9,6 +9,13 @@
                 </div>
                 <div class="d-flex gap-2">
                     <a href="{{ route('courses.create') }}" class="btn btn-primary">New Course</a>
+                    <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#facultyStudentExportModal">
+                        Export Faculty Students Sample
+                    </button>
+
+                    <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#facultyStudentImportModal">
+                        Import Faculty Students
+                    </button>
                     <a href="{{ route('courses.export') }}" class="btn btn-success">Export Courses</a>
                     <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#importModal">Import Courses</button>
                 </div>
@@ -165,55 +172,156 @@
         </div>
     </div>
 
-    @section('scripts')
-        <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-        <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-        <script>
-            $(document).ready(function() {
-                // Initialize Select2 for faculty filter
-                $('#facultyFilter').select2({
-                    placeholder: "Select a faculty",
-                    allowClear: true
-                });
+    {{-- Export Faculty Student Count Sample Modal --}}
+<div class="modal fade" id="facultyStudentExportModal" tabindex="-1" aria-labelledby="facultyStudentExportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title" id="facultyStudentExportModalLabel">
+                    Export Course Faculty Student Count Sample
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
 
-                // Initialize Select2 for semester filter
-                $('#semesterFilter').select2({
-                    placeholder: "Select a semester",
-                    allowClear: true
-                });
+            <form action="{{ route('courses.faculty-students.template') }}" method="GET">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        Select one semester and one or more programs. The exported Excel will list all courses for that semester,
+                        with selected program faculties as columns.
+                    </div>
 
-                // Faculty filter submission
-                $('#facultyFilter').on('change', function() {
-                    var facultyId = $(this).val();
-                    var semesterId = $('#semesterFilter').val();
-                    var url = new URL(window.location.href);
-                    if (facultyId) {
-                        url.searchParams.set('faculty_id', facultyId);
-                    } else {
-                        url.searchParams.delete('faculty_id');
-                    }
-                    if (semesterId) {
-                        url.searchParams.set('semester_id', semesterId);
-                    }
-                    window.location.href = url.toString();
-                });
+                    <div class="mb-3">
+                        <label class="form-label">Semester <span class="text-danger">*</span></label>
+                        <select name="semester_id" id="export_semester_id" class="form-select modal-select2" required>
+                            <option value="">Select Semester</option>
+                            @foreach($semesters as $semester)
+                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
 
-                // Semester filter submission
-                $('#semesterFilter').on('change', function() {
-                    var semesterId = $(this).val();
-                    var facultyId = $('#facultyFilter').val();
-                    var url = new URL(window.location.href);
-                    if (semesterId) {
-                        url.searchParams.set('semester_id', semesterId);
-                    } else {
-                        url.searchParams.delete('semester_id');
-                    }
-                    if (facultyId) {
-                        url.searchParams.set('faculty_id', facultyId);
-                    }
-                    window.location.href = url.toString();
-                });
-            });
-        </script>
-    @endsection
+                    <div class="mb-3">
+                        <label class="form-label">Programs <span class="text-danger">*</span></label>
+                        <select name="program_ids[]" id="export_program_ids" class="form-select modal-select2" multiple required>
+                            @foreach($programs as $program)
+                                <option value="{{ $program->id }}">
+                                    {{ $program->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">You can select many programs.</small>
+                    </div>
+
+                    <div class="small text-muted">
+                        Example output: <strong>course_code | course_name | CICT 1 | CICT 2 | BAF 1</strong>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-warning">Download Sample</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- Import Faculty Student Counts Modal --}}
+<div class="modal fade" id="facultyStudentImportModal" tabindex="-1" aria-labelledby="facultyStudentImportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="facultyStudentImportModalLabel">
+                    Import Course Faculty Student Counts
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <form action="{{ route('courses.faculty-students.import') }}" method="POST" enctype="multipart/form-data">
+                @csrf
+
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        First download the sample, fill only student numbers under faculty columns, then import it here.
+                        Do not rename <strong>course_code</strong> or faculty column names.
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Semester <span class="text-danger">*</span></label>
+                        <select name="semester_id" id="import_semester_id" class="form-select modal-select2" required>
+                            <option value="">Select Semester</option>
+                            @foreach($semesters as $semester)
+                                <option value="{{ $semester->id }}">{{ $semester->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Programs <span class="text-danger">*</span></label>
+                        <select name="program_ids[]" id="import_program_ids" class="form-select modal-select2" multiple required>
+                            @foreach($programs as $program)
+                                <option value="{{ $program->id }}">
+                                    {{ $program->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">Select the same programs used during sample export.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Excel File <span class="text-danger">*</span></label>
+                        <input type="file" name="file" class="form-control" accept=".xlsx,.xls,.csv" required>
+                    </div>
+
+                    <div class="small text-muted">
+                        Empty cells are ignored. Numeric cells update <strong>course_faculty.student_count</strong>.
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-dark">Import Student Counts</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+   @section('scripts')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function () {
+    $('#facultyFilter').select2({ placeholder: "Select a faculty", allowClear: true, width: '100%' });
+    $('#semesterFilter').select2({ placeholder: "Select a semester", allowClear: true, width: '100%' });
+
+    function submitFilters() {
+        const url = new URL(window.location.href);
+        const facultyId = $('#facultyFilter').val();
+        const semesterId = $('#semesterFilter').val();
+
+        facultyId ? url.searchParams.set('faculty_id', facultyId) : url.searchParams.delete('faculty_id');
+        semesterId ? url.searchParams.set('semester_id', semesterId) : url.searchParams.delete('semester_id');
+
+        window.location.href = url.toString();
+    }
+
+    $('#facultyFilter, #semesterFilter').on('change', submitFilters);
+
+    $('#facultyStudentExportModal').on('shown.bs.modal', function () {
+        $('#export_semester_id, #export_program_ids').select2({
+            width: '100%',
+            dropdownParent: $('#facultyStudentExportModal')
+        });
+    });
+
+    $('#facultyStudentImportModal').on('shown.bs.modal', function () {
+        $('#import_semester_id, #import_program_ids').select2({
+            width: '100%',
+            dropdownParent: $('#facultyStudentImportModal')
+        });
+    });
+});
+</script>
+@endsection
 @endsection

@@ -34,9 +34,11 @@ class Course extends Model
     ];
 
     public function faculties(): BelongsToMany
-    {
-        return $this->belongsToMany(Faculty::class, 'course_faculty');
-    }
+{
+    return $this->belongsToMany(Faculty::class, 'course_faculty')
+        ->withPivot('student_count')
+        ->withTimestamps();
+}
 
     public function timetables(): HasMany
     {

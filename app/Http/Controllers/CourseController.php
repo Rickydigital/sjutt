@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\CourseFacultyStudentTemplateExport;
 use App\Exports\CoursesExport;
+use App\Imports\CourseFacultyStudentCountsImport;
 use App\Imports\CoursesImport;
 use App\Models\Program;
 use App\Models\Course;
@@ -140,6 +142,8 @@ class CourseController extends Controller
             'lecturer_ids.*' => 'exists:users,id',
             'faculty_ids' => 'required|array',
             'faculty_ids.*' => 'exists:faculties,id',
+            'student_counts' => 'nullable|array',
+            'student_counts.*' => 'nullable|integer|min:0',
         ]);
 
         if ($user->hasRole('Administrator')) {
@@ -171,7 +175,15 @@ class CourseController extends Controller
             $course->lecturers()->sync($request->lecturer_ids);
         }
         if ($request->faculty_ids) {
-            $course->faculties()->sync($request->faculty_ids);
+            $syncData = [];
+
+            foreach ($request->faculty_ids as $facultyId) {
+                $syncData[$facultyId] = [
+                    'student_count' => (int) $request->input("student_counts.$facultyId", 0),
+                ];
+            }
+
+            $course->faculties()->sync($syncData);
         }
 
         return redirect()->route('courses.index')->with('success', 'Course created successfully.');
@@ -281,6 +293,8 @@ class CourseController extends Controller
             'lecturer_ids.*' => 'exists:users,id',
             'faculty_ids'   => 'required|array',
             'faculty_ids.*' => 'exists:faculties,id',
+            'student_counts' => 'nullable|array',
+            'student_counts.*' => 'nullable|integer|min:0',
         ]);
 
         if ($user->hasRole('Administrator')) {
@@ -312,7 +326,15 @@ class CourseController extends Controller
         // Update course
         $course->update($new);
         $course->lecturers()->sync($request->lecturer_ids ?: []);
-        $course->faculties()->sync($request->faculty_ids ?: []);
+        $syncData = [];
+
+        foreach ($request->input('faculty_ids', []) as $facultyId) {
+            $syncData[$facultyId] = [
+                'student_count' => (int) $request->input("student_counts.$facultyId", 0),
+            ];
+        }
+
+        $course->faculties()->sync($syncData);
 
         $newLecturerIds = $request->lecturer_ids ?? [];
 
@@ -570,4 +592,47 @@ class CourseController extends Controller
     {
         return Excel::download(new CoursesExport, 'courses_template.xlsx');
     }
+
+    public function exportFacultyStudentTemplate(Request $request)
+{
+    $validated = $request->validate([
+        'semester_id' => ['required', 'exists:semesters,id'],
+        'program_ids' => ['required', 'array', 'min:1'],
+        'program_ids.*' => ['exists:programs,id'],
+    ]);
+
+    return Excel::download(
+        new CourseFacultyStudentTemplateExport(
+            (int) $validated['semester_id'],
+            $validated['program_ids']
+        ),
+        'course_faculty_student_counts_template.xlsx'
+    );
+}
+
+public function importFacultyStudentCounts(Request $request)
+{
+    $validated = $request->validate([
+        'semester_id' => ['required', 'exists:semesters,id'],
+        'program_ids' => ['required', 'array', 'min:1'],
+        'program_ids.*' => ['exists:programs,id'],
+        'file' => ['required', 'mimes:xlsx,xls,csv'],
+    ]);
+
+    $import = new CourseFacultyStudentCountsImport(
+        (int) $validated['semester_id'],
+        $validated['program_ids']
+    );
+
+    Excel::import($import, $request->file('file'));
+
+    if (!empty($import->errors)) {
+        return back()->with(
+            'warning',
+            'Import completed with some issues: ' . implode(' ', $import->errors)
+        );
+    }
+
+    return back()->with('success', 'Course faculty student counts imported successfully.');
+}
 }

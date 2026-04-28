@@ -53,10 +53,12 @@ class Faculty extends Model
         return $this->belongsTo(Program::class);
     }
 
-    public function courses(): BelongsToMany
-    {
-        return $this->belongsToMany(Course::class, 'course_faculty');
-    }
+   public function courses(): BelongsToMany
+{
+    return $this->belongsToMany(Course::class, 'course_faculty')
+        ->withPivot('student_count')
+        ->withTimestamps();
+}
 
     public function groups(): HasMany
     {
