@@ -227,14 +227,7 @@
                 });
 
                 $dropdown.off('wheel.select2fix').on('wheel.select2fix', function (e) {
-                    const el = this;
-                    const delta = e.originalEvent.deltaY;
-                    const atTop = el.scrollTop === 0;
-                    const atBottom = el.scrollHeight - el.clientHeight - el.scrollTop <= 1;
-
-                    if ((delta < 0 && !atTop) || (delta > 0 && !atBottom)) {
-                        e.stopPropagation();
-                    }
+                    e.stopPropagation();
                 });
             }, 0);
         });

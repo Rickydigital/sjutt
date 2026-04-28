@@ -176,6 +176,7 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/timetables/{timetable}/edit', [ExaminationTimetableController::class, 'edit'])->name('timetables.edit')->middleware(['permission:view examination timetables']);
     Route::put('/timetables/{timetable}', [ExaminationTimetableController::class, 'update'])->name('timetables.update')->middleware(['permission:edit examination timetables']);
     Route::delete('/timetables/{timetable}', [ExaminationTimetableController::class, 'destroy'])->name('timetables.destroy')->middleware(['permission:delete examination timetables']);
+     Route::get('/timetables/setup-decision', [TimetableController::class, 'setupDecision'])->name('timetables.setupDecision');
     Route::post('/timetable/generate', [TimetableController::class, 'generateTimetable'])->name('timetable.generate');
     Route::get('/timetable-setups', [TimetableSemesterController::class, 'index'])->name('timetable-semesters.index');
     Route::post('/timetable-setups', [TimetableSemesterController::class, 'store'])->name('timetable-semesters.store');
@@ -185,7 +186,7 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/timetable-setups/{timetableSemester}/activate', [TimetableSemesterController::class, 'activate'])->name('timetable-semesters.activate');
     Route::delete('/timetable-setups/{timetableSemester}', [TimetableSemesterController::class, 'destroy'])->name('timetable-semesters.destroy');
     Route::post('/timetable/{timetable}/auto-resolve', [TimetableController::class, 'autoResolve'])->name('timetable.autoResolve');
-    Route::get('/timetables/setup-decision', [TimetableController::class, 'setupDecision'])->name('timetables.setupDecision');
+   
 
 
     //students
