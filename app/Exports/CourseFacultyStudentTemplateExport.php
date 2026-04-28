@@ -10,8 +10,8 @@ use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 
 class CourseFacultyStudentTemplateExport implements FromCollection, ShouldAutoSize
 {
-    protected $semesterId;
-    protected $programIds;
+    protected int $semesterId;
+    protected array $programIds;
 
     public function __construct(int $semesterId, array $programIds)
     {
@@ -21,26 +21,31 @@ class CourseFacultyStudentTemplateExport implements FromCollection, ShouldAutoSi
 
     public function collection(): Collection
     {
-        // Faculties filtered by selected programs
-        $faculties = Faculty::whereIn('program_id', $this->programIds)
+        $faculties = Faculty::query()
+            ->whereIn('program_id', $this->programIds)
             ->orderBy('name')
             ->get();
 
-        // Courses filtered by semester
-        $courses = Course::with('faculties')
+        $facultyIds = $faculties->pluck('id')->toArray();
+
+        $courses = Course::query()
+            ->with(['faculties' => function ($query) use ($facultyIds) {
+                $query->whereIn('faculties.id', $facultyIds);
+            }])
             ->where('semester_id', $this->semesterId)
+            ->whereHas('faculties', function ($query) use ($facultyIds) {
+                $query->whereIn('faculties.id', $facultyIds);
+            })
             ->orderBy('course_code')
             ->get();
 
         $rows = collect();
 
-        // Header
         $rows->push(array_merge(
             ['course_code', 'course_name'],
             $faculties->pluck('name')->toArray()
         ));
 
-        // Rows
         foreach ($courses as $course) {
             $row = [
                 $course->course_code,
@@ -48,8 +53,11 @@ class CourseFacultyStudentTemplateExport implements FromCollection, ShouldAutoSi
             ];
 
             foreach ($faculties as $faculty) {
-                $pivot = $course->faculties->firstWhere('id', $faculty->id);
-                $row[] = $pivot ? (int) ($pivot->pivot->student_count ?? 0) : '';
+                $attachedFaculty = $course->faculties->firstWhere('id', $faculty->id);
+
+                $row[] = $attachedFaculty
+                    ? (int) ($attachedFaculty->pivot->student_count ?? 0)
+                    : '';
             }
 
             $rows->push($row);
