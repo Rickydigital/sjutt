@@ -812,7 +812,13 @@
 
                     $('#edit_modal_activity').val(data.activity || '').trigger('change.select2');
                     $('#edit_modal_cross_note').toggle(!!data.is_cross_catering);
-                    $('#edit_modal_venue_id').data('selected-venues', data.venue_ids || []);
+                    const selectedVenueIds = normalizeVenueIds(data.venue_ids || data.venue_id || []);
+
+                    loadAvailableVenues(
+                        'edit_modal',
+                        data.id,
+                        selectedVenueIds
+                    );
                     const isCross = !!data.is_cross_catering;
                     const isWorkshop = String(data.activity || '').toLowerCase() === 'workshop';
 
@@ -881,74 +887,62 @@
             });
         });
 
-        function loadAvailableVenues(prefix, excludeId = null, selectedVenueIds = []) {
-            const day = $(`#${prefix}_day`).val();
-            const start = $(`#${prefix}_time_start`).val();
-            const end = $(`#${prefix}_time_end`).val();
-            const facultyId = $(`#${prefix}_faculty_id`).val();
-            const setupId = $(`#${prefix}_setup_id`).val()
-                || $('#setup_id').val()
-                || $('#setup_id_filter').val()
-                || $('#generate_setup_id').val()
-                || '';
+       function loadAvailableVenues(prefix, excludeId = null, selectedVenueIds = []) {
+    const day = $(`#${prefix}_day`).val();
+    const start = $(`#${prefix}_time_start`).val();
+    const end = $(`#${prefix}_time_end`).val();
+    const facultyId = $(`#${prefix}_faculty_id`).val();
+    const setupId = $(`#${prefix}_setup_id`).val()
+        || $('#setup_id').val()
+        || $('#setup_id_filter').val()
+        || $('#generate_setup_id').val()
+        || '';
 
-            const $venueSelect = $(`#${prefix}_venue_id`);
-            const isMultiple = $venueSelect.prop('multiple');
+    const selected = normalizeVenueIds(selectedVenueIds);
 
-            if (!day || !start || !end || !facultyId) {
-                $venueSelect.empty();
-                if (!isMultiple) {
-                    $venueSelect.append('<option value="">Select day, start and end time first</option>');
-                }
-                initSelect2Element($venueSelect, $venueSelect.closest('.modal').length ? `#${$venueSelect.closest('.modal').attr('id')}` : null);
-                $venueSelect.trigger('change.select2');
-                return;
-            }
+    if (!day || !start || !end || !setupId) {
+        resetSelect2Options($(`#${prefix}_venue_id`), [], {
+            placeholder: 'Select Venue',
+            selected: selected,
+            modalSelector: prefix === 'edit_modal' ? '#editTimetableModal' : '#addTimetableModal'
+        });
+        return;
+    }
 
-            $.ajax({
-                url: '{{ route('timetables.available-venues') }}',
-                method: 'GET',
-                data: {
-                    day: day,
-                    time_start: start,
-                    time_end: end,
-                    faculty_id: facultyId,
-                    setup_id: setupId,
-                    exclude_id: excludeId
-                },
-                success: function (response) {
-                    const selectedIds = (selectedVenueIds || []).map(v => String(v));
-                    const modalSelector = $venueSelect.closest('.modal').length ? `#${$venueSelect.closest('.modal').attr('id')}` : null;
-                    const options = (response.venues || []).map(venue => ({
-                        text: venue.text,
-                        value: venue.id
-                    }));
+    $.ajax({
+        url: '{{ route('timetables.availableVenues') }}',
+        method: 'GET',
+        data: {
+            day: day,
+            time_start: start,
+            time_end: end,
+            faculty_id: facultyId,
+            setup_id: setupId,
+            exclude_id: excludeId
+        },
+        success: function (response) {
+            const options = (response.venues || []).map(venue => ({
+                text: `${venue.name}${venue.capacity ? ' (' + venue.capacity + ')' : ''}`,
+                value: String(venue.id)
+            }));
 
-                    resetSelect2Options($venueSelect, options, {
-                        placeholder: 'Select Venue',
-                        selected: selectedIds.length ? selectedIds : (isMultiple ? [] : ''),
-                        modalSelector: modalSelector
+            selected.forEach(id => {
+                if (!options.some(opt => String(opt.value) === String(id))) {
+                    options.push({
+                        text: `Current Venue ${id}`,
+                        value: String(id)
                     });
-                },
-                error: function (xhr) {
-                    $venueSelect.empty();
-
-                    if (!isMultiple) {
-                        $venueSelect.append('<option value="">No available venues</option>');
-                    }
-
-                    initSelect2Element($venueSelect, $venueSelect.closest('.modal').length ? `#${$venueSelect.closest('.modal').attr('id')}` : null);
-                    $venueSelect.trigger('change.select2');
-
-                    const msg = Object.values(xhr.responseJSON?.errors || {}).flat().join('<br>')
-                        || xhr.responseJSON?.message
-                        || 'Could not load available venues.';
-
-                    showAlert('error', 'Venue Loading Failed', msg);
                 }
             });
-        }
 
+            resetSelect2Options($(`#${prefix}_venue_id`), options, {
+                placeholder: 'Select Venue',
+                selected: selected,
+                modalSelector: prefix === 'edit_modal' ? '#editTimetableModal' : '#addTimetableModal'
+            });
+        }
+    });
+}
         $(document).on('change', '#modal_time_end', function () {
             loadAvailableVenues('modal');
         });
@@ -1097,11 +1091,62 @@
         }
     });
 });
+
+$('#editTimetableForm').on('submit', function (e) {
+    e.preventDefault();
+
+    const $form = $(this);
+    const venueValue = normalizeVenueValue($('#edit_modal_venue_id').val());
+
+    if (!venueValue) {
+        showAlert('error', 'Validation Error', 'Please select a venue.');
+        return;
+    }
+
+    const formData = $form.serializeArray().filter(item => {
+        return item.name !== 'venue_id' && item.name !== 'venue_id[]';
+    });
+
+    formData.push({
+        name: 'venue_id',
+        value: venueValue
+    });
+
+    $.ajax({
+        url: $form.attr('action'),
+        method: 'POST',
+        data: $.param(formData),
+        success: function (response) {
+            Swal.fire('Success', response.message || 'Timetable updated successfully.', 'success')
+                .then(() => location.reload());
+        },
+        error: function (xhr) {
+            const msg = Object.values(xhr.responseJSON?.errors || {}).flat().join('<br>')
+                || xhr.responseJSON?.message
+                || 'Failed to update timetable entry.';
+
+            showAlert('error', 'Update Failed', msg);
+        }
+    });
+});
         function normalizeVenueValue(value) {
             if (Array.isArray(value)) {
                 return value.filter(Boolean).join(',');
             }
             return value ? String(value) : '';
+        }
+
+        function normalizeVenueIds(value) {
+            if (Array.isArray(value)) {
+                return value.map(String).filter(Boolean);
+            }
+
+            if (!value) return [];
+
+            return String(value)
+                .split(',')
+                .map(v => v.trim())
+                .filter(Boolean);
         }
 
         $(document).on('click', '.show-timetable', function () {
