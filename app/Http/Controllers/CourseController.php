@@ -69,8 +69,9 @@ class CourseController extends Controller
         $courses = $query->paginate(98);
         $faculties = Faculty::all();
         $semesters = Semester::all();
+        $programs = Program::all();
 
-        return view('admin.courses.index', compact('courses', 'faculties', 'semesters'));
+        return view('admin.courses.index', compact('courses', 'faculties', 'semesters', 'programs'));
     }
 
     /**
