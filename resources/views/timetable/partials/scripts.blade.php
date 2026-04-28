@@ -910,7 +910,7 @@
     }
 
     $.ajax({
-        url: '{{ route('timetables.availableVenues') }}',
+        url: '{{ route('timetables.available-venues') }}',
         method: 'GET',
         data: {
             day: day,
