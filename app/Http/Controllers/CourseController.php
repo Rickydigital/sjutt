@@ -6,6 +6,9 @@ use App\Exports\CourseFacultyStudentTemplateExport;
 use App\Exports\CoursesExport;
 use App\Imports\CourseFacultyStudentCountsImport;
 use App\Imports\CoursesImport;
+use App\Exports\CoursesMultiSheetExport;
+use App\Imports\CoursesMultiSheetImport;
+use Maatwebsite\Excel\Facades\Excel;
 use App\Models\Program;
 use App\Models\Course;
 use App\Models\User;
@@ -14,7 +17,6 @@ use App\Models\Semester;
 use App\Models\Timetable;
 use App\Services\TimetableScheduler;
 use Illuminate\Http\Request;
-use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -570,29 +572,33 @@ class CourseController extends Controller
     /**
      * Import courses from an Excel file.
      */
-    public function import(Request $request)
-    {
-        $user = Auth::user();
-        if (!$user->hasAnyRole(['Admin', 'Administrator'])) {
-            abort(403, 'Unauthorized action.');
-        }
+   public function import(Request $request)
+{
+    $user = Auth::user();
 
-        $request->validate([
-            'file' => 'required|mimes:xlsx,xls,csv'
-        ]);
-
-        Excel::import(new CoursesImport, $request->file('file'));
-
-        return back()->with('success', 'Courses imported successfully!');
+    if (!$user->hasAnyRole(['Admin', 'Administrator'])) {
+        abort(403, 'Unauthorized action.');
     }
+
+    $request->validate([
+        'file' => ['required', 'mimes:xlsx,xls,csv'],
+    ]);
+
+    Excel::import(new CoursesMultiSheetImport, $request->file('file'));
+
+    return back()->with('success', 'Courses imported successfully.');
+}
 
     /**
      * Export courses to an Excel file.
      */
-    public function export()
-    {
-        return Excel::download(new CoursesExport, 'courses_template.xlsx');
-    }
+   public function export()
+{
+    return Excel::download(
+        new CoursesMultiSheetExport(),
+        'courses_multi_sheet_template.xlsx'
+    );
+}
 
     public function exportFacultyStudentTemplate(Request $request)
 {

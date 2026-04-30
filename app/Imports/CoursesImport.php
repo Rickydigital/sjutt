@@ -3,87 +3,199 @@
 namespace App\Imports;
 
 use App\Models\Course;
-use App\Models\User;
 use App\Models\Faculty;
 use App\Models\Semester;
+use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Illuminate\Support\Facades\Log;
 
 class CoursesImport implements ToCollection, WithHeadingRow
 {
     public function collection(Collection $rows)
     {
         foreach ($rows as $index => $row) {
-            Log::debug("Processing row {$index}", $row->toArray());
+            $rowNumber = $index + 2; // because heading row is row 1
 
-            if (empty($row['course_code']) || !is_string($row['course_code']) || trim($row['course_code']) === '') {
-                Log::warning("Skipping row {$index} due to missing or invalid course_code", $row->toArray());
+            Log::debug("Processing course import row {$rowNumber}", $row->toArray());
+
+            $courseCode = trim((string) ($row['course_code'] ?? ''));
+
+            if ($courseCode === '') {
+                Log::warning("Skipping row {$rowNumber}: missing course_code", $row->toArray());
                 continue;
             }
 
-            $courseCode = trim($row['course_code']);
+            $name = trim((string) ($row['name'] ?? ''));
 
-            $name = $row['name'] ?? 'Unnamed Course';
+            if ($name === '') {
+                Log::warning("Skipping row {$rowNumber} for course_code {$courseCode}: missing course name");
+                continue;
+            }
+
             if (str_word_count($name) > 5) {
-                Log::warning("Skipping row {$index} for course_code {$courseCode}: Name exceeds 5 words");
+                Log::warning("Skipping row {$rowNumber} for course_code {$courseCode}: name exceeds 5 words");
                 continue;
             }
 
-            // Map semester_name to semester_id
-            $semester = null;
-            if (!empty($row['semester_name'])) {
-                $semester = Semester::where('name', trim($row['semester_name']))->first();
-                if (!$semester) {
-                    Log::warning("Skipping row {$index} for course_code {$courseCode}: Invalid semester name {$row['semester_name']}");
-                    continue;
-                }
-            } else {
-                $semester = Semester::where('name', 'First Semester')->first();
+            $hours = (int) ($row['hours'] ?? 0);
+            $practicalHrs = isset($row['practical_hrs']) && $row['practical_hrs'] !== ''
+                ? (int) $row['practical_hrs']
+                : null;
+
+            if ($hours < 1) {
+                Log::warning("Skipping row {$rowNumber} for course_code {$courseCode}: hours must be at least 1");
+                continue;
+            }
+
+            if (!is_null($practicalHrs) && $practicalHrs > $hours) {
+                Log::warning("Skipping row {$rowNumber} for course_code {$courseCode}: practical_hrs exceeds hours");
+                continue;
+            }
+
+            $semester = $this->resolveSemester($row, $rowNumber, $courseCode);
+
+            if (!$semester) {
+                continue;
             }
 
             try {
-                $course = Course::firstOrCreate(
-                    ['course_code' => $courseCode],
+                $course = Course::updateOrCreate(
+                    [
+                        'course_code' => $courseCode,
+                    ],
                     [
                         'name' => $name,
                         'description' => $row['description'] ?? null,
                         'credits' => (int) ($row['credits'] ?? 0),
-                        'hours' => (int) ($row['hours'] ?? 0),
-                        'practical_hrs' => isset($row['practical_hrs']) ? (int) $row['practical_hrs'] : null,
+                        'hours' => $hours,
+                        'practical_hrs' => $practicalHrs,
                         'session' => (int) ($row['session'] ?? 0),
-                        'semester_id' => $semester ? $semester->id : null,
-                        'cross_catering' => isset($row['cross_catering']) ? (bool) $row['cross_catering'] : false,
-                        'is_workshop' => isset($row['is_workshop']) ? (bool) $row['is_workshop'] : false,
+                        'semester_id' => $semester->id,
+                        'cross_catering' => $this->toBoolean($row['cross_catering'] ?? false),
+                        'is_workshop' => $this->toBoolean($row['is_workshop'] ?? false),
                     ]
                 );
 
-                if (!is_null($course->practical_hrs) && $course->practical_hrs > $course->hours) {
-                    Log::warning("Skipping row {$index} for course_code {$courseCode}: practical_hrs ({$course->practical_hrs}) exceeds hours ({$course->hours})");
-                    continue;
-                }
+                $this->syncLecturers($course, $row, $rowNumber, $courseCode);
 
-                if (!empty($row['lecturer_emails'])) {
-                    $emails = array_map('trim', explode(',', $row['lecturer_emails']));
-                    $firstEmail = reset($emails);
-                    $lecturer = User::where('email', $firstEmail)->first();
-                    if ($lecturer) {
-                        $course->lecturers()->sync([$lecturer->id]);
-                    } else {
-                        Log::warning("Skipping lecturer for row {$index} with course_code {$courseCode}: No user found for email {$firstEmail}");
-                    }
-                }
+                $this->syncFacultiesWithStudentCounts($course, $row, $rowNumber, $courseCode);
+            } catch (\Throwable $e) {
+                Log::error("Error processing row {$rowNumber} with course_code {$courseCode}: {$e->getMessage()}", [
+                    'row' => $row->toArray(),
+                ]);
 
-                if (!empty($row['faculty_names'])) {
-                    $facultyNames = array_map('trim', explode(',', $row['faculty_names']));
-                    $facultyIds = Faculty::whereIn('name', $facultyNames)->pluck('id')->toArray();
-                    $course->faculties()->sync($facultyIds);
-                }
-            } catch (\Exception $e) {
-                Log::error("Error processing row {$index} with course_code {$courseCode}: {$e->getMessage()}");
                 continue;
             }
         }
+    }
+
+    private function resolveSemester($row, int $rowNumber, string $courseCode): ?Semester
+    {
+        $semesterName = trim((string) ($row['semester_name'] ?? ''));
+
+        if ($semesterName === '') {
+            $semesterName = 'First Semester';
+        }
+
+        $semester = Semester::where('name', $semesterName)->first();
+
+        if (!$semester) {
+            Log::warning("Skipping row {$rowNumber} for course_code {$courseCode}: invalid semester name {$semesterName}");
+            return null;
+        }
+
+        return $semester;
+    }
+
+    private function syncLecturers(Course $course, $row, int $rowNumber, string $courseCode): void
+    {
+        if (empty($row['lecturer_emails'])) {
+            return;
+        }
+
+        $emails = collect(explode(',', $row['lecturer_emails']))
+            ->map(fn ($email) => trim($email))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($emails->isEmpty()) {
+            return;
+        }
+
+        $lecturerIds = User::whereIn('email', $emails)
+            ->pluck('id')
+            ->toArray();
+
+        if (empty($lecturerIds)) {
+            Log::warning("No lecturers found for row {$rowNumber} with course_code {$courseCode}", [
+                'emails' => $emails->toArray(),
+            ]);
+
+            return;
+        }
+
+        $course->lecturers()->sync($lecturerIds);
+    }
+
+    private function syncFacultiesWithStudentCounts(Course $course, $row, int $rowNumber, string $courseCode): void
+    {
+        if (empty($row['faculty_names'])) {
+            return;
+        }
+
+        $facultyNames = collect(explode(',', $row['faculty_names']))
+            ->map(fn ($name) => trim($name))
+            ->filter()
+            ->values();
+
+        if ($facultyNames->isEmpty()) {
+            return;
+        }
+
+        $studentCounts = collect(explode(',', (string) ($row['faculty_student_counts'] ?? '')))
+            ->map(fn ($count) => trim($count))
+            ->values();
+
+        $faculties = Faculty::whereIn('name', $facultyNames)
+            ->get()
+            ->keyBy('name');
+
+        $syncData = [];
+
+        foreach ($facultyNames as $position => $facultyName) {
+            $faculty = $faculties->get($facultyName);
+
+            if (!$faculty) {
+                Log::warning("Faculty not found for row {$rowNumber} with course_code {$courseCode}: {$facultyName}");
+                continue;
+            }
+
+            $count = $studentCounts->get($position, 0);
+
+            $syncData[$faculty->id] = [
+                'student_count' => is_numeric($count) ? (int) $count : 0,
+            ];
+        }
+
+        if (empty($syncData)) {
+            Log::warning("No valid faculties found for row {$rowNumber} with course_code {$courseCode}");
+            return;
+        }
+
+        $course->faculties()->sync($syncData);
+    }
+
+    private function toBoolean($value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        $value = strtolower(trim((string) $value));
+
+        return in_array($value, ['1', 'yes', 'true', 'y'], true);
     }
 }
