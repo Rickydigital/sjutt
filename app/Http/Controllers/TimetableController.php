@@ -114,17 +114,12 @@ class TimetableController extends Controller
             ->orderBy('course_code')
             ->get()
             ->map(function ($course) use ($setup, $request) {
-                $lectureCountQuery = Timetable::where('semester_id', $setup->id)
-                    ->where('course_code', $course->course_code)
-                    ->where('activity', 'Lecture')
-                    ->select('day', 'time_start', 'time_end')
-                    ->distinct();
-
-                if (!(bool) $course->cross_catering) {
-                    $lectureCountQuery->where('faculty_id', $request->faculty_id);
-                }
-
-                $scheduledLectureCount = $lectureCountQuery->count();
+                $scheduledLectureCount = $this->countScheduledLectureSessions(
+                    setupId: (int) $setup->id,
+                    courseCode: $course->course_code,
+                    facultyId: (int) $request->faculty_id,
+                    isCrossCatering: (bool) $course->cross_catering
+                );
                 $requiredLectureSessions = (int) $course->session;
                 $remainingLectureSessions = max(0, $requiredLectureSessions - $scheduledLectureCount);
                 $lectureComplete = $remainingLectureSessions <= 0;
@@ -2218,42 +2213,50 @@ class TimetableController extends Controller
     }
 
 
-    private function assertCourseSessionQuotaAvailable(
-        TimetableSemester $setup,
-        string $courseCode,
-        int $facultyId,
-        bool $isCrossCatering,
-        string $activity
-    ): void {
-        if (strtolower(trim((string) $activity)) !== 'lecture') {
-            return;
-        }
-
-        $course = Course::where('course_code', $courseCode)
-            ->where('semester_id', $setup->semester_id)
-            ->firstOrFail();
-
-        if ($isCrossCatering) {
-            $scheduledCount = Timetable::where('semester_id', $setup->id)
-                ->where('course_code', $courseCode)
-                ->where('activity', 'Lecture')
-                ->select('day', 'time_start', 'time_end')
-                ->distinct()
-                ->count();
-        } else {
-            $scheduledCount = Timetable::where('semester_id', $setup->id)
-                ->where('course_code', $courseCode)
-                ->where('faculty_id', $facultyId)
-                ->where('activity', 'Lecture')
-                ->select('day', 'time_start', 'time_end')
-                ->distinct()
-                ->count();
-        }
-
-        if ($scheduledCount >= (int) $course->session) {
-            throw new \Exception("Lecture sessions for course {$courseCode} are already complete in the selected setup.");
-        }
+   private function assertCourseSessionQuotaAvailable(
+    TimetableSemester $setup,
+    string $courseCode,
+    int $facultyId,
+    bool $isCrossCatering,
+    string $activity
+): void {
+    if (strtolower(trim((string) $activity)) !== 'lecture') {
+        return;
     }
+
+    $course = Course::where('course_code', $courseCode)
+        ->where('semester_id', $setup->semester_id)
+        ->firstOrFail();
+
+    $scheduledCount = $this->countScheduledLectureSessions(
+        setupId: (int) $setup->id,
+        courseCode: $courseCode,
+        facultyId: $facultyId,
+        isCrossCatering: $isCrossCatering
+    );
+
+    if ($scheduledCount >= (int) $course->session) {
+        throw new \Exception("Lecture sessions for course {$courseCode} are already complete in the selected setup.");
+    }
+}
+    private function countScheduledLectureSessions(
+    int $setupId,
+    string $courseCode,
+    int $facultyId,
+    bool $isCrossCatering
+): int {
+    $query = Timetable::where('semester_id', $setupId)
+        ->where('course_code', $courseCode)
+        ->where('activity', 'Lecture')
+        ->select('day', 'time_start', 'time_end')
+        ->distinct();
+
+    if (!$isCrossCatering) {
+        $query->where('faculty_id', $facultyId);
+    }
+
+    return $query->count();
+}
 
     private function assertVenueAvailability(
         int $setupId,
@@ -2533,44 +2536,69 @@ class TimetableController extends Controller
     }
 
 
-    private function buildNormalSessions(
-        Course $course,
-        TimetableSemester $setup,
-        int $facultyId,
-        int $lecturerId,
-        string $activity,
-        string $groupSelection
-    ): array {
-        $faculty = Faculty::findOrFail($facultyId);
+ private function buildNormalSessions(
+    Course $course,
+    TimetableSemester $setup,
+    int $facultyId,
+    int $lecturerId,
+    string $activity,
+    string $groupSelection
+): array {
+    $faculty = Faculty::findOrFail($facultyId);
+    $activityName = trim($activity);
 
+    /*
+    |--------------------------------------------------------------------------
+    | Existing session count
+    |--------------------------------------------------------------------------
+    | Lecture:
+    | - normal course counts by faculty
+    | - cross-catering should count unique shared slots elsewhere, not here
+    |
+    | Practical / Workshop:
+    | - count normal faculty rows
+    |--------------------------------------------------------------------------
+    */
+    if (strtolower($activityName) === 'lecture') {
+        $existingCount = $this->countScheduledLectureSessions(
+            setupId: (int) $setup->id,
+            courseCode: $course->course_code,
+            facultyId: (int) $faculty->id,
+            isCrossCatering: false
+        );
+    } else {
         $existingCount = Timetable::where('semester_id', $setup->id)
             ->where('course_code', $course->course_code)
             ->where('faculty_id', $faculty->id)
-            ->when(strtolower(trim($activity)) === 'lecture', fn($q) => $q->where('activity', 'Lecture'))
+            ->where('activity', $activityName)
             ->count();
-
-        $requiredSessions = max(0, (int) $course->session - $existingCount);
-
-        if ($requiredSessions <= 0) {
-            return [];
-        }
-
-        return [[
-            'strategy' => 'normal',
-            'course_code' => $course->course_code,
-            'activity' => $activity,
-            'lecturer_id' => $lecturerId,
-            'cross_catering' => false,
-            'is_workshop' => false,
-            'faculty_rows' => [[
-                'faculty_id' => $faculty->id,
-                'group_selection' => $groupSelection,
-                'student_count' => $this->calculateStudentCount($faculty, $groupSelection, $course),
-            ]],
-            'sessions_per_week' => $requiredSessions,
-            'hours_per_session' => $this->calculateSessionDurations((int) $course->hours, (int) $requiredSessions),
-        ]];
     }
+
+    $requiredSessions = max(0, (int) $course->session - $existingCount);
+
+    if ($requiredSessions <= 0) {
+        return [];
+    }
+
+    return [[
+        'strategy' => 'normal',
+        'course_code' => $course->course_code,
+        'activity' => $activityName,
+        'lecturer_id' => $lecturerId,
+        'cross_catering' => false,
+        'is_workshop' => false,
+        'faculty_rows' => [[
+            'faculty_id' => $faculty->id,
+            'group_selection' => $groupSelection,
+            'student_count' => $this->calculateStudentCount($faculty, $groupSelection, $course),
+        ]],
+        'sessions_per_week' => $requiredSessions,
+        'hours_per_session' => $this->calculateSessionDurations(
+            (int) $course->hours,
+            (int) $requiredSessions
+        ),
+    ]];
+}
 
 
     private function buildCrossLectureSessions(
