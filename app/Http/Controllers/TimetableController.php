@@ -2239,7 +2239,8 @@ class TimetableController extends Controller
         throw new \Exception("Lecture sessions for course {$courseCode} are already complete in the selected setup.");
     }
 }
-    private function countScheduledLectureSessions(
+
+private function countScheduledLectureSessions(
     int $setupId,
     string $courseCode,
     int $facultyId,
@@ -2247,15 +2248,19 @@ class TimetableController extends Controller
 ): int {
     $query = Timetable::where('semester_id', $setupId)
         ->where('course_code', $courseCode)
-        ->where('activity', 'Lecture')
-        ->select('day', 'time_start', 'time_end')
-        ->distinct();
+        ->where('activity', 'Lecture');
 
     if (!$isCrossCatering) {
-        $query->where('faculty_id', $facultyId);
+        return (clone $query)
+            ->where('faculty_id', $facultyId)
+            ->count();
     }
 
-    return $query->count();
+    return (clone $query)
+        ->select('day', 'time_start', 'time_end')
+        ->groupBy('day', 'time_start', 'time_end')
+        ->get()
+        ->count();
 }
 
     private function assertVenueAvailability(
