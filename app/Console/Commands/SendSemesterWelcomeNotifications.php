@@ -13,11 +13,11 @@ use Kreait\Firebase\Messaging\Notification;
 class SendSemesterWelcomeNotifications extends Command
 {
     protected $signature = 'semester:welcome';
-    protected $description = 'Send personalized semester welcome push notifications (Firebase only)';
+    protected $description = 'Send 12 ULTRA CRAZY & emoji-packed push notifications to students';
 
     public function handle(): void
     {
-        $this->info('🚀 Starting semester welcome push notifications...');
+        $this->info('🚀 Launching ULTRA CRAZY semester notifications... 🔥😂');
 
         $credentialsPath = storage_path('app/firebase-credentials.json');
 
@@ -37,14 +37,14 @@ class SendSemesterWelcomeNotifications extends Command
             return;
         }
 
-        $this->sendStudentNotifications($messaging);
+        $this->sendCrazyStudentNotifications($messaging);
         $this->sendLecturerNotifications($messaging);
 
-        $this->info('✅ Semester welcome push notifications completed.');
-        Log::info('Semester welcome notifications completed successfully.');
+        $this->info('✅ ULTRA CRAZY notifications completed! 🎉🔥');
+        Log::info('Ultra crazy semester welcome notifications completed.');
     }
 
-    private function sendStudentNotifications($messaging): void
+    private function sendCrazyStudentNotifications($messaging): void
     {
         $students = Student::where('status', 'Active')
             ->whereNotNull('fcm_token')
@@ -52,52 +52,64 @@ class SendSemesterWelcomeNotifications extends Command
             ->select('id', 'first_name', 'fcm_token')
             ->get();
 
-        $this->info("Found {$students->count()} students with FCM tokens.");
+        $this->info("Found {$students->count()} students → Dropping 12 crazy bombs each! 💣");
 
-        if ($students->isEmpty()) return;
+        $crazyMessages = [
+            ['title' => '🔥 YO! NEW SEMESTER LOADED 🚀',          'body' => "Welcome back to the madness! Open SJUT App daily for timetable & hot news! 📱"],
+            ['title' => '🆘 TROUBLE? COME HERE 😂',               'body' => "Any problem? Stress, money, results? Open app and chat with Dean of Students! 🤝"],
+            ['title' => '😂 BIOMETRIC DON COME!',                 'body' => "My guy, 'my friend signed for me' season is officially over! 😂 Biometric attendance don land!"],
+            ['title' => '⏰ WE GO DISTURB YOU!',                  'body' => "We will remind you like your village people! Right time. Right venue. No stories! 🏃‍♂️"],
+            ['title' => '🤖 SJUT DON ENTER 2026!',                'body' => "Real-time class tracking + smart alerts activated! You dey future already 🔥🤖"],
+            ['title' => '🏆 DEAN LIST DEY CALL YOU!',             'body' => "Your name is about to blow on Dean's List this semester! Grind hard! 💪"],
+            ['title' => '🍔 FREE FOOD DEY CALL!',                 'body' => "If you see FREE FOOD on the app... Oya run like flash!!! 😂🍟"],
+            ['title' => '📚 SMALL SMALL NA GOLD',                 'body' => "One small reading every day > Night class suicide! Plan like a boss 📖"],
+            ['title' => '🎉 CAMPUS DEY HOT!',                     'body' => "Clubs, sports, events, fine people dey load! Don't sleep! 🎊😎"],
+            ['title' => '😎 COOL KIDS ONLY!',                     'body' => "Only real cool students open SJUT App every day! You be cool kid? 😂"],
+            ['title' => '🌟 THIS SEMESTER NA YOURS!',             'body' => "This semester you go shine! Work hard, pray hard, shock everyone! 🔥"],
+            ['title' => '🛡️ APP GO DISTURB YOU!',                 'body' => "Warning: This app will disturb you with useful info! No mute us ooo 😂❤️"],
+        ];
 
-        $title = 'Welcome to the New Semester';
         $totalSent = 0;
         $cleared = 0;
 
-        $students->chunk(400)->each(function ($chunk) use ($messaging, &$totalSent, &$cleared, $title) {
-            $messages = [];
+        $students->chunk(300)->each(function ($chunk) use ($messaging, &$totalSent, &$cleared, $crazyMessages) {
+            foreach ($crazyMessages as $msg) {
+                $messages = [];
 
-            foreach ($chunk as $student) {
-                $body = "Dear {$student->first_name}, welcome back to St John's University of Tanzania.\n\n" .
-                        "A new semester means new opportunities and growth.\n\n" .
-                        "Stay focused, attend your classes, work hard, and believe in yourself.\n\n" .
-                        "We wish you a successful semester!\n\n" .
-                        "— St John's University of Tanzania";
+                foreach ($chunk as $student) {
+                    $body = "Dear {$student->first_name}, " . $msg['body'];
 
-                $notification = Notification::create($title, $body);
+                    $notification = Notification::create($msg['title'], $body);
 
-                $message = CloudMessage::new()
-                    ->withNotification($notification)
-                    ->withDefaultSounds()
-                    ->withData(['type' => 'semester_welcome'])
-                    ->toToken($student->fcm_token);
+                    $message = CloudMessage::new()
+                        ->withNotification($notification)
+                        ->withDefaultSounds()
+                        ->withData(['type' => 'semester_crazy'])
+                        ->toToken($student->fcm_token);
 
-                $messages[] = $message;
-            }
-
-            try {
-                $report = $messaging->sendAll($messages);
-                $totalSent += $report->successes()->count();
-
-                foreach ($report->invalidTokens() as $token) {
-                    $student = $chunk->firstWhere('fcm_token', $token);
-                    if ($student) {
-                        $student->update(['fcm_token' => null]);
-                        $cleared++;
-                    }
+                    $messages[] = $message;
                 }
-            } catch (\Exception $e) {
-                Log::error("Student chunk failed: " . $e->getMessage());
+
+                try {
+                    $report = $messaging->sendAll($messages);
+                    $totalSent += $report->successes()->count();
+
+                    foreach ($report->invalidTokens() as $invalidToken) {
+                        $student = $chunk->firstWhere('fcm_token', $invalidToken);
+                        if ($student) {
+                            $student->update(['fcm_token' => null]);
+                            $cleared++;
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Crazy message failed: " . $e->getMessage());
+                }
+
+                sleep(1);
             }
         });
 
-        $this->info("✅ Sent to {$totalSent} students.");
+        $this->info("🎉 Sent {$totalSent} ULTRA CRAZY notifications! 🔥");
         if ($cleared > 0) $this->warn("Cleared {$cleared} invalid tokens.");
     }
 
@@ -109,51 +121,32 @@ class SendSemesterWelcomeNotifications extends Command
             ->select('id', 'name', 'fcm_token')
             ->get();
 
-        $this->info("Found {$lecturers->count()} lecturers with FCM tokens.");
-
         if ($lecturers->isEmpty()) return;
 
-        $title = 'Welcome to the New Academic Semester';
+        $title = '📌 Staff Quick Note';
+        $body  = "Please encourage students to open the SJUT App regularly for timetable & announcements.\nThank you! 🙏";
+
         $totalSent = 0;
-        $cleared = 0;
 
-        $lecturers->chunk(400)->each(function ($chunk) use ($messaging, &$totalSent, &$cleared, $title) {
+        $lecturers->chunk(400)->each(function ($chunk) use ($messaging, &$totalSent, $title, $body) {
             $messages = [];
-
             foreach ($chunk as $lecturer) {
-                $body = "Dear {$lecturer->name}, welcome to a new semester at St John's University of Tanzania.\n\n" .
-                        "Thank you for your dedication and hard work.\n\n" .
-                        "We wish you a productive and successful semester.\n\n" .
-                        "— St John's University of Tanzania";
-
                 $notification = Notification::create($title, $body);
-
                 $message = CloudMessage::new()
                     ->withNotification($notification)
                     ->withDefaultSounds()
-                    ->withData(['type' => 'semester_welcome'])
                     ->toToken($lecturer->fcm_token);
-
                 $messages[] = $message;
             }
 
             try {
                 $report = $messaging->sendAll($messages);
                 $totalSent += $report->successes()->count();
-
-                foreach ($report->invalidTokens() as $token) {
-                    $lecturer = $chunk->firstWhere('fcm_token', $token);
-                    if ($lecturer) {
-                        $lecturer->update(['fcm_token' => null]);
-                        $cleared++;
-                    }
-                }
             } catch (\Exception $e) {
-                Log::error("Lecturer chunk failed: " . $e->getMessage());
+                Log::error("Staff reminder failed: " . $e->getMessage());
             }
         });
 
-        $this->info("✅ Sent to {$totalSent} lecturers/staff.");
-        if ($cleared > 0) $this->warn("Cleared {$cleared} invalid tokens.");
+        $this->info("✅ Staff reminder sent to {$totalSent} lecturers.");
     }
 }
