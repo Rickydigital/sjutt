@@ -51,6 +51,7 @@ class SendLecturerTimetableReminders extends Command
 
         // Find classes starting in the next 30 minutes
         $upcomingClasses = Timetable::query()
+            ->currentSemester()
             ->where('day', $day)
             ->where('time_start', '>', $currentTime)
             ->where('time_start', '<=', $in30Minutes)

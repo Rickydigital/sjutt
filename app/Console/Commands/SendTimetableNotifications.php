@@ -58,6 +58,7 @@ class SendTimetableNotifications extends Command
     $in30Minutes = $now->copy()->addMinutes(30)->format('H:i:s');
 
     $timetables = Timetable::where('day', $day)
+        ->currentSemester()
         ->where('time_start', '>', $current)
         ->where('time_start', '<=', $in30Minutes)
         ->with(['venue', 'lecturer', 'faculty']) // Eager load needed relations
