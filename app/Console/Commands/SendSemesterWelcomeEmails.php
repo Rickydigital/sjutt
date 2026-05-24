@@ -2,110 +2,75 @@
 
 namespace App\Console\Commands;
 
-use App\Mail\SemesterWelcomeMail;
-use App\Mail\LecturerSemesterWelcomeMail;
 use App\Models\Student;
 use App\Models\User;
+use App\Notifications\SemesterWelcomeStudentNotification;
+use App\Notifications\SemesterWelcomeLecturerNotification;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification as LaravelNotification;
 
 class SendSemesterWelcomeEmails extends Command
 {
     protected $signature = 'semester:welcome-emails';
-    protected $description = 'Send semester welcome emails to students and lecturers (Email Only)';
+    protected $description = 'Send semester welcome emails using Laravel Notifications';
 
-    public function handle(): void
+    public function handle()
     {
-        $this->info('📧 Starting semester welcome email notifications...');
+        $this->info('📧 Starting semester welcome emails using Notifications...');
 
         $this->sendStudentEmails();
         $this->sendLecturerEmails();
 
         $this->info('✅ Semester welcome emails completed.');
-        Log::info('Semester welcome emails completed successfully.');
+        Log::info('Semester welcome emails completed.');
     }
 
-    /**
-     * STUDENTS - Email Notifications
-     */
-    private function sendStudentEmails(): void
+    private function sendStudentEmails()
     {
         $students = Student::where('status', 'Active')
             ->whereNotNull('email')
-            ->where('email', '!=', '')
             ->select('id', 'first_name', 'email')
             ->get();
 
-        $this->info("Found {$students->count()} students with email addresses.");
+        $this->info("Found {$students->count()} students with emails.");
 
-        if ($students->isEmpty()) {
-            return;
-        }
-
-        $totalSent = 0;
-        $failed = 0;
-
-        $students->chunk(50)->each(function ($chunk) use (&$totalSent, &$failed) {
+        $students->chunk(50)->each(function ($chunk) {
             foreach ($chunk as $student) {
                 try {
-                    Mail::to($student->email)
-                        ->send(new SemesterWelcomeMail($student));
+                    LaravelNotification::route('mail', $student->email)
+                        ->notify(new SemesterWelcomeStudentNotification($student));
 
-                    $totalSent++;
-                    $this->info("Email sent to student: {$student->first_name} ({$student->email})");
+                    $this->info("Email sent to: {$student->first_name} ({$student->email})");
                 } catch (\Exception $e) {
-                    $failed++;
-                    Log::error("Failed to send welcome email to student {$student->id} ({$student->email}): " . $e->getMessage());
+                    Log::error("Student email failed {$student->id}: " . $e->getMessage());
                 }
             }
-
-            // Small delay to avoid email server rate limits
-            if ($chunk->count() > 0) {
-                sleep(1);
-            }
+            sleep(1);
         });
-
-        $this->info("✅ Student welcome emails sent: {$totalSent} | Failed: {$failed}");
     }
 
-    /**
-     * LECTURERS / STAFF - Email Notifications
-     */
-    private function sendLecturerEmails(): void
+    private function sendLecturerEmails()
     {
         $lecturers = User::whereNotNull('email')
-            ->where('email', '!=', '')
             ->where('status', 'active')
             ->select('id', 'name', 'email')
             ->get();
 
-        $this->info("Found {$lecturers->count()} lecturers/staff with email addresses.");
+        $this->info("Found {$lecturers->count()} lecturers with emails.");
 
-        if ($lecturers->isEmpty()) {
-            return;
-        }
-
-        $totalSent = 0;
-        $failed = 0;
-
-        $lecturers->chunk(50)->each(function ($chunk) use (&$totalSent, &$failed) {
+        $lecturers->chunk(50)->each(function ($chunk) {
             foreach ($chunk as $lecturer) {
                 try {
-                    Mail::to($lecturer->email)
-                        ->send(new LecturerSemesterWelcomeMail($lecturer));
+                    LaravelNotification::route('mail', $lecturer->email)
+                        ->notify(new SemesterWelcomeLecturerNotification($lecturer));
 
-                    $totalSent++;
-                    $this->info("Email sent to lecturer: {$lecturer->name} ({$lecturer->email})");
+                    $this->info("Email sent to: {$lecturer->name} ({$lecturer->email})");
                 } catch (\Exception $e) {
-                    $failed++;
-                    Log::error("Failed to send welcome email to lecturer {$lecturer->id} ({$lecturer->email}): " . $e->getMessage());
+                    Log::error("Lecturer email failed {$lecturer->id}: " . $e->getMessage());
                 }
             }
-
-            sleep(1); // Prevent rate limiting
+            sleep(1);
         });
-
-        $this->info("✅ Lecturer welcome emails sent: {$totalSent} | Failed: {$failed}");
     }
 }
