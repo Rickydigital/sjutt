@@ -5,6 +5,10 @@ namespace App\Http\Controllers\Mobile;
 use App\Http\Controllers\Controller;
 use App\Models\Election;
 use App\Models\ElectionPosition;
+use App\Models\ElectionResultCandidate;
+use App\Models\ElectionResultPosition;
+use App\Models\ElectionResultPublish;
+use App\Models\ElectionResultScope;
 use App\Models\ElectionVote;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -186,5 +190,122 @@ class ElectionVotingController extends Controller
                 ],
             ], 201);
         });
+    }
+
+    public function myVotes(Request $request)
+    {
+        $student = $request->user();
+
+        $votedPositionIds = ElectionVote::query()
+            ->where('student_id', $student->id)
+            ->pluck('election_position_id')
+            ->toArray();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'voted_position_ids' => $votedPositionIds,
+            ],
+        ]);
+    }
+
+    public function results(Request $request, Election $election)
+    {
+        if ($election->status !== 'published') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Results are not published yet.',
+            ], 403);
+        }
+
+        $publish = ElectionResultPublish::where('election_id', $election->id)
+            ->orderByDesc('version')
+            ->first();
+
+        if (!$publish) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No published results found.',
+            ], 404);
+        }
+
+        $scopes = ElectionResultScope::where('result_publish_id', $publish->id)
+            ->with([
+                'positions' => function ($q) {
+                    $q->orderByRaw("FIELD(result_scope_id, result_scope_id)")
+                        ->with([
+                            'candidates' => fn ($c) => $c->orderByDesc('vote_count'),
+                        ]);
+                },
+                'faculty:id,name',
+                'program:id,name',
+            ])
+            ->get();
+
+        $formatted = $scopes->map(function ($scope) {
+            return [
+                'scope_type'         => $scope->scope_type,
+                'faculty'            => $scope->faculty ? ['id' => $scope->faculty->id, 'name' => $scope->faculty->name] : null,
+                'program'            => $scope->program ? ['id' => $scope->program->id, 'name' => $scope->program->name] : null,
+                'eligible_students'  => $scope->eligible_students,
+                'voters'             => $scope->voters,
+                'turnout_percent'    => (float) $scope->turnout_percent,
+                'positions'          => $scope->positions->map(function ($pos) {
+                    return [
+                        'position_name'     => $pos->position_name,
+                        'eligible_students' => $pos->eligible_students,
+                        'voters'            => $pos->voters,
+                        'turnout_percent'   => (float) $pos->turnout_percent,
+                        'candidates'        => $pos->candidates->map(function ($cand) {
+                            return [
+                                'candidate_name'   => $cand->candidate_name,
+                                'candidate_reg_no' => $cand->candidate_reg_no,
+                                'vote_count'       => $cand->vote_count,
+                                'vote_percent'     => (float) $cand->vote_percent,
+                                'rank'             => $cand->rank,
+                                'is_winner'        => (bool) $cand->is_winner,
+                            ];
+                        })->values(),
+                    ];
+                })->values(),
+            ];
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => [
+                'election'     => [
+                    'id'     => $election->id,
+                    'title'  => $election->title,
+                    'status' => $election->status,
+                ],
+                'published_at' => $publish->published_at,
+                'version'      => $publish->version,
+                'notes'        => $publish->notes,
+                'scopes'       => $formatted,
+            ],
+        ]);
+    }
+
+    public function elections(Request $request)
+    {
+        $status = $request->query('status');
+
+        $query = Election::query()->orderByDesc('id');
+
+        if ($status) {
+            $query->where('status', $status);
+        } else {
+            $query->whereIn('status', ['open', 'closed', 'published']);
+        }
+
+        $elections = $query->get(['id', 'title', 'start_date', 'end_date', 'open_time', 'close_time', 'status']);
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => [
+                'elections' => $elections,
+            ],
+        ]);
     }
 }

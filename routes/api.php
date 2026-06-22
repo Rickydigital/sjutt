@@ -86,8 +86,11 @@ Route::middleware('mobile-auth')->group(function (): void {
     Route::get('/get-venues', [VenueController::class, 'getVenues']);
     Route::post('/search-venue', [VenueController::class, 'searchVenue']);
     Route::get('/lecturer/courses', [LecturerCourseController::class, 'index']);
+    Route::get('/elections', [ElectionVotingController::class, 'elections']);
     Route::get('/elections/voting', [ElectionVotingController::class, 'index']);
     Route::post('/elections/vote', [ElectionVotingController::class, 'store']);
+    Route::get('/elections/my-votes', [ElectionVotingController::class, 'myVotes']);
+    Route::get('/elections/{election}/results', [ElectionVotingController::class, 'results']);
 });
 
 //!routes protected by default sanctum middleware
