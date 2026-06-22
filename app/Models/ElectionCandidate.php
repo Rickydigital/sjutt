@@ -31,6 +31,15 @@ class ElectionCandidate extends Model
         return $this->belongsTo(Student::class);
     }
 
+    protected $appends = ['photo_url'];
+
+    public function getPhotoUrlAttribute()
+    {
+        return $this->photo
+            ? asset('storage/' . $this->photo)
+            : null;
+    }
+
     public function faculty(): BelongsTo
     {
         return $this->belongsTo(Faculty::class);

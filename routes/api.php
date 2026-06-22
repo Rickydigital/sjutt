@@ -18,6 +18,7 @@ use App\Http\Controllers\FirebaseNotificationController;
 use App\Http\Controllers\LecturerCourseController;
 use App\Http\Controllers\Mobile\AppVersionController;
 use App\Http\Controllers\Mobile\StaffAuthController;
+use App\Http\Controllers\Mobile\ElectionVotingController;
 use App\Http\Controllers\MobileController;
 
 Route::get('/fee_structures', [FeeStructureController::class, 'index']);
@@ -85,6 +86,8 @@ Route::middleware('mobile-auth')->group(function (): void {
     Route::get('/get-venues', [VenueController::class, 'getVenues']);
     Route::post('/search-venue', [VenueController::class, 'searchVenue']);
     Route::get('/lecturer/courses', [LecturerCourseController::class, 'index']);
+    Route::get('/elections/voting', [ElectionVotingController::class, 'index']);
+    Route::post('/elections/vote', [ElectionVotingController::class, 'store']);
 });
 
 //!routes protected by default sanctum middleware

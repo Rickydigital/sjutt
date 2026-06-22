@@ -20,6 +20,14 @@ class ElectionViceCandidate extends Model
         return $this->belongsTo(ElectionCandidate::class, 'election_candidate_id');
     }
 
+    protected $appends = ['photo_url'];
+
+    public function getPhotoUrlAttribute()
+    {
+        return $this->photo
+            ? asset('storage/' . $this->photo)
+            : null;
+    }
     public function student()
     {
         return $this->belongsTo(Student::class);
