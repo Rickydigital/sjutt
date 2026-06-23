@@ -12,6 +12,7 @@ class ElectionVote extends Model
         'election_position_id',
         'candidate_id',
         'student_id',
+        'vote_hmac',
     ];
 
     public function election(): BelongsTo

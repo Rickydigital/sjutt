@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Officer;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendNewsNotificationBatch;
 use App\Models\Election;
+use App\Models\ElectionPosition;
+use App\Models\Student;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class OfficerElectionController extends Controller
@@ -68,11 +72,21 @@ class OfficerElectionController extends Controller
 
         Log::info('OPEN - proceeding to update', ['election_id' => $election->id]);
 
-        $election->update([
-            'status' => 'open',
-        ]);
+        $election->update(['status' => 'open']);
 
         Log::info('Election successfully opened', ['election_id' => $election->id]);
+
+        // Notify eligible students that voting is now open
+        $tokens = $this->eligibleFcmTokens($election);
+        foreach (array_chunk($tokens, 500) as $chunk) {
+            SendNewsNotificationBatch::dispatch(
+                $chunk,
+                'Voting Now Open 🗳️',
+                "The election \"{$election->title}\" is open. Cast your vote now!",
+                null,
+                ['type' => 'election', 'destination' => 'voting', 'election_id' => (string) $election->id]
+            );
+        }
 
         return back()->with('success', 'Election opened successfully.');
     }
@@ -128,5 +142,41 @@ class OfficerElectionController extends Controller
         Log::info('Election successfully closed', ['election_id' => $election->id]);
 
         return back()->with('success', 'Election closed successfully.');
+    }
+
+    /**
+     * Returns FCM tokens for all active students eligible for the given election.
+     * - If any global position exists → all active students.
+     * - Otherwise → union of students in relevant faculties + programs.
+     */
+    public static function eligibleFcmTokens(Election $election): array
+    {
+        $hasGlobal = ElectionPosition::where('election_id', $election->id)
+            ->where('scope_type', 'global')
+            ->where('is_enabled', true)
+            ->exists();
+
+        $query = Student::where('status', 'Active')->whereNotNull('fcm_token');
+
+        if (!$hasGlobal) {
+            $facultyIds = DB::table('election_position_faculty as epf')
+                ->join('election_positions as ep', 'ep.id', '=', 'epf.election_position_id')
+                ->where('ep.election_id', $election->id)
+                ->where('ep.is_enabled', true)
+                ->distinct()->pluck('epf.faculty_id')->all();
+
+            $programIds = DB::table('election_position_program as epp')
+                ->join('election_positions as ep', 'ep.id', '=', 'epp.election_position_id')
+                ->where('ep.election_id', $election->id)
+                ->where('ep.is_enabled', true)
+                ->distinct()->pluck('epp.program_id')->all();
+
+            $query->where(function ($q) use ($facultyIds, $programIds) {
+                $q->whereIn('faculty_id', $facultyIds)
+                  ->orWhereIn('program_id', $programIds);
+            });
+        }
+
+        return $query->pluck('fcm_token')->filter()->values()->all();
     }
 }

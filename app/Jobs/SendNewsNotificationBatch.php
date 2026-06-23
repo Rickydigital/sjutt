@@ -24,13 +24,15 @@ class SendNewsNotificationBatch implements ShouldQueue
     protected string $title;
     protected string $body;
     protected ?string $image;
+    protected array $data;
 
-    public function __construct(array $tokens, string $title, string $body, ?string $image = null)
+    public function __construct(array $tokens, string $title, string $body, ?string $image = null, array $data = [])
     {
         $this->tokens = array_values(array_filter($tokens));
         $this->title  = $title;
         $this->body   = $body;
         $this->image  = $image;
+        $this->data   = $data;
     }
 
     public function handle(): void
@@ -52,16 +54,18 @@ class SendNewsNotificationBatch implements ShouldQueue
             $messaging = $factory->createMessaging();
 
             // Build message (same structure)
+            $data = array_merge(
+                ['type' => 'news', 'click_action' => 'FLUTTER_NOTIFICATION_CLICK'],
+                $this->data
+            );
+
             $message = CloudMessage::new()
                 ->withNotification([
                     'title' => $this->title,
                     'body'  => $this->body,
                     'image' => $this->image,
                 ])
-                ->withData([
-                    'type' => 'news',
-                    'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
-                ]);
+                ->withData($data);
 
             // === MULTICAST SEND (500 tokens max per request) ===
             $report = $messaging->sendMulticast($message, $this->tokens);

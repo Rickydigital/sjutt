@@ -175,11 +175,19 @@ class ElectionVotingController extends Controller
                 ], 422);
             }
 
+            $hmac = hash_hmac('sha256', implode('|', [
+                $election->id,
+                $position->id,
+                $candidate->id,
+                $student->id,
+            ]), config('vote.hmac_secret'));
+
             $vote = ElectionVote::create([
                 'election_id'          => $election->id,
                 'election_position_id' => $position->id,
                 'candidate_id'         => $candidate->id,
                 'student_id'           => $student->id,
+                'vote_hmac'            => $hmac,
             ]);
 
             return response()->json([

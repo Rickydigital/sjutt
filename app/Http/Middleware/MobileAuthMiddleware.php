@@ -21,6 +21,9 @@ class MobileAuthMiddleware
 
         // Check if user is authenticated using Sanctum
         if (Auth::guard('sanctum')->check()) {
+            // Bind the authenticated user so $request->user() works in controllers
+            $user = Auth::guard('sanctum')->user();
+            $request->setUserResolver(fn () => $user);
             return $next($request);
         }
 

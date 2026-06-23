@@ -14,6 +14,7 @@ class ElectionResultPublish extends Model
         'published_at',
         'version',
         'notes',
+        'checksum',
     ];
 
     protected $casts = [
