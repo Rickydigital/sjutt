@@ -12,10 +12,6 @@
         </div>
     </div>
 
-    <a href="{{ route('officer.elections.live-command', $election) }}"
-   class="btn btn-sm btn-success">
-    <i class="bi bi-broadcast"></i> Live Command
-</a>
     <div class="card-body">
 
         @if ($elections->isEmpty())

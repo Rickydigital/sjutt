@@ -123,10 +123,11 @@ let closeAt = null;
 
 let turnoutDonut = null;
 let scopeDonut = null;
-let topCandidatesChart = null;
-let facultyChart = null;
-let programChart = null;
-let positionCharts = {};
+let programTurnoutChart = null;
+let facultyTurnoutChart = null;
+let globalCharts = {};
+let programCharts = {};
+let facultyCharts = {};
 
 function nf(value) {
     return new Intl.NumberFormat().format(value ?? 0);
@@ -144,7 +145,7 @@ function safe(text) {
     });
 }
 
-function chartColors() {
+function colors() {
     return [
         '#1572e8',
         '#31ce36',
@@ -153,13 +154,14 @@ function chartColors() {
         '#6861ce',
         '#48abf7',
         '#2bb930',
-        '#fd7e14'
+        '#fd7e14',
+        '#20c997',
+        '#6610f2'
     ];
 }
 
-function makeOrUpdateChart(instance, canvasId, type, labels, data, label) {
+function chart(instance, canvasId, type, labels, data, label, horizontal = false) {
     const ctx = document.getElementById(canvasId);
-
     if (!ctx) return null;
 
     if (instance) {
@@ -176,11 +178,12 @@ function makeOrUpdateChart(instance, canvasId, type, labels, data, label) {
             datasets: [{
                 label: label,
                 data: data,
-                backgroundColor: chartColors(),
+                backgroundColor: colors(),
                 borderWidth: 1
             }]
         },
         options: {
+            indexAxis: horizontal ? 'y' : 'x',
             responsive: true,
             animation: false,
             plugins: {
@@ -189,6 +192,9 @@ function makeOrUpdateChart(instance, canvasId, type, labels, data, label) {
                 }
             },
             scales: type === 'bar' ? {
+                x: {
+                    beginAtZero: true
+                },
                 y: {
                     beginAtZero: true
                 }
@@ -228,57 +234,7 @@ function updateCountdown() {
         String(seconds).padStart(2, '0');
 }
 
-function renderPositionCards(positions) {
-    let html = '';
-
-    positions.forEach(position => {
-        html += `
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div>
-                        <h5 class="fw-bold mb-1">${safe(position.name)}</h5>
-                        <span class="badge bg-primary">${safe(position.scope.toUpperCase())}</span>
-                    </div>
-
-                    <div class="text-muted small">
-                        Voters: <strong>${nf(position.voters)}</strong>
-                        • Votes: <strong>${nf(position.total_votes)}</strong>
-                    </div>
-                </div>
-
-                <div class="card-body">
-                    <div class="row g-4">
-                        <div class="col-xl-5">
-                            <canvas id="positionChart${position.id}" height="260"></canvas>
-                        </div>
-
-                        <div class="col-xl-7">
-                            ${renderCandidateBars(position)}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-
-    document.getElementById('positionsContainer').innerHTML = html;
-
-    positions.forEach(position => {
-        const labels = position.candidates.map(c => c.name);
-        const votes = position.candidates.map(c => c.votes);
-
-        positionCharts[position.id] = makeOrUpdateChart(
-            positionCharts[position.id],
-            'positionChart' + position.id,
-            'bar',
-            labels,
-            votes,
-            'Votes'
-        );
-    });
-}
-
-function renderCandidateBars(position) {
+function candidateList(position) {
     if (!position.candidates || position.candidates.length === 0) {
         return `<div class="alert alert-warning mb-0">No candidates found.</div>`;
     }
@@ -294,6 +250,7 @@ function renderCandidateBars(position) {
                         <small class="text-muted">
                             ${safe(candidate.reg_no ?? '')}
                             ${candidate.program ? ' • ' + safe(candidate.program) : ''}
+                            ${candidate.faculty ? ' • ' + safe(candidate.faculty) : ''}
                         </small>
                     </div>
 
@@ -315,19 +272,226 @@ function renderCandidateBars(position) {
     return html;
 }
 
-function getTopCandidates(positions) {
-    let all = [];
+function renderGlobalPositions(globalPositions) {
+    let html = `
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h4 class="fw-bold mb-0">
+                    <i class="bi bi-globe"></i> Global Position Charts
+                </h4>
+                <small class="text-muted">All global positions accumulated alone.</small>
+            </div>
+            <div class="card-body">
+    `;
 
-    positions.forEach(position => {
-        position.candidates.forEach(candidate => {
-            all.push({
-                name: candidate.name + ' - ' + position.name,
-                votes: candidate.votes
+    if (!globalPositions || globalPositions.length === 0) {
+        html += `<div class="alert alert-info mb-0">No global positions found.</div>`;
+    } else {
+        globalPositions.forEach(position => {
+            html += `
+                <div class="border rounded p-3 mb-4">
+                    <div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-1">${safe(position.name)}</h5>
+                            <span class="badge bg-success">GLOBAL</span>
+                        </div>
+                        <div class="text-muted">
+                            Total votes: <strong>${nf(position.total_votes)}</strong>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <div class="col-xl-5">
+                            <canvas id="globalChart${position.id}" height="260"></canvas>
+                        </div>
+                        <div class="col-xl-7">
+                            ${candidateList(position)}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    html += `</div></div>`;
+
+    return html;
+}
+
+function renderProgramGroups(programGroups) {
+    let html = `
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h4 class="fw-bold mb-0">
+                    <i class="bi bi-diagram-3"></i> Program Position Charts
+                </h4>
+                <small class="text-muted">Each program is separated with its own candidates and charts.</small>
+            </div>
+            <div class="card-body">
+    `;
+
+    if (!programGroups || programGroups.length === 0) {
+        html += `<div class="alert alert-info mb-0">No program positions found.</div>`;
+    } else {
+        programGroups.forEach(program => {
+            html += `
+                <div class="border rounded p-3 mb-4 bg-light">
+                    <h5 class="fw-bold mb-3">
+                        <i class="bi bi-mortarboard"></i> ${safe(program.name)}
+                    </h5>
+            `;
+
+            program.positions.forEach(position => {
+                html += `
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="card-header bg-white d-flex justify-content-between flex-wrap gap-2">
+                            <div>
+                                <strong>${safe(position.name)}</strong>
+                                <span class="badge bg-info text-dark ms-1">PROGRAM</span>
+                            </div>
+                            <span class="text-muted">Votes: <strong>${nf(position.total_votes)}</strong></span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-4">
+                                <div class="col-xl-5">
+                                    <canvas id="programChart${program.id}_${position.id}" height="260"></canvas>
+                                </div>
+                                <div class="col-xl-7">
+                                    ${candidateList(position)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
             });
+
+            html += `</div>`;
+        });
+    }
+
+    html += `</div></div>`;
+
+    return html;
+}
+
+function renderFacultyGroups(facultyGroups) {
+    let html = `
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h4 class="fw-bold mb-0">
+                    <i class="bi bi-buildings"></i> Faculty Position Charts
+                </h4>
+                <small class="text-muted">Each faculty is separated with its own candidates and charts.</small>
+            </div>
+            <div class="card-body">
+    `;
+
+    if (!facultyGroups || facultyGroups.length === 0) {
+        html += `<div class="alert alert-info mb-0">No faculty positions found.</div>`;
+    } else {
+        facultyGroups.forEach(faculty => {
+            html += `
+                <div class="border rounded p-3 mb-4 bg-light">
+                    <h5 class="fw-bold mb-3">
+                        <i class="bi bi-building"></i> ${safe(faculty.name)}
+                    </h5>
+            `;
+
+            faculty.positions.forEach(position => {
+                html += `
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="card-header bg-white d-flex justify-content-between flex-wrap gap-2">
+                            <div>
+                                <strong>${safe(position.name)}</strong>
+                                <span class="badge bg-primary ms-1">FACULTY</span>
+                            </div>
+                            <span class="text-muted">Votes: <strong>${nf(position.total_votes)}</strong></span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-4">
+                                <div class="col-xl-5">
+                                    <canvas id="facultyChart${faculty.id}_${position.id}" height="260"></canvas>
+                                </div>
+                                <div class="col-xl-7">
+                                    ${candidateList(position)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+        });
+    }
+
+    html += `</div></div>`;
+
+    return html;
+}
+
+function drawGlobalCharts(globalPositions) {
+    globalPositions.forEach(position => {
+        globalCharts[position.id] = chart(
+            globalCharts[position.id],
+            'globalChart' + position.id,
+            'bar',
+            position.candidates.map(c => c.name),
+            position.candidates.map(c => c.votes),
+            'Votes',
+            true
+        );
+    });
+}
+
+function drawProgramCharts(programGroups) {
+    programGroups.forEach(program => {
+        program.positions.forEach(position => {
+            const key = program.id + '_' + position.id;
+
+            programCharts[key] = chart(
+                programCharts[key],
+                'programChart' + key,
+                'bar',
+                position.candidates.map(c => c.name),
+                position.candidates.map(c => c.votes),
+                'Votes',
+                true
+            );
         });
     });
+}
 
-    return all.sort((a, b) => b.votes - a.votes).slice(0, 8);
+function drawFacultyCharts(facultyGroups) {
+    facultyGroups.forEach(faculty => {
+        faculty.positions.forEach(position => {
+            const key = faculty.id + '_' + position.id;
+
+            facultyCharts[key] = chart(
+                facultyCharts[key],
+                'facultyChart' + key,
+                'bar',
+                position.candidates.map(c => c.name),
+                position.candidates.map(c => c.votes),
+                'Votes',
+                true
+            );
+        });
+    });
+}
+
+function renderAllSections(data) {
+    let html = '';
+
+    html += renderGlobalPositions(data.global_positions);
+    html += renderProgramGroups(data.program_positions);
+    html += renderFacultyGroups(data.faculty_positions);
+
+    document.getElementById('positionsContainer').innerHTML = html;
+
+    drawGlobalCharts(data.global_positions);
+    drawProgramCharts(data.program_positions);
+    drawFacultyCharts(data.faculty_positions);
 }
 
 function loadLiveCommandCenter() {
@@ -342,7 +506,7 @@ function loadLiveCommandCenter() {
             document.getElementById('turnoutPercent').innerText = data.summary.turnout;
             document.getElementById('updatedAt').innerText = data.updated_at;
 
-            turnoutDonut = makeOrUpdateChart(
+            turnoutDonut = chart(
                 turnoutDonut,
                 'turnoutDonut',
                 'doughnut',
@@ -351,7 +515,7 @@ function loadLiveCommandCenter() {
                 'Students'
             );
 
-            scopeDonut = makeOrUpdateChart(
+            scopeDonut = chart(
                 scopeDonut,
                 'scopeDonut',
                 'doughnut',
@@ -364,36 +528,27 @@ function loadLiveCommandCenter() {
                 'Positions'
             );
 
-            const top = getTopCandidates(data.positions);
-
-            topCandidatesChart = makeOrUpdateChart(
-                topCandidatesChart,
-                'topCandidatesChart',
-                'bar',
-                top.map(x => x.name),
-                top.map(x => x.votes),
-                'Votes'
-            );
-
-            facultyChart = makeOrUpdateChart(
-                facultyChart,
-                'facultyChart',
-                'bar',
-                data.faculty_turnout.map(x => x.name),
-                data.faculty_turnout.map(x => x.turnout),
-                'Turnout %'
-            );
-
-            programChart = makeOrUpdateChart(
-                programChart,
+            programTurnoutChart = chart(
+                programTurnoutChart,
                 'programChart',
                 'bar',
                 data.program_turnout.map(x => x.name),
                 data.program_turnout.map(x => x.turnout),
-                'Turnout %'
+                'Turnout %',
+                true
             );
 
-            renderPositionCards(data.positions);
+            facultyTurnoutChart = chart(
+                facultyTurnoutChart,
+                'facultyChart',
+                'bar',
+                data.faculty_turnout.map(x => x.name),
+                data.faculty_turnout.map(x => x.turnout),
+                'Turnout %',
+                true
+            );
+
+            renderAllSections(data);
             updateCountdown();
         })
         .catch(error => console.log(error));
