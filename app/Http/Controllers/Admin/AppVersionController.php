@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendNewsNotificationBatch;
 use App\Models\AppVersion;
+use App\Models\Student;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -65,6 +68,8 @@ class AppVersionController extends Controller
             ]);
 
             Log::info('AppVersion created successfully', ['id' => $version->id]);
+
+            $this->dispatchUpdateNotification($version);
 
             return redirect()->route('admin.app-versions.index')
                 ->with('success', 'App version created successfully.');
@@ -139,6 +144,50 @@ class AppVersionController extends Controller
             ]);
             return redirect()->back()->with('error', 'Failed to update version: ' . $e->getMessage());
         }
+    }
+
+    private function dispatchUpdateNotification(AppVersion $version): void
+    {
+        $studentTokens = Student::where('status', 'Active')
+            ->whereNotNull('fcm_token')
+            ->pluck('fcm_token')
+            ->filter()
+            ->values()
+            ->all();
+
+        $lecturerTokens = User::whereNotNull('fcm_token')
+            ->pluck('fcm_token')
+            ->filter()
+            ->values()
+            ->all();
+
+        $allTokens = array_values(array_unique(array_merge($studentTokens, $lecturerTokens)));
+
+        $title = $version->is_force_update
+            ? "Required Update: v{$version->version_name} 🚨"
+            : "New Update Available: v{$version->version_name} 🆕";
+
+        $body = $version->whats_new
+            ? "What's new: {$version->whats_new}"
+            : 'A new version of the SJUT app is ready to download.';
+
+        $data = [
+            'type'             => 'app_update',
+            'version_name'     => $version->version_name,
+            'version_code'     => (string) $version->version_code,
+            'is_force_update'  => $version->is_force_update ? 'true' : 'false',
+            'destination'      => 'update',
+        ];
+
+        foreach (array_chunk($allTokens, 500) as $chunk) {
+            SendNewsNotificationBatch::dispatch($chunk, $title, $body, null, $data);
+        }
+
+        Log::info('App update notifications dispatched', [
+            'version'        => $version->version_name,
+            'token_count'    => count($allTokens),
+            'is_force_update' => $version->is_force_update,
+        ]);
     }
 
     public function destroy(AppVersion $appVersion)
