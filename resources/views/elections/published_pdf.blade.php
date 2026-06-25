@@ -194,15 +194,31 @@
                 <th style="width:44%;">Candidate</th>
                 <th style="width:16%;">Reg No</th>
                 <th style="width:10%;">Votes</th>
-                <th style="width:24%;">% of Eligible</th>
+                <th style="width:14%;">Vote Share</th>
+                <th style="width:14%;">% Voters</th>
+                <th style="width:14%;">% Eligible</th>
             </tr>
         </thead>
         <tbody>
             @forelse($cands as $cand)
-                @php
-                    $isWinner = (int)($cand->is_winner ?? 0) === 1 || (int)($cand->rank ?? 0) === 1;
-                    $pct = min(100, max(0, (float)($cand->vote_percent ?? 0)));
-                @endphp
+               @php
+    $isWinner = (int)($cand->is_winner ?? 0) === 1 || (int)($cand->rank ?? 0) === 1;
+
+    $candidateVotes = (int)($cand->vote_count ?? 0);
+    $totalCandidateVotes = (int)$cands->sum('vote_count');
+
+    $voteShare = $totalCandidateVotes > 0
+        ? round(($candidateVotes / $totalCandidateVotes) * 100, 2)
+        : 0;
+
+    $voterPercent = $voters > 0
+        ? round(($candidateVotes / $voters) * 100, 2)
+        : 0;
+
+    $eligiblePercent = $eligible > 0
+        ? round(($candidateVotes / $eligible) * 100, 2)
+        : 0;
+@endphp
                 <tr class="{{ $isWinner ? 'winner-row' : '' }}">
                     <td>{{ $cand->rank ?? '—' }}</td>
                     <td class="left">
@@ -213,16 +229,18 @@
                     </td>
                     <td>{{ $cand->candidate_reg_no ?? '—' }}</td>
                     <td><strong>{{ number_format((int)($cand->vote_count ?? 0)) }}</strong></td>
-                    <td>{{ $pct }}%</td>
+                   <td>{{ $voteShare }}%</td>
+<td>{{ $voterPercent }}%</td>
+<td>{{ $eligiblePercent }}%</td>
                 </tr>
             @empty
-                <tr><td colspan="5">No candidates saved for this position.</td></tr>
+               <tr><td colspan="7">No candidates saved for this position.</td></tr>
             @endforelse
         </tbody>
     </table>
 
     <div class="muted" style="margin-top:-6px; margin-bottom: 10px;">
-        % of Eligible = candidate votes ÷ eligible active students for this position scope.
+       Vote Share = candidate votes ÷ total candidate votes. % Voters = candidate votes ÷ voters. % Eligible = candidate votes ÷ eligible active students.
     </div>
 @endforeach
 
@@ -275,15 +293,31 @@
                     <th style="width:44%;">Candidate</th>
                     <th style="width:16%;">Reg No</th>
                     <th style="width:10%;">Votes</th>
-                    <th style="width:24%;">% of Eligible</th>
+                    <th style="width:14%;">Vote Share</th>
+                    <th style="width:14%;">% Voters</th>
+                    <th style="width:14%;">% Eligible</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse($cands as $cand)
-                    @php
-                        $isWinner = (int)($cand->is_winner ?? 0) === 1 || (int)($cand->rank ?? 0) === 1;
-                        $pct = min(100, max(0, (float)($cand->vote_percent ?? 0)));
-                    @endphp
+                   @php
+    $isWinner = (int)($cand->is_winner ?? 0) === 1 || (int)($cand->rank ?? 0) === 1;
+
+    $candidateVotes = (int)($cand->vote_count ?? 0);
+    $totalCandidateVotes = (int)$cands->sum('vote_count');
+
+    $voteShare = $totalCandidateVotes > 0
+        ? round(($candidateVotes / $totalCandidateVotes) * 100, 2)
+        : 0;
+
+    $voterPercent = $voters > 0
+        ? round(($candidateVotes / $voters) * 100, 2)
+        : 0;
+
+    $eligiblePercent = $eligible > 0
+        ? round(($candidateVotes / $eligible) * 100, 2)
+        : 0;
+@endphp
                     <tr class="{{ $isWinner ? 'winner-row' : '' }}">
                         <td>{{ $cand->rank ?? '—' }}</td>
                         <td class="left">
@@ -294,16 +328,18 @@
                         </td>
                         <td>{{ $cand->candidate_reg_no ?? '—' }}</td>
                         <td><strong>{{ number_format((int)($cand->vote_count ?? 0)) }}</strong></td>
-                        <td>{{ $pct }}%</td>
+                       <td>{{ $voteShare }}%</td>
+<td>{{ $voterPercent }}%</td>
+<td>{{ $eligiblePercent }}%</td>
                     </tr>
                 @empty
-                    <tr><td colspan="5">No candidates saved for this position.</td></tr>
+                  <tr><td colspan="7">No candidates saved for this position.</td></tr>
                 @endforelse
             </tbody>
         </table>
 
         <div class="muted" style="margin-top:-6px; margin-bottom: 10px;">
-            % of Eligible = candidate votes ÷ eligible active students for this position scope.
+         Vote Share = candidate votes ÷ total candidate votes. % Voters = candidate votes ÷ voters. % Eligible = candidate votes ÷ eligible active students.
         </div>
     @endforeach
 
@@ -357,14 +393,30 @@
                     <th style="width:44%;">Candidate</th>
                     <th style="width:16%;">Reg No</th>
                     <th style="width:10%;">Votes</th>
-                    <th style="width:24%;">% of Eligible</th>
+                    <th style="width:14%;">Vote Share</th>
+                    <th style="width:14%;">% Voters</th>
+                    <th style="width:14%;">% Eligible</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse($cands as $cand)
                     @php
                         $isWinner = (int)($cand->is_winner ?? 0) === 1 || (int)($cand->rank ?? 0) === 1;
-                        $pct = min(100, max(0, (float)($cand->vote_percent ?? 0)));
+
+                        $candidateVotes = (int)($cand->vote_count ?? 0);
+                        $totalCandidateVotes = (int)$cands->sum('vote_count');
+
+                        $voteShare = $totalCandidateVotes > 0
+                            ? round(($candidateVotes / $totalCandidateVotes) * 100, 2)
+                            : 0;
+
+                        $voterPercent = $voters > 0
+                            ? round(($candidateVotes / $voters) * 100, 2)
+                            : 0;
+
+                        $eligiblePercent = $eligible > 0
+                            ? round(($candidateVotes / $eligible) * 100, 2)
+                            : 0;
                     @endphp
                     <tr class="{{ $isWinner ? 'winner-row' : '' }}">
                         <td>{{ $cand->rank ?? '—' }}</td>
@@ -376,16 +428,18 @@
                         </td>
                         <td>{{ $cand->candidate_reg_no ?? '—' }}</td>
                         <td><strong>{{ number_format((int)($cand->vote_count ?? 0)) }}</strong></td>
-                        <td>{{ $pct }}%</td>
+                        <td>{{ $voteShare }}%</td>
+<td>{{ $voterPercent }}%</td>
+<td>{{ $eligiblePercent }}%</td>
                     </tr>
                 @empty
-                    <tr><td colspan="5">No candidates saved for this position.</td></tr>
+                   <tr><td colspan="7">No candidates saved for this position.</td></tr>
                 @endforelse
             </tbody>
         </table>
 
         <div class="muted" style="margin-top:-6px; margin-bottom: 10px;">
-            % of Eligible = candidate votes ÷ eligible active students for this position scope.
+          Vote Share = candidate votes ÷ total candidate votes. % Voters = candidate votes ÷ voters. % Eligible = candidate votes ÷ eligible active students.
         </div>
     @endforeach
 

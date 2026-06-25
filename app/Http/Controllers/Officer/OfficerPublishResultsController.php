@@ -332,9 +332,26 @@ class OfficerPublishResultsController extends Controller
                 'candidate_name'        => trim(($s?->first_name ?? '') . ' ' . ($s?->last_name ?? '')),
                 'candidate_reg_no'      => $s?->reg_no,
                 'vote_count'            => $votes,
-                'vote_percent'          => $eligibleStudents > 0 ? round(($votes / $eligibleStudents) * 100, 2) : 0,
+
+                // temporary, recalculated after total votes is known
+                'vote_percent'          => 0,
+
+                // candidate votes ÷ eligible students
+                'eligible_percent'      => $eligibleStudents > 0
+                    ? round(($votes / $eligibleStudents) * 100, 2)
+                    : 0,
             ];
         })->sortByDesc('vote_count')->values();
+
+        $totalValidVotes = (int) $rows->sum('vote_count');
+
+        $rows = $rows->map(function ($r) use ($totalValidVotes) {
+            $r->vote_percent = $totalValidVotes > 0
+                ? round(($r->vote_count / $totalValidVotes) * 100, 2)
+                : 0;
+
+            return $r;
+        });
 
         // Assign ranks (ties share rank)
         $rank = 1;
@@ -357,7 +374,13 @@ class OfficerPublishResultsController extends Controller
                 'candidate_name'        => $r->candidate_name ?: 'Unknown Student',
                 'candidate_reg_no'      => $r->candidate_reg_no,
                 'vote_count'            => $r->vote_count,
+
+                // candidate votes ÷ total valid votes
                 'vote_percent'          => $r->vote_percent,
+
+                // candidate votes ÷ eligible students
+                'eligible_percent'      => $r->eligible_percent,
+
                 'rank'                  => $r->rank,
                 'is_winner'             => $winnerCandidateId && $r->election_candidate_id === $winnerCandidateId,
             ]);
