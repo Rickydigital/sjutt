@@ -14,14 +14,7 @@ class OfficerLiveElectionController extends Controller
 {
     public function show(Election $election)
     {
-        $officer = auth('stuofficer')->user();
-
-        $isOfficer = $election->generalOfficers()
-            ->where('students.id', $officer->id)
-            ->wherePivot('is_active', 1)
-            ->exists();
-
-        abort_if(!$isOfficer, 403, 'Not assigned for this election.');
+        $this->authorizeOfficer($election);
 
         return view('officer.elections.live-command', compact('election'));
     }
@@ -38,7 +31,15 @@ class OfficerLiveElectionController extends Controller
 
         $totalVotes = ElectionVote::where('election_id', $election->id)->count();
 
-        $turnout = $eligible > 0 ? round(($uniqueVoters / $eligible) * 100, 2) : 0;
+        $remaining = max($eligible - $uniqueVoters, 0);
+
+        $turnout = $eligible > 0
+            ? round(($uniqueVoters / $eligible) * 100, 2)
+            : 0;
+
+        $remainingPercent = $eligible > 0
+            ? round(($remaining / $eligible) * 100, 2)
+            : 0;
 
         $closeAt = null;
 
@@ -61,21 +62,15 @@ class OfficerLiveElectionController extends Controller
                 'eligible' => $eligible,
                 'unique_voters' => $uniqueVoters,
                 'total_votes' => $totalVotes,
-                'not_voted' => max($eligible - $uniqueVoters, 0),
+                'remaining' => $remaining,
                 'turnout' => $turnout,
+                'remaining_percent' => $remainingPercent,
+                'time_remaining_percent' => $this->timeRemainingPercent($election),
             ],
 
-            'scope_summary' => $this->scopeSummary($election),
-
-            'global_positions' => $this->globalPositions($election),
-
-            'program_positions' => $this->programPositions($election),
-
-            'faculty_positions' => $this->facultyPositions($election),
-
-            'program_turnout' => $this->programTurnout($election),
-
-            'faculty_turnout' => $this->facultyTurnout($election),
+            'program_table' => $this->programTable($election),
+            'faculty_table' => $this->facultyTable($election),
+            'election_progress' => $this->electionProgress($election),
 
             'updated_at' => now()->format('H:i:s'),
         ]);
@@ -93,138 +88,7 @@ class OfficerLiveElectionController extends Controller
         abort_if(!$isOfficer, 403, 'Not assigned for this election.');
     }
 
-    private function globalPositions(Election $election)
-    {
-        return ElectionPosition::query()
-            ->where('election_id', $election->id)
-            ->where('is_enabled', true)
-            ->where('scope_type', 'global')
-            ->with(['definition', 'candidates.student.faculty', 'candidates.student.program'])
-            ->orderBy('id')
-            ->get()
-            ->map(fn ($position) => $this->buildPositionResult($election, $position, 'global'));
-    }
-
-    private function programPositions(Election $election)
-    {
-        $positions = ElectionPosition::query()
-            ->where('election_id', $election->id)
-            ->where('is_enabled', true)
-            ->where('scope_type', 'program')
-            ->with(['definition', 'candidates.student.faculty', 'candidates.student.program'])
-            ->orderBy('id')
-            ->get();
-
-        $programGroups = [];
-
-        foreach ($positions as $position) {
-            $groupedCandidates = $position->candidates->groupBy('program_id');
-
-            foreach ($groupedCandidates as $programId => $candidates) {
-                $programName = $candidates->first()?->student?->program?->name ?? 'Unknown Program';
-
-                if (!isset($programGroups[$programId])) {
-                    $programGroups[$programId] = [
-                        'id' => $programId,
-                        'name' => $programName,
-                        'positions' => [],
-                    ];
-                }
-
-                $programGroups[$programId]['positions'][] = $this->buildPositionResult(
-                    $election,
-                    $position,
-                    'program',
-                    $candidates
-                );
-            }
-        }
-
-        return array_values($programGroups);
-    }
-
-    private function facultyPositions(Election $election)
-    {
-        $positions = ElectionPosition::query()
-            ->where('election_id', $election->id)
-            ->where('is_enabled', true)
-            ->where('scope_type', 'faculty')
-            ->with(['definition', 'candidates.student.faculty', 'candidates.student.program'])
-            ->orderBy('id')
-            ->get();
-
-        $facultyGroups = [];
-
-        foreach ($positions as $position) {
-            $groupedCandidates = $position->candidates->groupBy('faculty_id');
-
-            foreach ($groupedCandidates as $facultyId => $candidates) {
-                $facultyName = $candidates->first()?->student?->faculty?->name ?? 'Unknown Faculty';
-
-                if (!isset($facultyGroups[$facultyId])) {
-                    $facultyGroups[$facultyId] = [
-                        'id' => $facultyId,
-                        'name' => $facultyName,
-                        'positions' => [],
-                    ];
-                }
-
-                $facultyGroups[$facultyId]['positions'][] = $this->buildPositionResult(
-                    $election,
-                    $position,
-                    'faculty',
-                    $candidates
-                );
-            }
-        }
-
-        return array_values($facultyGroups);
-    }
-
-    private function buildPositionResult(Election $election, ElectionPosition $position, string $scope, $candidateCollection = null)
-    {
-        $candidates = $candidateCollection ?? $position->candidates;
-
-        $candidateRows = $candidates->map(function ($candidate) use ($election, $position) {
-            $votes = ElectionVote::where('election_id', $election->id)
-                ->where('election_position_id', $position->id)
-                ->where('candidate_id', $candidate->id)
-                ->count();
-
-            return [
-                'id' => $candidate->id,
-                'name' => trim(($candidate->student->first_name ?? '') . ' ' . ($candidate->student->last_name ?? '')),
-                'reg_no' => $candidate->student->reg_no ?? null,
-                'faculty' => $candidate->student->faculty->name ?? null,
-                'program' => $candidate->student->program->name ?? null,
-                'votes' => $votes,
-            ];
-        });
-
-        $totalVotes = $candidateRows->sum('votes');
-
-        $candidateRows = $candidateRows
-            ->sortByDesc('votes')
-            ->values()
-            ->map(function ($candidate, $index) use ($totalVotes) {
-                $candidate['rank'] = $index + 1;
-                $candidate['percent'] = $totalVotes > 0
-                    ? round(($candidate['votes'] / $totalVotes) * 100, 2)
-                    : 0;
-
-                return $candidate;
-            });
-
-        return [
-            'id' => $position->id,
-            'name' => $position->definition->name ?? 'Position',
-            'scope' => $scope,
-            'total_votes' => $totalVotes,
-            'candidates' => $candidateRows,
-        ];
-    }
-
-    private function programTurnout(Election $election)
+    private function programTable(Election $election)
     {
         return DB::table('programs as p')
             ->leftJoin('students as s', function ($join) {
@@ -239,26 +103,31 @@ class OfficerLiveElectionController extends Controller
                 p.id,
                 p.name,
                 COUNT(DISTINCT s.id) as eligible,
-                COUNT(DISTINCT v.student_id) as voters
+                COUNT(DISTINCT v.student_id) as voted
             ")
             ->groupBy('p.id', 'p.name')
-            ->orderBy('p.name')
             ->get()
             ->map(function ($row) {
                 $eligible = (int) $row->eligible;
-                $voters = (int) $row->voters;
+                $voted = (int) $row->voted;
+                $remaining = max($eligible - $voted, 0);
 
                 return [
                     'id' => $row->id,
                     'name' => $row->name,
                     'eligible' => $eligible,
-                    'voters' => $voters,
-                    'turnout' => $eligible > 0 ? round(($voters / $eligible) * 100, 2) : 0,
+                    'voted' => $voted,
+                    'remaining' => $remaining,
+                    'percent' => $eligible > 0
+                        ? round(($voted / $eligible) * 100, 2)
+                        : 0,
                 ];
-            });
+            })
+            ->sortByDesc('percent')
+            ->values();
     }
 
-    private function facultyTurnout(Election $election)
+    private function facultyTable(Election $election)
     {
         return DB::table('faculties as f')
             ->leftJoin('students as s', function ($join) {
@@ -273,37 +142,68 @@ class OfficerLiveElectionController extends Controller
                 f.id,
                 f.name,
                 COUNT(DISTINCT s.id) as eligible,
-                COUNT(DISTINCT v.student_id) as voters
+                COUNT(DISTINCT v.student_id) as voted
             ")
             ->groupBy('f.id', 'f.name')
-            ->orderBy('f.name')
             ->get()
             ->map(function ($row) {
                 $eligible = (int) $row->eligible;
-                $voters = (int) $row->voters;
+                $voted = (int) $row->voted;
+                $remaining = max($eligible - $voted, 0);
 
                 return [
                     'id' => $row->id,
                     'name' => $row->name,
                     'eligible' => $eligible,
-                    'voters' => $voters,
-                    'turnout' => $eligible > 0 ? round(($voters / $eligible) * 100, 2) : 0,
+                    'voted' => $voted,
+                    'remaining' => $remaining,
+                    'percent' => $eligible > 0
+                        ? round(($voted / $eligible) * 100, 2)
+                        : 0,
                 ];
-            });
+            })
+            ->sortByDesc('percent')
+            ->values();
     }
 
-    private function scopeSummary(Election $election)
+    private function electionProgress(Election $election): array
     {
         $positions = ElectionPosition::where('election_id', $election->id)
             ->where('is_enabled', true)
-            ->select('scope_type', DB::raw('COUNT(*) as total'))
-            ->groupBy('scope_type')
-            ->pluck('total', 'scope_type');
+            ->withCount('candidates')
+            ->get();
 
         return [
-            'global' => (int) ($positions['global'] ?? 0),
-            'faculty' => (int) ($positions['faculty'] ?? 0),
-            'program' => (int) ($positions['program'] ?? 0),
+            'status' => strtoupper($election->status),
+            'positions' => $positions->count(),
+            'candidates' => $positions->sum('candidates_count'),
+            'global_positions' => $positions->where('scope_type', 'global')->count(),
+            'program_positions' => $positions->where('scope_type', 'program')->count(),
+            'faculty_positions' => $positions->where('scope_type', 'faculty')->count(),
         ];
+    }
+
+    private function timeRemainingPercent(Election $election): float
+    {
+        if (!$election->start_date || !$election->end_date || !$election->open_time || !$election->close_time) {
+            return 0;
+        }
+
+        $start = Carbon::parse($election->start_date->format('Y-m-d') . ' ' . $election->open_time);
+        $end = Carbon::parse($election->end_date->format('Y-m-d') . ' ' . $election->close_time);
+        $now = now();
+
+        if ($now->gte($end)) {
+            return 0;
+        }
+
+        if ($now->lte($start)) {
+            return 100;
+        }
+
+        $total = $start->diffInSeconds($end);
+        $remaining = $now->diffInSeconds($end);
+
+        return $total > 0 ? round(($remaining / $total) * 100, 2) : 0;
     }
 }

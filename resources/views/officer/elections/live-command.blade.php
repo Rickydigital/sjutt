@@ -17,13 +17,13 @@
         </a>
     </div>
 
-    {{-- TOP METRICS --}}
     <div class="row g-3 mb-4">
         <div class="col-xl-3 col-md-6">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <div class="text-muted small">Eligible Students</div>
-                    <h2 id="eligibleStudents" class="fw-bold mb-0">0</h2>
+                    <div class="text-muted small">Total Votes</div>
+                    <h2 id="totalVotes" class="fw-bold mb-0">0</h2>
+                    <small class="text-muted">All ballots cast</small>
                 </div>
             </div>
         </div>
@@ -33,6 +33,7 @@
                 <div class="card-body">
                     <div class="text-muted small">Students Voted</div>
                     <h2 id="uniqueVoters" class="fw-bold mb-0">0</h2>
+                    <small class="text-muted"><span id="turnoutPercent">0</span>% turnout</small>
                 </div>
             </div>
         </div>
@@ -40,8 +41,9 @@
         <div class="col-xl-3 col-md-6">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <div class="text-muted small">Total Ballots Cast</div>
-                    <h2 id="totalVotes" class="fw-bold mb-0">0</h2>
+                    <div class="text-muted small">Remaining Eligible</div>
+                    <h2 id="remainingStudents" class="fw-bold mb-0">0</h2>
+                    <small class="text-muted"><span id="remainingPercent">0</span>% not voted</small>
                 </div>
             </div>
         </div>
@@ -51,68 +53,70 @@
                 <div class="card-body">
                     <div class="small">Time Remaining</div>
                     <h2 id="countdown" class="fw-bold mb-0">--:--:--</h2>
+                    <small><span id="timePercent">0</span>% time left</small>
                 </div>
             </div>
         </div>
     </div>
 
-    {{-- CHARTS SUMMARY --}}
-    <div class="row g-4 mb-4">
-        <div class="col-xl-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white fw-bold">Overall Turnout</div>
-                <div class="card-body">
-                    <canvas id="turnoutDonut" height="220"></canvas>
-                    <div class="text-center mt-3">
-                        <h3><span id="turnoutPercent">0</span>%</h3>
-                        <small class="text-muted">Live voter participation</small>
-                    </div>
-                </div>
-            </div>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-bold">
+            Programs Performance - Top to Least
         </div>
-
-        <div class="col-xl-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white fw-bold">Scope Distribution</div>
-                <div class="card-body">
-                    <canvas id="scopeDonut" height="220"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white fw-bold">Top Live Candidates</div>
-                <div class="card-body">
-                    <canvas id="topCandidatesChart" height="220"></canvas>
-                </div>
-            </div>
+        <div class="card-body table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Program</th>
+                        <th>Eligible</th>
+                        <th>Voted</th>
+                        <th>Remaining</th>
+                        <th style="width: 220px;">Percent</th>
+                    </tr>
+                </thead>
+                <tbody id="programTable">
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
-    {{-- FACULTY AND PROGRAM BREAKDOWN --}}
-    <div class="row g-4 mb-4">
-        <div class="col-xl-6">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white fw-bold">Faculty Turnout Breakdown</div>
-                <div class="card-body">
-                    <canvas id="facultyChart" height="260"></canvas>
-                </div>
-            </div>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-bold">
+            Faculty Performance - Top to Least
         </div>
-
-        <div class="col-xl-6">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white fw-bold">Program Turnout Breakdown</div>
-                <div class="card-body">
-                    <canvas id="programChart" height="260"></canvas>
-                </div>
-            </div>
+        <div class="card-body table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Faculty</th>
+                        <th>Eligible</th>
+                        <th>Voted</th>
+                        <th>Remaining</th>
+                        <th style="width: 220px;">Percent</th>
+                    </tr>
+                </thead>
+                <tbody id="facultyTable">
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
-    {{-- POSITION DETAILS --}}
-    <div id="positionsContainer"></div>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-bold">
+            Election Progress Summary
+        </div>
+        <div class="card-body">
+            <div id="progressSummary"></div>
+        </div>
+    </div>
 
 </div>
 @endsection
@@ -120,14 +124,6 @@
 @section('scripts')
 <script>
 let closeAt = null;
-
-let turnoutDonut = null;
-let scopeDonut = null;
-let programTurnoutChart = null;
-let facultyTurnoutChart = null;
-let globalCharts = {};
-let programCharts = {};
-let facultyCharts = {};
 
 function nf(value) {
     return new Intl.NumberFormat().format(value ?? 0);
@@ -142,64 +138,6 @@ function safe(text) {
             '"': '&quot;',
             "'": '&#039;'
         }[m];
-    });
-}
-
-function colors() {
-    return [
-        '#1572e8',
-        '#31ce36',
-        '#f25961',
-        '#ffad46',
-        '#6861ce',
-        '#48abf7',
-        '#2bb930',
-        '#fd7e14',
-        '#20c997',
-        '#6610f2'
-    ];
-}
-
-function chart(instance, canvasId, type, labels, data, label, horizontal = false) {
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return null;
-
-    if (instance) {
-        instance.data.labels = labels;
-        instance.data.datasets[0].data = data;
-        instance.update();
-        return instance;
-    }
-
-    return new Chart(ctx, {
-        type: type,
-        data: {
-            labels: labels,
-            datasets: [{
-                label: label,
-                data: data,
-                backgroundColor: colors(),
-                borderWidth: 1
-            }]
-        },
-        options: {
-            indexAxis: horizontal ? 'y' : 'x',
-            responsive: true,
-            animation: false,
-            plugins: {
-                legend: {
-                    position: type === 'doughnut' ? 'bottom' : 'top'
-                }
-            },
-            scales: type === 'bar' ? {
-                x: {
-                    beginAtZero: true
-                },
-                y: {
-                    beginAtZero: true
-                }
-            } : {}
-        }
     });
 }
 
@@ -234,264 +172,96 @@ function updateCountdown() {
         String(seconds).padStart(2, '0');
 }
 
-function candidateList(position) {
-    if (!position.candidates || position.candidates.length === 0) {
-        return `<div class="alert alert-warning mb-0">No candidates found.</div>`;
-    }
-
+function renderRankTable(rows, targetId) {
     let html = '';
 
-    position.candidates.forEach(candidate => {
-        html += `
-            <div class="border rounded p-3 mb-3">
-                <div class="d-flex justify-content-between flex-wrap gap-2">
-                    <div>
-                        <strong>#${candidate.rank} ${safe(candidate.name)}</strong><br>
-                        <small class="text-muted">
-                            ${safe(candidate.reg_no ?? '')}
-                            ${candidate.program ? ' • ' + safe(candidate.program) : ''}
-                            ${candidate.faculty ? ' • ' + safe(candidate.faculty) : ''}
-                        </small>
-                    </div>
-
-                    <div class="text-end">
-                        <strong>${nf(candidate.votes)} votes</strong><br>
-                        <small class="text-muted">${candidate.percent}%</small>
-                    </div>
-                </div>
-
-                <div class="progress mt-2" style="height: 12px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated"
-                         style="width: ${candidate.percent}%">
-                    </div>
-                </div>
-            </div>
+    if (!rows || rows.length === 0) {
+        html = `
+            <tr>
+                <td colspan="6" class="text-center text-muted">
+                    No data found.
+                </td>
+            </tr>
         `;
-    });
+    } else {
+        rows.forEach((row, index) => {
+            let badge = 'secondary';
 
-    return html;
+            if (index === 0) badge = 'success';
+            else if (index === 1) badge = 'primary';
+            else if (index === 2) badge = 'info';
+
+            html += `
+                <tr>
+                    <td>
+                        <span class="badge bg-${badge}">#${index + 1}</span>
+                    </td>
+                    <td class="fw-semibold">${safe(row.name)}</td>
+                    <td>${nf(row.eligible)}</td>
+                    <td>${nf(row.voted)}</td>
+                    <td>${nf(row.remaining)}</td>
+                    <td>
+                        <div class="d-flex justify-content-between">
+                            <strong>${row.percent}%</strong>
+                        </div>
+                        <div class="progress mt-1" style="height: 8px;">
+                            <div class="progress-bar" style="width: ${row.percent}%"></div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    document.getElementById(targetId).innerHTML = html;
 }
 
-function renderGlobalPositions(globalPositions) {
-    let html = `
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white">
-                <h4 class="fw-bold mb-0">
-                    <i class="bi bi-globe"></i> Global Position Charts
-                </h4>
-                <small class="text-muted">All global positions accumulated alone.</small>
-            </div>
-            <div class="card-body">
-    `;
-
-    if (!globalPositions || globalPositions.length === 0) {
-        html += `<div class="alert alert-info mb-0">No global positions found.</div>`;
-    } else {
-        globalPositions.forEach(position => {
-            html += `
-                <div class="border rounded p-3 mb-4">
-                    <div class="d-flex justify-content-between flex-wrap gap-2 mb-3">
-                        <div>
-                            <h5 class="fw-bold mb-1">${safe(position.name)}</h5>
-                            <span class="badge bg-success">GLOBAL</span>
-                        </div>
-                        <div class="text-muted">
-                            Total votes: <strong>${nf(position.total_votes)}</strong>
-                        </div>
-                    </div>
-
-                    <div class="row g-4">
-                        <div class="col-xl-5">
-                            <canvas id="globalChart${position.id}" height="260"></canvas>
-                        </div>
-                        <div class="col-xl-7">
-                            ${candidateList(position)}
-                        </div>
-                    </div>
+function renderProgressSummary(progress) {
+    document.getElementById('progressSummary').innerHTML = `
+        <div class="row g-3">
+            <div class="col-md-2">
+                <div class="border rounded p-3 h-100">
+                    <div class="text-muted small">Status</div>
+                    <h5 class="fw-bold mb-0">${safe(progress.status)}</h5>
                 </div>
-            `;
-        });
-    }
-
-    html += `</div></div>`;
-
-    return html;
-}
-
-function renderProgramGroups(programGroups) {
-    let html = `
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white">
-                <h4 class="fw-bold mb-0">
-                    <i class="bi bi-diagram-3"></i> Program Position Charts
-                </h4>
-                <small class="text-muted">Each program is separated with its own candidates and charts.</small>
             </div>
-            <div class="card-body">
-    `;
 
-    if (!programGroups || programGroups.length === 0) {
-        html += `<div class="alert alert-info mb-0">No program positions found.</div>`;
-    } else {
-        programGroups.forEach(program => {
-            html += `
-                <div class="border rounded p-3 mb-4 bg-light">
-                    <h5 class="fw-bold mb-3">
-                        <i class="bi bi-mortarboard"></i> ${safe(program.name)}
-                    </h5>
-            `;
-
-            program.positions.forEach(position => {
-                html += `
-                    <div class="card border-0 shadow-sm mb-3">
-                        <div class="card-header bg-white d-flex justify-content-between flex-wrap gap-2">
-                            <div>
-                                <strong>${safe(position.name)}</strong>
-                                <span class="badge bg-info text-dark ms-1">PROGRAM</span>
-                            </div>
-                            <span class="text-muted">Votes: <strong>${nf(position.total_votes)}</strong></span>
-                        </div>
-                        <div class="card-body">
-                            <div class="row g-4">
-                                <div class="col-xl-5">
-                                    <canvas id="programChart${program.id}_${position.id}" height="260"></canvas>
-                                </div>
-                                <div class="col-xl-7">
-                                    ${candidateList(position)}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            html += `</div>`;
-        });
-    }
-
-    html += `</div></div>`;
-
-    return html;
-}
-
-function renderFacultyGroups(facultyGroups) {
-    let html = `
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white">
-                <h4 class="fw-bold mb-0">
-                    <i class="bi bi-buildings"></i> Faculty Position Charts
-                </h4>
-                <small class="text-muted">Each faculty is separated with its own candidates and charts.</small>
+            <div class="col-md-2">
+                <div class="border rounded p-3 h-100">
+                    <div class="text-muted small">Positions</div>
+                    <h4 class="fw-bold mb-0">${nf(progress.positions)}</h4>
+                </div>
             </div>
-            <div class="card-body">
+
+            <div class="col-md-2">
+                <div class="border rounded p-3 h-100">
+                    <div class="text-muted small">Candidates</div>
+                    <h4 class="fw-bold mb-0">${nf(progress.candidates)}</h4>
+                </div>
+            </div>
+
+            <div class="col-md-2">
+                <div class="border rounded p-3 h-100">
+                    <div class="text-muted small">Global Positions</div>
+                    <h4 class="fw-bold mb-0">${nf(progress.global_positions)}</h4>
+                </div>
+            </div>
+
+            <div class="col-md-2">
+                <div class="border rounded p-3 h-100">
+                    <div class="text-muted small">Program Positions</div>
+                    <h4 class="fw-bold mb-0">${nf(progress.program_positions)}</h4>
+                </div>
+            </div>
+
+            <div class="col-md-2">
+                <div class="border rounded p-3 h-100">
+                    <div class="text-muted small">Faculty Positions</div>
+                    <h4 class="fw-bold mb-0">${nf(progress.faculty_positions)}</h4>
+                </div>
+            </div>
+        </div>
     `;
-
-    if (!facultyGroups || facultyGroups.length === 0) {
-        html += `<div class="alert alert-info mb-0">No faculty positions found.</div>`;
-    } else {
-        facultyGroups.forEach(faculty => {
-            html += `
-                <div class="border rounded p-3 mb-4 bg-light">
-                    <h5 class="fw-bold mb-3">
-                        <i class="bi bi-building"></i> ${safe(faculty.name)}
-                    </h5>
-            `;
-
-            faculty.positions.forEach(position => {
-                html += `
-                    <div class="card border-0 shadow-sm mb-3">
-                        <div class="card-header bg-white d-flex justify-content-between flex-wrap gap-2">
-                            <div>
-                                <strong>${safe(position.name)}</strong>
-                                <span class="badge bg-primary ms-1">FACULTY</span>
-                            </div>
-                            <span class="text-muted">Votes: <strong>${nf(position.total_votes)}</strong></span>
-                        </div>
-                        <div class="card-body">
-                            <div class="row g-4">
-                                <div class="col-xl-5">
-                                    <canvas id="facultyChart${faculty.id}_${position.id}" height="260"></canvas>
-                                </div>
-                                <div class="col-xl-7">
-                                    ${candidateList(position)}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            html += `</div>`;
-        });
-    }
-
-    html += `</div></div>`;
-
-    return html;
-}
-
-function drawGlobalCharts(globalPositions) {
-    globalPositions.forEach(position => {
-        globalCharts[position.id] = chart(
-            globalCharts[position.id],
-            'globalChart' + position.id,
-            'bar',
-            position.candidates.map(c => c.name),
-            position.candidates.map(c => c.votes),
-            'Votes',
-            true
-        );
-    });
-}
-
-function drawProgramCharts(programGroups) {
-    programGroups.forEach(program => {
-        program.positions.forEach(position => {
-            const key = program.id + '_' + position.id;
-
-            programCharts[key] = chart(
-                programCharts[key],
-                'programChart' + key,
-                'bar',
-                position.candidates.map(c => c.name),
-                position.candidates.map(c => c.votes),
-                'Votes',
-                true
-            );
-        });
-    });
-}
-
-function drawFacultyCharts(facultyGroups) {
-    facultyGroups.forEach(faculty => {
-        faculty.positions.forEach(position => {
-            const key = faculty.id + '_' + position.id;
-
-            facultyCharts[key] = chart(
-                facultyCharts[key],
-                'facultyChart' + key,
-                'bar',
-                position.candidates.map(c => c.name),
-                position.candidates.map(c => c.votes),
-                'Votes',
-                true
-            );
-        });
-    });
-}
-
-function renderAllSections(data) {
-    let html = '';
-
-    html += renderGlobalPositions(data.global_positions);
-    html += renderProgramGroups(data.program_positions);
-    html += renderFacultyGroups(data.faculty_positions);
-
-    document.getElementById('positionsContainer').innerHTML = html;
-
-    drawGlobalCharts(data.global_positions);
-    drawProgramCharts(data.program_positions);
-    drawFacultyCharts(data.faculty_positions);
 }
 
 function loadLiveCommandCenter() {
@@ -500,55 +270,18 @@ function loadLiveCommandCenter() {
         .then(data => {
             closeAt = data.election.close_at;
 
-            document.getElementById('eligibleStudents').innerText = nf(data.summary.eligible);
-            document.getElementById('uniqueVoters').innerText = nf(data.summary.unique_voters);
             document.getElementById('totalVotes').innerText = nf(data.summary.total_votes);
+            document.getElementById('uniqueVoters').innerText = nf(data.summary.unique_voters);
+            document.getElementById('remainingStudents').innerText = nf(data.summary.remaining);
             document.getElementById('turnoutPercent').innerText = data.summary.turnout;
+            document.getElementById('remainingPercent').innerText = data.summary.remaining_percent;
+            document.getElementById('timePercent').innerText = data.summary.time_remaining_percent;
             document.getElementById('updatedAt').innerText = data.updated_at;
 
-            turnoutDonut = chart(
-                turnoutDonut,
-                'turnoutDonut',
-                'doughnut',
-                ['Voted', 'Not Voted'],
-                [data.summary.unique_voters, data.summary.not_voted],
-                'Students'
-            );
+            renderRankTable(data.program_table, 'programTable');
+            renderRankTable(data.faculty_table, 'facultyTable');
+            renderProgressSummary(data.election_progress);
 
-            scopeDonut = chart(
-                scopeDonut,
-                'scopeDonut',
-                'doughnut',
-                ['Global', 'Faculty', 'Program'],
-                [
-                    data.scope_summary.global,
-                    data.scope_summary.faculty,
-                    data.scope_summary.program
-                ],
-                'Positions'
-            );
-
-            programTurnoutChart = chart(
-                programTurnoutChart,
-                'programChart',
-                'bar',
-                data.program_turnout.map(x => x.name),
-                data.program_turnout.map(x => x.turnout),
-                'Turnout %',
-                true
-            );
-
-            facultyTurnoutChart = chart(
-                facultyTurnoutChart,
-                'facultyChart',
-                'bar',
-                data.faculty_turnout.map(x => x.name),
-                data.faculty_turnout.map(x => x.turnout),
-                'Turnout %',
-                true
-            );
-
-            renderAllSections(data);
             updateCountdown();
         })
         .catch(error => console.log(error));
