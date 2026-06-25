@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Officer;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Officer\OfficerElectionController;
+use App\Jobs\SendNewsNotificationBatch;
+use Illuminate\Support\Facades\Log;
 use App\Models\Election;
 use App\Models\ElectionCandidate;
 use App\Models\ElectionPosition;
@@ -40,7 +43,7 @@ class OfficerPublishResultsController extends Controller
         $officer = $this->currentOfficerStudent();
         abort_if(!$officer, 403, 'Officer not authenticated.');
 
-        return DB::transaction(function () use ($request, $election, $officer) {
+        $result = DB::transaction(function () use ($request, $election, $officer) {
 
             // ------------------------------------------------------------
             // 1) Create publish header (versioned)
@@ -211,11 +214,41 @@ class OfficerPublishResultsController extends Controller
                 }
             }
 
-            // Mark election as published (optional)
+            // Mark election as published
             $election->update(['status' => 'published']);
 
-            return back()->with('success', "Results published successfully (version {$nextVersion}).");
+            // ------------------------------------------------------------
+            // 7) Compute SHA-256 checksum of the canonical results snapshot
+            //    and persist it so the integrity can be verified later.
+            // ------------------------------------------------------------
+            $snapshot = ElectionResultScope::where('result_publish_id', $publish->id)
+                ->with(['positions.candidates'])
+                ->orderBy('scope_type')
+                ->get()
+                ->toArray();
+
+            $checksum = hash('sha256', json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+            $publish->update(['checksum' => $checksum]);
+
+            return ['publish' => $publish, 'election' => $election, 'version' => $nextVersion];
         });
+
+        // ------------------------------------------------------------
+        // 8) Dispatch FCM only to eligible students (not everyone)
+        // ------------------------------------------------------------
+        $tokens = OfficerElectionController::eligibleFcmTokens($result['election']);
+
+        foreach (array_chunk($tokens, 500) as $chunk) {
+            SendNewsNotificationBatch::dispatch(
+                $chunk,
+                'Election Results Published 🎉',
+                "Results for \"{$result['election']->title}\" are now available. See who won!",
+                null,
+                ['type' => 'results', 'destination' => 'results', 'election_id' => (string) $result['election']->id]
+            );
+        }
+
+        return back()->with('success', "Results published successfully (version {$result['version']}).");
     }
 
     /**
@@ -338,7 +371,7 @@ class OfficerPublishResultsController extends Controller
 
     /**
      * Count distinct voters across the whole election for a given scope type.
-     * This is used for the scope header turnout (not per position).
+     * Only counts votes that pass HMAC verification.
      */
     private function countDistinctVotersForScope(int $electionId, string $scopeType, ?int $facultyId, ?int $programId): int
     {
@@ -346,25 +379,56 @@ class OfficerPublishResultsController extends Controller
             ->join('students as voter', 'voter.id', '=', 'election_votes.student_id')
             ->join('election_positions as ep', 'ep.id', '=', 'election_votes.election_position_id')
             ->where('election_votes.election_id', $electionId)
-            ->where('voter.status', 'Active');
+            ->where('voter.status', 'Active')
+            ->select([
+                'election_votes.election_position_id',
+                'election_votes.candidate_id',
+                'election_votes.student_id',
+                'election_votes.vote_hmac',
+            ]);
 
         if ($scopeType === 'global') {
             $q->where('ep.scope_type', 'global');
         } elseif ($scopeType === 'faculty' && $facultyId) {
-            $q->where('ep.scope_type', 'faculty')
-              ->where('voter.faculty_id', $facultyId);
+            $q->where('ep.scope_type', 'faculty')->where('voter.faculty_id', $facultyId);
         } elseif ($scopeType === 'program' && $programId) {
-            $q->where('ep.scope_type', 'program')
-              ->where('voter.program_id', $programId);
+            $q->where('ep.scope_type', 'program')->where('voter.program_id', $programId);
         } else {
             return 0;
         }
 
-        return (int) $q->distinct('election_votes.student_id')->count('election_votes.student_id');
+        $secret = config('vote.hmac_secret');
+        $voters = [];
+        $anomalies = 0;
+
+        foreach ($q->get() as $vote) {
+            $expected = hash_hmac('sha256', implode('|', [
+                $electionId,
+                $vote->election_position_id,
+                $vote->candidate_id,
+                $vote->student_id,
+            ]), $secret);
+
+            if (!hash_equals($expected, (string) $vote->vote_hmac)) {
+                $anomalies++;
+                continue;
+            }
+
+            $voters[$vote->student_id] = true;
+        }
+
+        if ($anomalies > 0) {
+            Log::warning("HMAC anomaly: {$anomalies} invalid votes in scope turnout", [
+                'election_id' => $electionId, 'scope_type' => $scopeType,
+            ]);
+        }
+
+        return count($voters);
     }
 
     /**
-     * Distinct voters for ONE position within ONE scope (this drives position turnout).
+     * Distinct voters for ONE position within ONE scope.
+     * Only counts votes that pass HMAC verification.
      */
     private function countDistinctVotersForPositionScope(
         int $electionId,
@@ -373,27 +437,32 @@ class OfficerPublishResultsController extends Controller
         ?int $facultyId,
         ?int $programId
     ): int {
-        $q = ElectionVote::query()
-            ->join('students as voter', 'voter.id', '=', 'election_votes.student_id')
-            ->where('election_votes.election_id', $electionId)
-            ->where('election_votes.election_position_id', $positionId)
-            ->where('voter.status', 'Active');
-
-        if ($scopeType === 'faculty' && $facultyId) {
-            $q->where('voter.faculty_id', $facultyId);
-        } elseif ($scopeType === 'program' && $programId) {
-            $q->where('voter.program_id', $programId);
-        }
-        // global -> no extra filter
-
-        return (int) $q->distinct('election_votes.student_id')->count('election_votes.student_id');
+        return count($this->verifiedVoteRowsForPositionScope(
+            $electionId, $positionId, $scopeType, $facultyId, $programId
+        )['students']);
     }
 
     /**
      * Vote counts per candidate for ONE position within ONE scope.
-     * Returns array: [candidate_id => votes]
+     * Returns array: [candidate_id => votes] — only HMAC-verified votes counted.
      */
     private function votesPerCandidateForPositionScope(
+        int $electionId,
+        int $positionId,
+        string $scopeType,
+        ?int $facultyId,
+        ?int $programId
+    ): array {
+        return $this->verifiedVoteRowsForPositionScope(
+            $electionId, $positionId, $scopeType, $facultyId, $programId
+        )['counts'];
+    }
+
+    /**
+     * Core helper: fetch + HMAC-verify all votes for one position+scope.
+     * Returns ['counts' => [candidate_id => votes], 'students' => [student_id => true]]
+     */
+    private function verifiedVoteRowsForPositionScope(
         int $electionId,
         int $positionId,
         string $scopeType,
@@ -404,7 +473,12 @@ class OfficerPublishResultsController extends Controller
             ->join('students as voter', 'voter.id', '=', 'election_votes.student_id')
             ->where('election_votes.election_id', $electionId)
             ->where('election_votes.election_position_id', $positionId)
-            ->where('voter.status', 'Active');
+            ->where('voter.status', 'Active')
+            ->select([
+                'election_votes.candidate_id',
+                'election_votes.student_id',
+                'election_votes.vote_hmac',
+            ]);
 
         if ($scopeType === 'faculty' && $facultyId) {
             $q->where('voter.faculty_id', $facultyId);
@@ -412,10 +486,36 @@ class OfficerPublishResultsController extends Controller
             $q->where('voter.program_id', $programId);
         }
 
-        return $q->selectRaw('election_votes.candidate_id, COUNT(*) as votes')
-            ->groupBy('election_votes.candidate_id')
-            ->pluck('votes', 'election_votes.candidate_id')
-            ->toArray();
+        $secret = config('vote.hmac_secret');
+        $counts = [];
+        $students = [];
+        $anomalies = 0;
+
+        foreach ($q->get() as $vote) {
+            $expected = hash_hmac('sha256', implode('|', [
+                $electionId,
+                $positionId,
+                $vote->candidate_id,
+                $vote->student_id,
+            ]), $secret);
+
+            if (!hash_equals($expected, (string) $vote->vote_hmac)) {
+                $anomalies++;
+                continue;
+            }
+
+            $counts[$vote->candidate_id] = ($counts[$vote->candidate_id] ?? 0) + 1;
+            $students[$vote->student_id] = true;
+        }
+
+        if ($anomalies > 0) {
+            Log::warning("HMAC anomaly: {$anomalies} invalid votes skipped at tally", [
+                'election_id' => $electionId,
+                'position_id' => $positionId,
+            ]);
+        }
+
+        return ['counts' => $counts, 'students' => $students];
     }
 
     /**

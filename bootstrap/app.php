@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureStudentIsElectionOfficer;
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\MobileAuthMiddleware;
 use App\Jobs\SendCalendarNotifications;
 use Illuminate\Foundation\Application;
@@ -16,6 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->prependToGroup('api', ForceJsonResponse::class);
+
         $middleware->alias([
             'role'              => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission'        => \Spatie\Permission\Middleware\PermissionMiddleware::class,
