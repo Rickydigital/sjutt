@@ -7,6 +7,7 @@ use App\Models\Election;
 use App\Models\ElectionPosition;
 use App\Models\ElectionVote;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ElectionVotingController extends Controller
 {
@@ -145,22 +146,32 @@ class ElectionVotingController extends Controller
             abort_if((int) $candidate->program_id !== (int) $student->program_id, 403, 'Candidate not in your program scope.');
         }
 
-        // prevent double vote
-        $already = ElectionVote::query()
-            ->where('election_id', $election->id)
-            ->where('election_position_id', $position->id)
-            ->where('student_id', $student->id)
-            ->exists();
+        return DB::transaction(function () use ($election, $position, $candidate, $student) {
+            $already = ElectionVote::query()
+                ->where('election_id', $election->id)
+                ->where('election_position_id', $position->id)
+                ->where('student_id', $student->id)
+                ->lockForUpdate()
+                ->exists();
 
-        abort_if($already, 422, 'You already voted for this position.');
+            abort_if($already, 422, 'You already voted for this position.');
 
-        ElectionVote::create([
-            'election_id'          => $election->id,
-            'election_position_id' => $position->id,
-            'candidate_id'         => $candidate->id,
-            'student_id'           => $student->id,
-        ]);
+            $hmac = hash_hmac('sha256', implode('|', [
+                $election->id,
+                $position->id,
+                $candidate->id,
+                $student->id,
+            ]), config('vote.hmac_secret'));
 
-        return back()->with('success', 'Vote submitted successfully.');
+            ElectionVote::create([
+                'election_id'          => $election->id,
+                'election_position_id' => $position->id,
+                'candidate_id'         => $candidate->id,
+                'student_id'           => $student->id,
+                'vote_hmac'            => $hmac,
+            ]);
+
+            return back()->with('success', 'Vote submitted successfully.');
+        });
     }
 }
