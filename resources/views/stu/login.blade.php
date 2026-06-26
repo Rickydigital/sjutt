@@ -90,6 +90,22 @@
             </div>
 
         </form>
+
+        @if(isset($latestApk) && $latestApk)
+        <div class="mt-6 pt-5 border-t border-gray-100 text-center">
+            <p class="text-xs text-gray-500 mb-2">Get the mobile app for a better experience</p>
+            <a href="{{ url($latestApk->download_url) }}"
+               download
+               class="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 rounded-lg text-sm font-medium transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download SJUT App
+                <span class="text-xs text-purple-500 font-normal">v{{ $latestApk->version_name }}</span>
+            </a>
+        </div>
+        @endif
+
     </div>
 
 </body>

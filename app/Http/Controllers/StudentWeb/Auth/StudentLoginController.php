@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\StudentWeb\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\AppVersion;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,7 +13,11 @@ class StudentLoginController extends Controller
 {
     public function showLogin()
     {
-        return view('stu.login');
+        $latestApk = AppVersion::where('platform', 'android')
+            ->orderByDesc('version_code')
+            ->first();
+
+        return view('stu.login', compact('latestApk'));
     }
 
 
