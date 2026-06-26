@@ -144,67 +144,85 @@ class AuthController extends Controller
         ], 201);
     }
 
-    public function requestRegistrationOtp(Request $request)
-    {
-        $request->validate([
-            'student_id' => 'required|exists:students,id',
-            'email'      => 'required|email',
-            'phone'      => 'required|string|max:20',
-            'gender'     => 'required|in:male,female',
-            'password'   => 'required|string|min:6',
-            'faculty_id' => 'required|exists:faculties,id',
-            'program_id' => 'required|exists:programs,id',
-            'status'     => 'required|in:Active,Alumni',
-        ]);
+   public function requestRegistrationOtp(Request $request, \App\Services\NextSmsService $smsService)
+{
+    $request->validate([
+        'student_id' => 'required|exists:students,id',
+        'email'      => 'required|email',
+        'phone'      => 'required|string|max:20',
+        'gender'     => 'required|in:male,female',
+        'password'   => 'required|string|min:6',
+        'faculty_id' => 'required|exists:faculties,id',
+        'program_id' => 'required|exists:programs,id',
+        'status'     => 'required|in:Active,Alumni',
+    ]);
 
-        $student = Student::findOrFail($request->student_id);
+    $student = Student::findOrFail($request->student_id);
 
-        if ($student->status === 'Active' && $student->phone && $student->email) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Profile already completed'
-            ], 400);
-        }
+    if ($student->status === 'Active' && $student->phone && $student->email) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Profile already completed'
+        ], 400);
+    }
 
-        if (Student::where('email', $request->email)->where('id', '!=', $student->id)->exists()) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Email already in use'
-            ], 422);
-        }
+    if (Student::where('email', $request->email)->where('id', '!=', $student->id)->exists()) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Email already in use'
+        ], 422);
+    }
 
-        $data = [
-            'student_id' => $student->id,
+    $data = [
+        'student_id' => $student->id,
+        'email'      => $request->email,
+        'phone'      => $request->phone,
+        'gender'     => $request->gender,
+        'password'   => bcrypt($request->password),
+        'faculty_id' => $request->faculty_id,
+        'program_id' => $request->program_id,
+        'status'     => $request->status,
+    ];
+
+    $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+
+    Otp::updateOrCreate(
+        ['email' => $request->email],
+        [
+            'otp'        => $otp,
+            'data'       => json_encode($data),
+            'expires_at' => now()->addMinutes(10),
+            'used'       => false,
+        ]
+    );
+
+    Notification::route('mail', $request->email)
+        ->notify(new OtpNotification($otp, 'Verify Your Account'));
+
+    $smsMessage = "Your SJUT verification code is {$otp}. It expires in 10 minutes.";
+
+    Log::info('Sending registration OTP SMS', [
+        'phone' => $request->phone,
+    ]);
+
+    $smsResult = $smsService->sendSms($request->phone, $smsMessage);
+
+    Log::info('Registration OTP SMS response', [
+        'phone'  => $request->phone,
+        'result' => $smsResult,
+    ]);
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'OTP sent to your email and phone',
+        'data'    => [
             'email'      => $request->email,
             'phone'      => $request->phone,
-            'gender'     => $request->gender,
-            'password'   => bcrypt($request->password),
-            'faculty_id' => $request->faculty_id,
-            'program_id' => $request->program_id,
-            'status'     => $request->status,
-        ];
-
-        $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-
-        Otp::updateOrCreate(
-            ['email' => $request->email],
-            [
-                'otp'        => $otp,
-                'data'       => json_encode($data),
-                'expires_at' => now()->addMinutes(10),
-                'used'       => false,
-            ]
-        );
-
-        Notification::route('mail', $request->email)
-            ->notify(new OtpNotification($otp, 'Verify Your Account'));
-
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'OTP sent to your email',
-            'email'   => $request->email
-        ]);
-    }
+            'sms_sent'   => $smsResult['ok'] ?? false,
+            'sms_status' => $smsResult['message'] ?? null,
+        ]
+    ]);
+}
 
  public function resendRegistrationOtp(Request $request, \App\Services\NextSmsService $smsService)
 {
