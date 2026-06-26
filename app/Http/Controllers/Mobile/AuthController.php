@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Mobile;
 
 use App\Http\Controllers\Controller;
 use App\Mail\OtpMail;
+use App\Models\Election;
+use App\Models\ElectionVote;
 use App\Models\Otp;
 use App\Models\Program;
 use App\Models\Student;
@@ -116,65 +118,109 @@ class AuthController extends Controller {
         ], 201 );
     }
 
-    public function requestRegistrationOtp( Request $request ) {
-        $request->validate( [
-            'student_id' => 'required|exists:students,id',
-            'email'      => 'required|email',
-            'phone'      => 'required|string|max:20',
-            'gender'     => 'required|in:male,female',
-            'password'   => 'required|string|min:6',
-            'faculty_id' => 'required|exists:faculties,id',
-            'program_id' => 'required|exists:programs,id',
-            'status'     => 'required|in:Active,Alumni',
-        ] );
+    public function requestRegistrationOtp(Request $request)
+{
+    $request->validate([
+        'student_id' => 'required|exists:students,id',
+        'email'      => 'required|email',
+        'phone'      => 'required|string|max:20',
+        'gender'     => 'required|in:male,female',
+        'password'   => 'required|string|min:6',
+        'faculty_id' => 'required|exists:faculties,id',
+        'program_id' => 'required|exists:programs,id',
+        'status'     => 'required|in:Active,Alumni',
+    ]);
 
-        $student = Student::findOrFail( $request->student_id );
+    $student = Student::findOrFail($request->student_id);
 
-        if ( $student->status === 'Active' && $student->phone && $student->email ) {
-            return response()->json( [
-                'status'  => 'error',
-                'message' => 'Profile already completed'
-            ], 400 );
-        }
-
-        if ( Student::where( 'email', $request->email )->where( 'id', '!=', $student->id )->exists() ) {
-            return response()->json( [
-                'status'  => 'error',
-                'message' => 'Email already in use'
-            ], 422 );
-        }
-
-        $data = [
-            'student_id' => $student->id,
-            'email'      => $request->email,
-            'phone'      => $request->phone,
-            'gender'     => $request->gender,
-            'password'   => bcrypt( $request->password ),
-            'faculty_id' => $request->faculty_id,
-            'program_id' => $request->program_id,
-            'status'     => $request->status,
-        ];
-
-        $otp = str_pad( rand( 0, 999999 ), 6, '0', STR_PAD_LEFT );
-
-        Otp::updateOrCreate(
-            [ 'email' => $request->email ],
-            [
-                'otp'        => $otp,
-                'data'       => json_encode( $data ),
-                'expires_at' => now()->addMinutes( 10 ),
-                'used'       => false,
-            ]
-        );
-
-        Mail::to( $request->email )->send( new OtpMail( $otp, 'Verify Your Account') );
-
-        return response()->json( [
-            'status'  => 'success',
-            'message' => 'OTP sent to your email',
-            'email'   => $request->email
-        ] );
+    if ($student->status === 'Active' && $student->phone && $student->email) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Profile already completed'
+        ], 400);
     }
+
+    if (
+        Student::where('email', $request->email)
+            ->where('id', '!=', $student->id)
+            ->exists()
+    ) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Email already in use'
+        ], 422);
+    }
+
+    $data = [
+        'student_id' => $student->id,
+        'email'      => $request->email,
+        'phone'      => $request->phone,
+        'gender'     => $request->gender,
+        'password'   => bcrypt($request->password),
+        'faculty_id' => $request->faculty_id,
+        'program_id' => $request->program_id,
+        'status'     => $request->status,
+    ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | ORIGINAL OTP FLOW - TEMPORARILY DISABLED
+    |--------------------------------------------------------------------------
+    | After election, uncomment this block and remove/comment auto verification.
+    */
+
+    /*
+    $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+
+    Otp::updateOrCreate(
+        ['email' => $request->email],
+        [
+            'otp'        => $otp,
+            'data'       => json_encode($data),
+            'expires_at' => now()->addMinutes(10),
+            'used'       => false,
+        ]
+    );
+
+    Mail::to($request->email)->send(new OtpMail($otp, 'Verify Your Account'));
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'OTP sent to your email',
+        'email'   => $request->email
+    ]);
+    */
+
+    /*
+    |--------------------------------------------------------------------------
+    | TEMPORARY AUTO VERIFICATION - ELECTION PERIOD
+    |--------------------------------------------------------------------------
+    | This saves the profile directly but does NOT login the student.
+    | Flutter should redirect to login screen after this success response.
+    */
+
+    $student->update([
+        'email'      => $data['email'],
+        'phone'      => $data['phone'],
+        'gender'     => $data['gender'],
+        'password'   => $data['password'],
+        'faculty_id' => $data['faculty_id'],
+        'program_id' => $data['program_id'],
+        'status'     => $data['status'],
+    ]);
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'Profile completed successfully. Please login.',
+        'data'    => [
+            'student_id'        => $student->id,
+            'reg_no'            => $student->reg_no,
+            'profile_complete'  => true,
+            'requires_update'   => false,
+            'redirect_to_login' => true,
+        ]
+    ], 201);
+}
 
     public function resendRegistrationOtp( Request $request ) {
         $request->validate( [ 'email' => 'required|email' ] );
@@ -255,30 +301,54 @@ class AuthController extends Controller {
             ], 201 );
         }
 
-        public function logout( Request $request ) {
-            $validator = Validator::make( $request->all(), [
-                'id' => 'required|integer|exists:students,id',
-            ] );
+        public function logout(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'id' => 'required|integer|exists:students,id',
+    ]);
 
-            if ( $validator->fails() ) {
-                return response()->json( [
-                    'status' => 'error',
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 422 );
-            }
+    if ($validator->fails()) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Validation failed',
+            'errors'  => $validator->errors()
+        ], 422);
+    }
 
-            $student = Student::find( $request->id );
+    $student = Student::find($request->id);
 
-            if ( $student ) {
-                // This will delete all tokens for the user, logging them out from all devices.
-                $student->tokens()->delete();
-                return response()->json( [
-                    'status' => 'success',
-                    'message' => 'Logged out successfully'
-                ], 200 );
-            }
+    if (!$student) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Student not found'
+        ], 404);
+    }
+
+    $activeElection = Election::where('status', 'open')
+        ->where('is_active', true)
+        ->first();
+
+    if ($activeElection) {
+        $recentVote = ElectionVote::where('election_id', $activeElection->id)
+            ->where('student_id', $student->id)
+            ->where('created_at', '>=', now()->subHours(12))
+            ->exists();
+
+        if ($recentVote) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Logout is disabled for 12 hours after completing election voting.'
+            ], 403);
         }
+    }
+
+    $student->tokens()->delete();
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'Logged out successfully'
+    ], 200);
+}
 
         public function profile( Request $request ) {
             return response()->json( [
