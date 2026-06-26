@@ -206,7 +206,7 @@ class AuthController extends Controller
         ]);
     }
 
-   public function resendRegistrationOtp(Request $request, \App\Services\NextSmsService $smsService)
+ public function resendRegistrationOtp(Request $request, \App\Services\NextSmsService $smsService)
 {
     $request->validate([
         'email' => 'required|email',
@@ -242,14 +242,36 @@ class AuthController extends Controller
         'used'       => false,
     ]);
 
-    // Send Email OTP
     Notification::route('mail', $email)
         ->notify(new OtpNotification($otp, 'Verify Your Account Resent Code'));
 
-    // Send SMS OTP
     $smsMessage = "Your SJUT verification code is {$otp}. It expires in 5 minutes.";
 
+    Log::info('Sending OTP SMS', [
+        'phone' => $data['phone'],
+        'otp'   => $otp,
+    ]);
+
     $smsResult = $smsService->sendSms($data['phone'], $smsMessage);
+
+    Log::info('SMS Provider Response', [
+        'phone'    => $data['phone'],
+        'response' => $smsResult,
+    ]);
+
+    if ($smsResult['ok'] ?? false) {
+        Log::info('OTP SMS sent successfully', [
+            'phone'               => $data['phone'],
+            'reference'           => $smsResult['reference'] ?? null,
+            'provider_message_id' => $smsResult['provider_message_id'] ?? null,
+        ]);
+    } else {
+        Log::error('OTP SMS failed', [
+            'phone'    => $data['phone'],
+            'error'    => $smsResult['message'] ?? 'Unknown error',
+            'response' => $smsResult,
+        ]);
+    }
 
     return response()->json([
         'status'  => 'success',
@@ -262,7 +284,6 @@ class AuthController extends Controller
         ]
     ], 200);
 }
-
     public function verifyRegistrationOtp(Request $request)
     {
         $request->validate([
