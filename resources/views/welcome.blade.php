@@ -32,8 +32,26 @@
                     ST. JOHN'S UNIVERSITY <br> <span class="text-blue-400">OF TANZANIA</span>
                 </h1>
                 <p class="text-blue-100 text-lg font-light italic">"Learn to Serve"</p>
-                
-                
+
+                @if(isset($latestApk) && $latestApk)
+                <div class="mt-8">
+                    <a href="{{ route('app.download', basename($latestApk->download_url)) }}"
+                       class="inline-flex items-center gap-3 px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl text-white transition-all duration-200 group">
+                        {{-- Android robot icon --}}
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M17.523 15.341a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5zm-11.046 0a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5zM3 10.5A1.5 1.5 0 0 0 1.5 12v3A1.5 1.5 0 0 0 3 16.5h.75V12A1.5 1.5 0 0 1 5.25 10.5H3zm18 0h-2.25A1.5 1.5 0 0 1 20.25 12v4.5H21A1.5 1.5 0 0 0 22.5 15v-3A1.5 1.5 0 0 0 21 10.5zM5.25 9h13.5a1.5 1.5 0 0 1 1.5 1.5v7.5a1.5 1.5 0 0 1-1.5 1.5h-.75v1.5a1.5 1.5 0 0 1-3 0V19.5h-6v1.5a1.5 1.5 0 0 1-3 0V19.5h-.75a1.5 1.5 0 0 1-1.5-1.5V10.5a1.5 1.5 0 0 1 1.5-1.5zM15.106 3.16l1.072-1.858a.375.375 0 1 0-.65-.376l-1.086 1.88A7.51 7.51 0 0 0 12 2.25c-.847 0-1.66.14-2.442.556L8.472.926a.375.375 0 1 0-.65.376L8.894 3.16A7.502 7.502 0 0 0 4.5 9h15a7.502 7.502 0 0 0-4.394-5.84z"/>
+                        </svg>
+                        <div class="text-left">
+                            <div class="text-sm font-semibold leading-tight">Download SJUT App</div>
+                            <div class="text-xs text-blue-200 leading-tight">Android v{{ $latestApk->version_name }}</div>
+                        </div>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1 opacity-60 group-hover:translate-y-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                    </a>
+                </div>
+                @endif
+
             </div>
         </div>
 

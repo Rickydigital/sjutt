@@ -5,9 +5,13 @@ use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\MobileAuthMiddleware;
 use App\Jobs\SendCalendarNotifications;
+use Illuminate\Auth\AuthenticationException;
+use Illuminate\Auth\Middleware\RedirectIfAuthenticated;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -18,6 +22,15 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->prependToGroup('api', ForceJsonResponse::class);
+
+        // When an already-authenticated user hits a guest-only route,
+        // send them to the right place based on which guard is active.
+        RedirectIfAuthenticated::redirectUsing(function (Request $request) {
+            if (Auth::guard('stuofficer')->check()) {
+                return route('student.vote.index');
+            }
+            return route('dashboard');
+        });
 
         $middleware->alias([
             'role'              => \Spatie\Permission\Middleware\RoleMiddleware::class,
@@ -31,7 +44,19 @@ return Application::configure(basePath: dirname(__DIR__))
         // $middleware->use([EnsureUserIsActive::class]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (AuthenticationException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return null; // let default API handling take over
+            }
+
+            // stuofficer guard (students + election officers) → student login
+            if (in_array('stuofficer', $e->guards())) {
+                return redirect()->guest(route('stu.login'));
+            }
+
+            // all other guards (web, admin, etc.) → staff/admin login
+            return redirect()->guest(route('login'));
+        });
     })
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule) {
 

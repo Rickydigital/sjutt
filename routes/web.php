@@ -74,7 +74,10 @@ Route::get('/download-app/{filename}', function ($filename) {
 })->name('app.download');
 
 Route::get('/', function () {
-    return view('welcome');
+    $latestApk = \App\Models\AppVersion::where('platform', 'android')
+        ->orderByDesc('version_code')
+        ->first();
+    return view('welcome', compact('latestApk'));
 });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('auth');
