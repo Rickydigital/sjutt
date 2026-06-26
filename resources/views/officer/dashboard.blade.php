@@ -186,22 +186,27 @@
                                                 {{ $election->end_date?->format('Y-m-d') ?? '—' }}
                                             </td>
                                             <td class="text-end">
-                                                <a class="btn btn-sm btn-outline-primary"
-                                                   href="{{ route('officer.elections.positions.index', $election) }}">
-                                                    <i class="bi bi-diagram-3"></i> Positions
-                                                </a>
+                                            <a class="btn btn-sm btn-outline-primary"
+                                            href="{{ route('officer.elections.positions.index', $election) }}">
+                                                <i class="bi bi-diagram-3"></i> Positions
+                                            </a>
 
-                                                <a class="btn btn-sm btn-outline-dark"
-                                                   href="{{ route('officer.elections.candidates.index', $election) }}">
-                                                    <i class="bi bi-person-badge"></i> Candidates
-                                                </a>
+                                            <a class="btn btn-sm btn-outline-dark"
+                                            href="{{ route('officer.elections.candidates.index', $election) }}">
+                                                <i class="bi bi-person-badge"></i> Candidates
+                                            </a>
 
-                                                <a class="btn btn-sm btn-outline-success"
-                                                   href="{{ route('officer.results.show', $election) }}">
-                                                    <i class="bi bi-bar-chart"></i> Results
-                                                </a>
-                                            </td>
-                                        </tr>
+                                            <a class="btn btn-sm btn-outline-success"
+                                            href="{{ route('officer.results.show', $election) }}">
+                                                <i class="bi bi-bar-chart"></i> Results
+                                            </a>
+
+                                            <a class="btn btn-sm btn-success"
+                                            href="{{ route('officer.elections.live-command', $election) }}">
+                                                <i class="bi bi-broadcast"></i> Live
+                                            </a>
+                                        </td>
+                                                                                </tr>
                                     @endforeach
                                 </tbody>
                             </table>

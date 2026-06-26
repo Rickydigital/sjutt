@@ -45,6 +45,7 @@ use App\Http\Controllers\Officer\OfficerElectionController;
 use App\Http\Controllers\Officer\OfficerResultController;
 use App\Http\Controllers\Officer\ElectionPositionController;
 use App\Http\Controllers\Officer\ElectionCandidateController;
+use App\Http\Controllers\Officer\OfficerLiveElectionController;
 use App\Http\Controllers\Officer\OfficerPublishResultsController;
 use App\Http\Controllers\Student\ElectionVotingController;
 use App\Http\Controllers\StudentWeb\Auth\StudentLoginController;
@@ -467,6 +468,11 @@ Route::prefix('officer')
     ->name('officer.')
     ->middleware(['auth:stuofficer', 'officer'])
     ->group(function () {
+        Route::get('/elections/{election}/live-command', [OfficerLiveElectionController::class, 'show'])
+        ->name('elections.live-command');
+
+        Route::get('/elections/{election}/live-command-data', [OfficerLiveElectionController::class, 'data'])
+        ->name('elections.live-command.data');
 
         // Dashboard
         Route::get('/dashboard', [OfficerDashboardController::class, 'index'])

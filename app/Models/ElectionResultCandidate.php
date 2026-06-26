@@ -14,6 +14,7 @@ class ElectionResultCandidate extends Model
         'candidate_name',
         'candidate_reg_no',
         'vote_count',
+        'eligible_percent',
         'vote_percent',
         'rank',
         'is_winner',
@@ -21,6 +22,7 @@ class ElectionResultCandidate extends Model
 
     protected $casts = [
         'vote_percent' => 'decimal:2',
+        'eligible_percent' => 'decimal:2',
         'is_winner' => 'boolean',
     ];
 

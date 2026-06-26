@@ -16,7 +16,7 @@ class StudentsImport implements ToCollection, WithHeadingRow, WithChunkReading, 
 {
     public $imported = 0;
     public $duplicates = 0;
-    public $seenRegNos = []; // Tracks duplicates within the current file
+    public $seenRegNos = []; 
 
     public function collection(Collection $rows)
     {

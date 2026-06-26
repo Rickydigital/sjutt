@@ -423,15 +423,37 @@
                                                         <th style="width: 45%">Candidate</th>
                                                         <th style="width: 15%">Reg No</th>
                                                         <th style="width: 10%" class="text-end">Votes</th>
-                                                        <th style="width: 20%">% of Eligible</th>
+                                                        <th style="width: 18%">Vote Share</th>
+                                                        <th style="width: 18%">% of Voters</th>
+                                                        <th style="width: 18%">% of Eligible</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     @foreach($cands as $cand)
                                                         @php
                                                             $isWinner = (int)($cand->is_winner ?? 0) === 1 || (int)($cand->rank ?? 0) === 1;
-                                                            $pct = (float)($cand->vote_percent ?? 0);
-                                                            $pct = min(100, max(0, $pct));
+
+                                                            $candidateVotes = (int)($cand->vote_count ?? 0);
+                                                            $totalCandidateVotes = (int)$cands->sum('vote_count');
+
+                                                            // Candidate votes ÷ total votes of this position
+                                                            $voteShare = $totalCandidateVotes > 0
+                                                                ? round(($candidateVotes / $totalCandidateVotes) * 100, 2)
+                                                                : 0;
+
+                                                            // Candidate votes ÷ voters of this position
+                                                            $voterPercent = $voters > 0
+                                                                ? round(($candidateVotes / $voters) * 100, 2)
+                                                                : 0;
+
+                                                            // Candidate votes ÷ eligible students
+                                                            $eligiblePercent = $eligible > 0
+                                                                ? round(($candidateVotes / $eligible) * 100, 2)
+                                                                : 0;
+
+                                                            $voteShare = min(100, max(0, $voteShare));
+                                                            $voterPercent = min(100, max(0, $voterPercent));
+                                                            $eligiblePercent = min(100, max(0, $eligiblePercent));
                                                         @endphp
                                                         <tr class="{{ $isWinner ? 'table-success fw-bold' : '' }}">
                                                             <td>
@@ -449,13 +471,31 @@
                                                             <td>{{ $cand->candidate_reg_no ?? '—' }}</td>
                                                             <td class="text-end">{{ number_format((int)($cand->vote_count ?? 0)) }}</td>
                                                             <td>
-                                                                <div class="d-flex align-items-center gap-2">
-                                                                    <div class="progress flex-grow-1" style="height: 10px;">
-                                                                        <div class="progress-bar" style="width: {{ $pct }}%"></div>
-                                                                    </div>
-                                                                    <span class="small fw-semibold">{{ $pct }}%</span>
-                                                                </div>
-                                                            </td>
+    <div class="d-flex align-items-center gap-2">
+        <div class="progress flex-grow-1" style="height: 10px;">
+            <div class="progress-bar bg-success" style="width: {{ $voteShare }}%"></div>
+        </div>
+        <span class="small fw-semibold">{{ $voteShare }}%</span>
+    </div>
+</td>
+
+<td>
+    <div class="d-flex align-items-center gap-2">
+        <div class="progress flex-grow-1" style="height: 10px;">
+            <div class="progress-bar bg-primary" style="width: {{ $voterPercent }}%"></div>
+        </div>
+        <span class="small fw-semibold">{{ $voterPercent }}%</span>
+    </div>
+</td>
+
+<td>
+    <div class="d-flex align-items-center gap-2">
+        <div class="progress flex-grow-1" style="height: 10px;">
+            <div class="progress-bar bg-warning" style="width: {{ $eligiblePercent }}%"></div>
+        </div>
+        <span class="small fw-semibold">{{ $eligiblePercent }}%</span>
+    </div>
+</td>
                                                         </tr>
                                                     @endforeach
                                                 </tbody>
@@ -463,7 +503,7 @@
                                         </div>
 
                                         <div class="text-muted small mt-2">
-                                            % of Eligible = candidate votes ÷ eligible active students for this position scope.
+                                            Vote Share = candidate votes ÷ total votes. % of Voters = candidate votes ÷ voters. % of Eligible = candidate votes ÷ eligible active students.
                                         </div>
                                     @endif
 
