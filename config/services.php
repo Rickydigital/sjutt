@@ -28,6 +28,14 @@ return [
         'key' => env('RESEND_KEY'),
     ],
 
+    'nextsms' => [
+        'username'   => env('NEXTSMS_USERNAME'),
+        'password'   => env('NEXTSMS_PASSWORD'),
+        'sender_id'  => env('NEXTSMS_SENDER_ID', 'INFO'),
+        'base_url'   => env('NEXTSMS_BASE_URL', 'https://messaging-service.co.tz'),
+        'test_mode'  => env('NEXTSMS_USE_TEST_MODE', false),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

@@ -206,40 +206,62 @@ class AuthController extends Controller
         ]);
     }
 
-    public function resendRegistrationOtp(Request $request)
-    {
-        $request->validate(['email' => 'required|email']);
+   public function resendRegistrationOtp(Request $request, \App\Services\NextSmsService $smsService)
+{
+    $request->validate([
+        'email' => 'required|email',
+    ]);
 
-        $email = $request->email;
+    $email = $request->email;
 
-        $otpRecord = Otp::where('email', $email)
-            ->where('used', false)
-            ->first();
+    $otpRecord = Otp::where('email', $email)
+        ->where('used', false)
+        ->first();
 
-        if (!$otpRecord) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Invalid data, Please register again.'
-            ], 500);
-        }
-
-        $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-        $expiresAt = Carbon::now()->addMinutes(5);
-
-        $otpRecord->update([
-            'otp'        => $otp,
-            'expires_at' => $expiresAt,
-        ]);
-
-        Notification::route('mail', $email)
-            ->notify(new OtpNotification($otp, 'Verify Your Account Resent Code'));
-
+    if (!$otpRecord) {
         return response()->json([
-            'status'  => 'success',
-            'message' => 'OTP sent successfully',
-            'data'    => ['email' => $email]
-        ], 200);
+            'status'  => 'error',
+            'message' => 'Invalid data, Please register again.'
+        ], 500);
     }
+
+    $data = json_decode($otpRecord->data, true);
+
+    if (!$data || empty($data['phone'])) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Phone number not found. Please register again.'
+        ], 422);
+    }
+
+    $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+
+    $otpRecord->update([
+        'otp'        => $otp,
+        'expires_at' => now()->addMinutes(5),
+        'used'       => false,
+    ]);
+
+    // Send Email OTP
+    Notification::route('mail', $email)
+        ->notify(new OtpNotification($otp, 'Verify Your Account Resent Code'));
+
+    // Send SMS OTP
+    $smsMessage = "Your SJUT verification code is {$otp}. It expires in 5 minutes.";
+
+    $smsResult = $smsService->sendSms($data['phone'], $smsMessage);
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'OTP sent successfully by email and SMS',
+        'data'    => [
+            'email'      => $email,
+            'phone'      => $data['phone'],
+            'sms_sent'   => $smsResult['ok'] ?? false,
+            'sms_status' => $smsResult['message'] ?? null,
+        ]
+    ], 200);
+}
 
     public function verifyRegistrationOtp(Request $request)
     {
