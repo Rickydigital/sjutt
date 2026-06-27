@@ -37,7 +37,8 @@
                 Step 1 of 2: Enter your Registration Number to begin verification.
             </div>
 
-            <form method="POST" action="{{ route('polling.public.verify-reg-no', $token) }}">
+            <form method="POST" action="{{ route('polling.public.verify-regno', $token) }}">
+                
                 @csrf
 
                 <div class="mb-3">
