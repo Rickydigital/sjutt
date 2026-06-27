@@ -1,6 +1,16 @@
 {{-- resources/views/officer/elections/candidates.blade.php --}}
 @extends('officer.layouts.app')
 
+@section('styles')
+<style>
+    /* Force modal body to scroll — the centered+scrollable combo breaks in this theme */
+    #addCandidateModal .modal-body {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+</style>
+@endsection
+
 @section('content')
 <div class="card">
     <div class="card-header">
