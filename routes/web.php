@@ -39,6 +39,7 @@ use App\Http\Controllers\TimetableSemesterController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\Admin\ElectionController;
+use App\Http\Controllers\Admin\PollingCentreController;
 use App\Http\Controllers\Admin\PositionDefinitionController;
 use App\Http\Controllers\Officer\OfficerDashboardController;
 use App\Http\Controllers\Officer\OfficerElectionController;
@@ -49,6 +50,10 @@ use App\Http\Controllers\Officer\OfficerLiveElectionController;
 use App\Http\Controllers\Officer\OfficerPublishResultsController;
 use App\Http\Controllers\Student\ElectionVotingController;
 use App\Http\Controllers\StudentWeb\Auth\StudentLoginController;
+
+Route::get('/polling-centre/{token}', function ($token) {
+    return 'Polling centre link valid route placeholder.';
+})->name('polling.public.show');
 
 //APK DOWNLOAD URL
 Route::get('/download-app/{filename}', function ($filename) {
@@ -423,6 +428,27 @@ Route::middleware(['auth', 'role:Admin|Dean Of Students'])->group(function () {
 
     // Position Definitions
     Route::resource('position-definitions', PositionDefinitionController::class)->except(['show']);
+
+    Route::get('/elections/{election}/polling-centres', [PollingCentreController::class, 'index'])
+    ->name('elections.polling-centres.index');
+
+Route::post('/elections/{election}/polling-centres', [PollingCentreController::class, 'store'])
+    ->name('elections.polling-centres.store');
+
+Route::put('/elections/{election}/polling-centres/{pollingCentre}', [PollingCentreController::class, 'update'])
+    ->name('elections.polling-centres.update');
+
+Route::post('/elections/{election}/polling-centres/{pollingCentre}/regenerate-link', [PollingCentreController::class, 'regenerateLink'])
+    ->name('elections.polling-centres.regenerate-link');
+
+Route::post('/elections/{election}/polling-centres/{pollingCentre}/activate', [PollingCentreController::class, 'activate'])
+    ->name('elections.polling-centres.activate');
+
+Route::post('/elections/{election}/polling-centres/{pollingCentre}/deactivate', [PollingCentreController::class, 'deactivate'])
+    ->name('elections.polling-centres.deactivate');
+
+Route::delete('/elections/{election}/polling-centres/{pollingCentre}', [PollingCentreController::class, 'destroy'])
+    ->name('elections.polling-centres.destroy');
 
     // Elections (admin can CRUD + assign officer, but NOT open/close)
     Route::get('/elections', [ElectionController::class, 'index'])->name('elections.index');

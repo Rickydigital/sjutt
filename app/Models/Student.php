@@ -26,6 +26,10 @@ class Student extends Authenticatable
         'fcm_token',
         'can_upload',
         'last_chat_access_at',
+        'middle_name',
+        'form4_index',
+        'nationality',
+        'disability',
         'status',
         'phone',
     ];

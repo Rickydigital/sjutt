@@ -136,6 +136,13 @@
                                         <i class="bi bi-people-fill"></i>
                                     </a>
 
+                                    {{-- Polling Centres --}}
+<a href="{{ route('elections.polling-centres.index', $election) }}"
+   class="action-icon text-primary me-2"
+   title="Polling Centres">
+    <i class="bi bi-pc-display-horizontal"></i>
+</a>
+
                                     {{-- Results (only CLOSED is clickable) --}}
 @if($election->status === 'published')
     <a href="{{ route('officer.results.published.pdf', $election) }}"

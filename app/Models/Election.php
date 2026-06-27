@@ -103,6 +103,10 @@ public function latestResultPublish()
 
         return now()->gte($openToday) && now()->lt($closeToday);
     }
+    public function pollingCentres()
+    {
+        return $this->hasMany(\App\Models\PollingCentre::class);
+    }
 
     // If you still need full open/close datetime for other logic
     public function getOpenAtAttribute(): ?Carbon
