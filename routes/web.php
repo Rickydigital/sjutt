@@ -76,17 +76,14 @@ Route::prefix('polling-centre/{token}')
 
         // Voting page
         Route::get('/vote', [PublicPollingCentreController::class, 'votePage'])
-            ->middleware('auth:stuofficer')
             ->name('vote');
 
         // Submit vote
         Route::post('/vote', [PublicPollingCentreController::class, 'storeVote'])
-            ->middleware('auth:stuofficer')
             ->name('vote.store');
 
         // Finish session
         Route::post('/finish', [PublicPollingCentreController::class, 'finish'])
-            ->middleware('auth:stuofficer')
             ->name('finish');
     });
 
