@@ -5,8 +5,6 @@ namespace App\Http\Controllers\Mobile;
 use App\Http\Controllers\Controller;
 use App\Models\Election;
 use App\Models\ElectionPosition;
-use App\Models\ElectionResultCandidate;
-use App\Models\ElectionResultPosition;
 use App\Models\ElectionResultPublish;
 use App\Models\ElectionResultScope;
 use App\Models\ElectionVote;
@@ -100,7 +98,22 @@ class ElectionVotingController extends Controller
         $validated = $request->validate([
             'election_position_id' => ['required', 'exists:election_positions,id'],
             'candidate_id'         => ['required', 'exists:election_candidates,id'],
+            'form4_index'          => ['nullable', 'string'],
         ]);
+
+        if (empty($validated['form4_index'])) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Your Form Four Index number is required to vote. Please update your app and try again.',
+            ], 422);
+        }
+
+        if (!$student->form4_index || !hash_equals((string) $student->form4_index, (string) $validated['form4_index'])) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Invalid Form Four Index number. Please check and try again.',
+            ], 403);
+        }
 
         return DB::transaction(function () use ($validated, $student) {
             $position = ElectionPosition::query()
