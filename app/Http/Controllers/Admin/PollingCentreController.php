@@ -7,6 +7,9 @@ use App\Models\Election;
 use App\Models\PollingCentre;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use App\Notifications\PollingCentreLinkNotification;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class PollingCentreController extends Controller
@@ -69,9 +72,27 @@ class PollingCentreController extends Controller
         ]);
 
         $link = route('polling.public.show', $plainToken);
+        $notificationSent = false;
+
+if (!empty($centre->manager_email)) {
+    try {
+        Notification::route('mail', $centre->manager_email)
+            ->notify(new PollingCentreLinkNotification($election, $centre, $link, 'created'));
+
+        $notificationSent = true;
+    } catch (\Throwable $e) {
+        Log::error('Failed to send polling centre link notification', [
+            'centre_id' => $centre->id,
+            'email' => $centre->manager_email,
+            'error' => $e->getMessage(),
+        ]);
+    }
+}
 
         return back()->with([
-            'success' => 'Polling centre created successfully.',
+            'success' => $notificationSent
+                ? 'Polling centre created successfully and link sent to manager email.'
+                : 'Polling centre created successfully, but notification was not sent. Copy the link manually.',
             'polling_link' => $link,
             'polling_centre_id' => $centre->id,
         ]);
@@ -118,11 +139,30 @@ class PollingCentreController extends Controller
 
         $link = route('polling.public.show', $plainToken);
 
-        return back()->with([
-            'success' => 'Polling centre link regenerated successfully.',
-            'polling_link' => $link,
-            'polling_centre_id' => $pollingCentre->id,
+        $notificationSent = false;
+
+if (!empty($pollingCentre->manager_email)) {
+    try {
+        Notification::route('mail', $pollingCentre->manager_email)
+            ->notify(new PollingCentreLinkNotification($election, $pollingCentre, $link, 'regenerated'));
+
+        $notificationSent = true;
+    } catch (\Throwable $e) {
+        Log::error('Failed to send regenerated polling centre link notification', [
+            'centre_id' => $pollingCentre->id,
+            'email' => $pollingCentre->manager_email,
+            'error' => $e->getMessage(),
         ]);
+    }
+}
+
+        return back()->with([
+    'success' => $notificationSent
+        ? 'Polling centre link regenerated and sent to manager email.'
+        : 'Polling centre link regenerated, but notification was not sent. Copy the link manually.',
+    'polling_link' => $link,
+    'polling_centre_id' => $pollingCentre->id,
+]);
     }
 
     public function deactivate(Election $election, PollingCentre $pollingCentre)
