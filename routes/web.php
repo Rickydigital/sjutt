@@ -48,12 +48,47 @@ use App\Http\Controllers\Officer\ElectionPositionController;
 use App\Http\Controllers\Officer\ElectionCandidateController;
 use App\Http\Controllers\Officer\OfficerLiveElectionController;
 use App\Http\Controllers\Officer\OfficerPublishResultsController;
+use App\Http\Controllers\Polling\PublicPollingCentreController;
 use App\Http\Controllers\Student\ElectionVotingController;
 use App\Http\Controllers\StudentWeb\Auth\StudentLoginController;
 
-Route::get('/polling-centre/{token}', function ($token) {
-    return 'Polling centre link valid route placeholder.';
-})->name('polling.public.show');
+/*
+|--------------------------------------------------------------------------
+| Public Polling Centre
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('polling-centre/{token}')
+    ->name('polling.public.')
+    ->group(function () {
+
+        // Landing page
+        Route::get('/', [PublicPollingCentreController::class, 'show'])
+            ->name('show');
+
+        // Step 1: Verify Registration Number
+        Route::post('/verify-regno', [PublicPollingCentreController::class, 'verifyRegNo'])
+            ->name('verify-regno');
+
+        // Step 2: Verify Form Four Index + Last Name
+        Route::post('/verify-identity', [PublicPollingCentreController::class, 'verifyIdentity'])
+            ->name('verify-identity');
+
+        // Voting page
+        Route::get('/vote', [PublicPollingCentreController::class, 'votePage'])
+            ->middleware('auth:stuofficer')
+            ->name('vote');
+
+        // Submit vote
+        Route::post('/vote', [PublicPollingCentreController::class, 'storeVote'])
+            ->middleware('auth:stuofficer')
+            ->name('vote.store');
+
+        // Finish session
+        Route::post('/finish', [PublicPollingCentreController::class, 'finish'])
+            ->middleware('auth:stuofficer')
+            ->name('finish');
+    });
 
 //APK DOWNLOAD URL
 Route::get('/download-app/{filename}', function ($filename) {
