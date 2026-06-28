@@ -125,11 +125,15 @@ class ElectionCandidateApprovalController extends Controller
         $grouped = $positions->groupBy('scope_type');
 
         $pdf = Pdf::loadView('elections.candidates-pdf', [
-            'election' => $election,
-            'grouped'  => $grouped,
-            'onlyApproved' => $onlyApproved,
-        ])->setPaper('a4', 'portrait');
+    'election' => $election,
+    'grouped'  => $grouped,
+    'onlyApproved' => $onlyApproved,
+])->setPaper('a4', 'portrait');
 
-        return $pdf->download('candidates_' . str_replace(' ', '_', strtolower($election->title)) . '.pdf');
+$safeTitle = preg_replace('/[^A-Za-z0-9._-]+/', '_', strtolower($election->title));
+
+$filename = 'candidates_' . trim($safeTitle, '_') . '_' . now()->format('Ymd_His') . '.pdf';
+
+return $pdf->download($filename);
     }
 }
