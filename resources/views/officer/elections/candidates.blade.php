@@ -1,6 +1,16 @@
 {{-- resources/views/officer/elections/candidates.blade.php --}}
 @extends('officer.layouts.app')
 
+@section('styles')
+<style>
+    /* Force modal body to scroll — the centered+scrollable combo breaks in this theme */
+    #addCandidateModal .modal-body {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+</style>
+@endsection
+
 @section('content')
 <div class="card">
     <div class="card-header">
@@ -260,7 +270,7 @@
 ADD CANDIDATE MODAL
 ========================== --}}
 <div class="modal fade" id="addCandidateModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Add Candidate</h5>
@@ -319,7 +329,29 @@ ADD CANDIDATE MODAL
 
                         <div class="mb-3">
                             <label class="form-label">Candidate Photo</label>
-                            <input type="file" name="photo" class="form-control" accept="image/*">
+
+                            <input type="file" id="photoFileInput" name="photo" class="form-control" accept="image/*">
+
+                            <div id="photoCropperWrap" class="d-none mt-2">
+                                <div style="max-height:280px;overflow:hidden;background:#111;border-radius:8px;">
+                                    <img id="photoCropperImg" style="display:block;max-width:100%;">
+                                </div>
+                                <div class="d-flex gap-2 mt-2">
+                                    <button type="button" class="btn btn-success btn-sm" id="photoCropBtn">
+                                        <i class="bi bi-check-circle me-1"></i> Crop & Use
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="photoChangeBtn">
+                                        <i class="bi bi-arrow-repeat me-1"></i> Change Image
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="photoCroppedWrap" class="d-none mt-2 align-items-center gap-3" style="display:none!important">
+                                <img id="photoCroppedPreview" class="rounded-circle border" style="width:72px;height:72px;object-fit:cover;">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="photoRecropBtn">
+                                    <i class="bi bi-crop me-1"></i> Re-crop
+                                </button>
+                            </div>
                         </div>
 
                         <div class="mb-3">
@@ -360,7 +392,30 @@ ADD CANDIDATE MODAL
 
                             <div class="col-md-6">
                                 <label class="form-label">Vice Photo (Optional)</label>
-                                <input type="file" name="vice_photo" class="form-control" accept="image/*">
+
+                                <input type="file" id="vicePhotoFileInput" name="vice_photo" class="form-control" accept="image/*">
+
+                                <div id="viceCropperWrap" class="d-none mt-2">
+                                    <div style="max-height:240px;overflow:hidden;background:#111;border-radius:8px;">
+                                        <img id="viceCropperImg" style="display:block;max-width:100%;">
+                                    </div>
+                                    <div class="d-flex gap-2 mt-2">
+                                        <button type="button" class="btn btn-success btn-sm" id="viceCropBtn">
+                                            <i class="bi bi-check-circle me-1"></i> Crop & Use
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="viceChangeBtn">
+                                            <i class="bi bi-arrow-repeat me-1"></i> Change Image
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="viceCroppedWrap" class="d-none mt-2 align-items-center gap-3" style="display:none!important">
+                                    <img id="viceCroppedPreview" class="rounded-circle border" style="width:64px;height:64px;object-fit:cover;">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="viceRecropBtn">
+                                        <i class="bi bi-crop me-1"></i> Re-crop
+                                    </button>
+                                </div>
+
                                 <small class="text-muted d-block mt-1">
                                     If you don’t upload, the vice can still be saved without a photo.
                                 </small>
@@ -403,6 +458,10 @@ ADD CANDIDATE MODAL
 {{-- Select2 --}}
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+{{-- Cropper.js --}}
+<link href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -482,6 +541,141 @@ ADD CANDIDATE MODAL
         document.getElementById('previewProgram').textContent = '—';
         document.getElementById('previewViceFaculty').textContent = '—';
         document.getElementById('previewViceProgram').textContent = '—';
+        resetCropper(photoCropper, 'photoFileInput', 'photoCropperWrap', 'photoCroppedWrap');
+        resetCropper(viceCropper,  'vicePhotoFileInput', 'viceCropperWrap', 'viceCroppedWrap');
+        photoCropper = null;
+        viceCropper  = null;
+    });
+
+    // ── Cropper setup ────────────────────────────────────────────────
+    let photoCropper = null;
+    let viceCropper  = null;
+
+    function setupCropper(opts) {
+        const { fileInputId, cropperWrapId, cropperImgId, cropBtnId, changeBtnId,
+                croppedWrapId, croppedPreviewId, recropBtnId } = opts;
+
+        let cropperInstance = null;
+        const fileInput      = document.getElementById(fileInputId);
+        const cropperWrap    = document.getElementById(cropperWrapId);
+        const cropperImg     = document.getElementById(cropperImgId);
+        const croppedWrap    = document.getElementById(croppedWrapId);
+        const croppedPreview = document.getElementById(croppedPreviewId);
+
+        // When user picks a file
+        fileInput.addEventListener('change', function () {
+            const file = this.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = e => {
+                // Tear down previous instance
+                if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
+
+                cropperImg.src = e.target.result;
+                fileInput.classList.add('d-none');
+                croppedWrap.classList.add('d-none');
+                croppedWrap.style.removeProperty('display');
+                cropperWrap.classList.remove('d-none');
+
+                cropperInstance = new Cropper(cropperImg, {
+                    aspectRatio: 1,
+                    viewMode: 1,
+                    autoCropArea: 0.85,
+                    movable: true,
+                    zoomable: true,
+                    scalable: false,
+                    guides: true,
+                    center: true,
+                    highlight: false,
+                    cropBoxMovable: true,
+                    cropBoxResizable: true,
+                });
+
+                // Return the instance so the caller can hold a reference
+                if (fileInputId === 'photoFileInput') photoCropper = cropperInstance;
+                else viceCropper = cropperInstance;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Crop & Use
+        document.getElementById(cropBtnId).addEventListener('click', function () {
+            if (!cropperInstance) return;
+            cropperInstance.getCroppedCanvas({ width: 600, height: 600 }).toBlob(blob => {
+                const croppedFile = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+                const dt = new DataTransfer();
+                dt.items.add(croppedFile);
+                fileInput.files = dt.files;
+
+                // Show circular preview
+                croppedPreview.src = URL.createObjectURL(blob);
+                cropperWrap.classList.add('d-none');
+                croppedWrap.classList.remove('d-none');
+                croppedWrap.style.display = 'flex';
+            }, 'image/jpeg', 0.92);
+        });
+
+        // Change image — show file input again
+        document.getElementById(changeBtnId).addEventListener('click', function () {
+            if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
+            cropperWrap.classList.add('d-none');
+            fileInput.value = '';
+            fileInput.classList.remove('d-none');
+        });
+
+        // Re-crop from the already-picked file
+        document.getElementById(recropBtnId).addEventListener('click', function () {
+            const file = fileInput.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
+                cropperImg.src = e.target.result;
+                croppedWrap.classList.add('d-none');
+                croppedWrap.style.removeProperty('display');
+                cropperWrap.classList.remove('d-none');
+                cropperInstance = new Cropper(cropperImg, {
+                    aspectRatio: 1, viewMode: 1, autoCropArea: 0.85,
+                    movable: true, zoomable: true, scalable: false,
+                });
+                if (fileInputId === 'photoFileInput') photoCropper = cropperInstance;
+                else viceCropper = cropperInstance;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function resetCropper(instance, fileInputId, cropperWrapId, croppedWrapId) {
+        if (instance) instance.destroy();
+        const fi = document.getElementById(fileInputId);
+        if (fi) { fi.value = ''; fi.classList.remove('d-none'); }
+        const cw = document.getElementById(cropperWrapId);
+        if (cw) cw.classList.add('d-none');
+        const dw = document.getElementById(croppedWrapId);
+        if (dw) { dw.classList.add('d-none'); dw.style.removeProperty('display'); }
+    }
+
+    setupCropper({
+        fileInputId:      'photoFileInput',
+        cropperWrapId:    'photoCropperWrap',
+        cropperImgId:     'photoCropperImg',
+        cropBtnId:        'photoCropBtn',
+        changeBtnId:      'photoChangeBtn',
+        croppedWrapId:    'photoCroppedWrap',
+        croppedPreviewId: 'photoCroppedPreview',
+        recropBtnId:      'photoRecropBtn',
+    });
+
+    setupCropper({
+        fileInputId:      'vicePhotoFileInput',
+        cropperWrapId:    'viceCropperWrap',
+        cropperImgId:     'viceCropperImg',
+        cropBtnId:        'viceCropBtn',
+        changeBtnId:      'viceChangeBtn',
+        croppedWrapId:    'viceCroppedWrap',
+        croppedPreviewId: 'viceCroppedPreview',
+        recropBtnId:      'viceRecropBtn',
     });
 
 });
