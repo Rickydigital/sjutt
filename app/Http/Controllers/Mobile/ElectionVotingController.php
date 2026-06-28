@@ -32,7 +32,19 @@ class ElectionVotingController extends Controller
             $q->where('is_enabled', true)
                 ->whereNotIn('id', $votedPositionIds)
                 ->where(function ($w) use ($student) {
-                    $w->where('scope_type', 'global')
+                    $w->where(function ($g) use ($student) {
+    $g->where('scope_type', 'global')
+        ->where(function ($x) use ($student) {
+            $x->whereDoesntHave('programs')
+              ->whereDoesntHave('faculties')
+              ->orWhereHas('programs', fn ($p) =>
+                  $p->where('programs.id', $student->program_id)
+              )
+              ->orWhereHas('faculties', fn ($f) =>
+                  $f->where('faculties.id', $student->faculty_id)
+              );
+        });
+})
                         ->orWhere(function ($q) use ($student) {
                             $q->where('scope_type', 'program')
                                 ->whereHas('programs', fn ($p) =>

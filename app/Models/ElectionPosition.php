@@ -73,7 +73,16 @@ class ElectionPosition extends Model
         }
 
         return match ($this->scope_type) {
-            'global' => true,
+            'global' => (
+    !$this->programs()->exists() &&
+    !$this->faculties()->exists()
+) || (
+    $student->program_id &&
+    $this->programs()->where('programs.id', $student->program_id)->exists()
+) || (
+    $student->faculty_id &&
+    $this->faculties()->where('faculties.id', $student->faculty_id)->exists()
+),
 
             'faculty' => $student->faculty_id
                 && $this->faculties()
