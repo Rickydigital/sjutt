@@ -34,7 +34,19 @@ class ElectionVotingController extends Controller
                 ->where(function ($w) use ($student) {
 
                     // 1) GLOBAL -> everyone sees
-                    $w->where('scope_type', 'global');
+                    $w->where(function ($g) use ($student) {
+                    $g->where('scope_type', 'global')
+                        ->where(function ($x) use ($student) {
+                            $x->whereDoesntHave('programs')
+                            ->whereDoesntHave('faculties')
+                            ->orWhereHas('programs', fn ($p) =>
+                                $p->where('programs.id', $student->program_id)
+                            )
+                            ->orWhereHas('faculties', fn ($f) =>
+                                $f->where('faculties.id', $student->faculty_id)
+                            );
+                        });
+                });
 
                     // 2) PROGRAM -> only if student's program is attached to position
                     $w->orWhere(function ($q3) use ($student) {
@@ -147,7 +159,16 @@ class ElectionVotingController extends Controller
         abort_if(!$candidate->is_approved, 403, 'Candidate is pending approval.');
 
         $eligible = match ($position->scope_type) {
-            'global' => true,
+            'global' => (
+                !$position->programs()->exists() &&
+                !$position->faculties()->exists()
+            ) || (
+                $student->program_id &&
+                $position->programs()->where('programs.id', $student->program_id)->exists()
+            ) || (
+                $student->faculty_id &&
+                $position->faculties()->where('faculties.id', $student->faculty_id)->exists()
+            ),
             'faculty' => $student->faculty_id
                 && $position->faculties()->where('faculties.id', $student->faculty_id)->exists(),
             'program' => $student->program_id

@@ -163,7 +163,19 @@ class PublicPollingCentreController extends Controller
         $q->where('is_enabled', true)
             ->whereNotIn('id', $votedPositionIds)
             ->where(function ($w) use ($student) {
-                $w->where('scope_type', 'global')
+                $w->where(function ($g) use ($student) {
+    $g->where('scope_type', 'global')
+        ->where(function ($x) use ($student) {
+            $x->whereDoesntHave('programs')
+              ->whereDoesntHave('faculties')
+              ->orWhereHas('programs', fn ($p) =>
+                  $p->where('programs.id', $student->program_id)
+              )
+              ->orWhereHas('faculties', fn ($f) =>
+                  $f->where('faculties.id', $student->faculty_id)
+              );
+        });
+})
                     ->orWhere(function ($q) use ($student) {
                         $q->where('scope_type', 'program')
                             ->whereHas('programs', fn ($p) =>
@@ -198,7 +210,16 @@ class PublicPollingCentreController extends Controller
         $election->positions->each(function ($position) use ($student) {
             $filteredCandidates = $position->candidates->filter(function ($candidate) use ($position, $student) {
                 return match ($position->scope_type) {
-                    'global' => true,
+                    'global' => (
+    !$position->programs()->exists() &&
+    !$position->faculties()->exists()
+) || (
+    $student->program_id &&
+    $position->programs()->where('programs.id', $student->program_id)->exists()
+) || (
+    $student->faculty_id &&
+    $position->faculties()->where('faculties.id', $student->faculty_id)->exists()
+),
 
                     'faculty' => (int) $candidate->faculty_id === (int) $student->faculty_id,
 
@@ -401,7 +422,19 @@ class PublicPollingCentreController extends Controller
                     ->where('election_id', $election->id);
             })
             ->where(function ($w) use ($student) {
-                $w->where('scope_type', 'global')
+                $w->where(function ($g) use ($student) {
+    $g->where('scope_type', 'global')
+        ->where(function ($x) use ($student) {
+            $x->whereDoesntHave('programs')
+              ->whereDoesntHave('faculties')
+              ->orWhereHas('programs', fn ($p) =>
+                  $p->where('programs.id', $student->program_id)
+              )
+              ->orWhereHas('faculties', fn ($f) =>
+                  $f->where('faculties.id', $student->faculty_id)
+              );
+        });
+})
                     ->orWhere(function ($q) use ($student) {
                         $q->where('scope_type', 'program')
                             ->whereHas('programs', fn ($p) =>
