@@ -39,15 +39,14 @@ class ElectionVotingController extends Controller
                     // 2) PROGRAM -> only if student's program is attached to position
                     $w->orWhere(function ($q3) use ($student) {
                         $q3->where('scope_type', 'program')
-                            ->whereHas('programs', fn ($p) => $p->where('programs.id', $student->program_id));
+                            ->whereHas('programs', fn($p) => $p->where('programs.id', $student->program_id));
                     });
 
                     // 3) FACULTY -> only if student's faculty is attached to position
                     $w->orWhere(function ($q2) use ($student) {
                         $q2->where('scope_type', 'faculty')
-                            ->whereHas('faculties', fn ($f) => $f->where('faculties.id', $student->faculty_id));
+                            ->whereHas('faculties', fn($f) => $f->where('faculties.id', $student->faculty_id));
                     });
-
                 })
                 // priority: global -> program -> faculty
                 ->orderByRaw("FIELD(scope_type, 'global', 'program', 'faculty')")
@@ -58,12 +57,12 @@ class ElectionVotingController extends Controller
                     // because GLOBAL position should show ALL candidates for that position
                     'candidates' => function ($c) {
                         $c->with([
-                                'student.faculty',
-                                'student.program',
-                                'vice.student.faculty',
-                                'vice.student.program',
-                            ])
-                            ->whereHas('student', fn ($s) => $s->where('status', 'Active'));
+                            'student.faculty',
+                            'student.program',
+                            'vice.student.faculty',
+                            'vice.student.program',
+                        ])
+                            ->whereHas('student', fn($s) => $s->where('status', 'Active'));
                     },
 
                 ]);
@@ -89,99 +88,109 @@ class ElectionVotingController extends Controller
 
                 $position->setRelation('candidates', $filtered);
             });
+
+            // remove positions with zero candidates
+            $election->setRelation(
+                'positions',
+                $election->positions
+                    ->filter(fn($position) => $position->candidates->isNotEmpty())
+                    ->values()
+            );
         });
 
-        // Optional: remove elections with no eligible positions
-        $elections = $elections->filter(fn ($e) => $e->positions->isNotEmpty())->values();
+        // remove elections with no remaining votable positions
+        $elections = $elections
+            ->filter(fn($e) => $e->positions->isNotEmpty())
+            ->values();
 
         return view('vote', compact('elections'));
     }
 
     public function store(Request $request)
-{
-    $student = auth('stuofficer')->user();
+    {
+        $student = auth('stuofficer')->user();
 
-    $validated = $request->validate([
-        'election_position_id' => ['required', 'exists:election_positions,id'],
-        'candidate_id'         => ['required', 'exists:election_candidates,id'],
-        'form4_index'          => ['required', 'string'],
-    ]);
-
-    // Verify Form Four Index before voting
-    $inputForm4Index = strtolower(trim($validated['form4_index']));
-    $studentForm4Index = strtolower(trim((string) $student->form4_index));
-
-    if (!$studentForm4Index || $inputForm4Index !== $studentForm4Index) {
-        return back()
-            ->withErrors(['form4_index' => 'Invalid Form Four Index number or Your using old version of App. Vote was not submitted try to update in setting .'])
-            ->withInput();
-    }
-
-    $position = ElectionPosition::query()
-        ->with(['election', 'faculties', 'programs'])
-        ->where('id', $validated['election_position_id'])
-        ->where('is_enabled', true)
-        ->firstOrFail();
-
-    $election = $position->election;
-
-    abort_if(!$election || $election->status !== 'open', 403, 'Election is not open.');
-
-    if (method_exists($election, 'isStillOpen')) {
-        abort_if(!$election->isStillOpen(), 403, 'Voting time is closed.');
-    }
-
-    $candidate = $position->candidates()
-        ->where('id', $validated['candidate_id'])
-        ->firstOrFail();
-
-    abort_if(!$candidate->is_approved, 403, 'Candidate is pending approval.');
-
-    $eligible = match ($position->scope_type) {
-        'global' => true,
-        'faculty' => $student->faculty_id
-            && $position->faculties()->where('faculties.id', $student->faculty_id)->exists(),
-        'program' => $student->program_id
-            && $position->programs()->where('programs.id', $student->program_id)->exists(),
-        default => false,
-    };
-
-    abort_if(!$eligible, 403, 'You are not eligible to vote for this position.');
-
-    if ($position->scope_type === 'faculty') {
-        abort_if((int) $candidate->faculty_id !== (int) $student->faculty_id, 403, 'Candidate not in your faculty scope.');
-    }
-
-    if ($position->scope_type === 'program') {
-        abort_if((int) $candidate->program_id !== (int) $student->program_id, 403, 'Candidate not in your program scope.');
-    }
-
-    return DB::transaction(function () use ($election, $position, $candidate, $student) {
-        $already = ElectionVote::query()
-            ->where('election_id', $election->id)
-            ->where('election_position_id', $position->id)
-            ->where('student_id', $student->id)
-            ->lockForUpdate()
-            ->exists();
-
-        abort_if($already, 422, 'You already voted for this position.');
-
-        $hmac = hash_hmac('sha256', implode('|', [
-            $election->id,
-            $position->id,
-            $candidate->id,
-            $student->id,
-        ]), config('vote.hmac_secret'));
-
-        ElectionVote::create([
-            'election_id'          => $election->id,
-            'election_position_id' => $position->id,
-            'candidate_id'         => $candidate->id,
-            'student_id'           => $student->id,
-            'vote_hmac'            => $hmac,
+        $validated = $request->validate([
+            'election_position_id' => ['required', 'exists:election_positions,id'],
+            'candidate_id'         => ['required', 'exists:election_candidates,id'],
+            'form4_index'          => ['required', 'string'],
         ]);
 
-        return back()->with('success', 'Vote submitted successfully.');
-    });
-}
+        // Verify Form Four Index before voting
+        $inputForm4Index = strtolower(trim($validated['form4_index']));
+        $studentForm4Index = strtolower(trim((string) $student->form4_index));
+
+        if (!$studentForm4Index || $inputForm4Index !== $studentForm4Index) {
+            return back()
+                ->withErrors(['form4_index' => 'Invalid Form Four Index number or Your using old version of App. Vote was not submitted try to update in setting .'])
+                ->withInput();
+        }
+
+        $position = ElectionPosition::query()
+            ->with(['election', 'faculties', 'programs'])
+            ->where('id', $validated['election_position_id'])
+            ->where('is_enabled', true)
+            ->firstOrFail();
+
+        $election = $position->election;
+
+        abort_if(!$election || $election->status !== 'open', 403, 'Election is not open.');
+
+        if (method_exists($election, 'isStillOpen')) {
+            abort_if(!$election->isStillOpen(), 403, 'Voting time is closed.');
+        }
+
+        $candidate = $position->candidates()
+            ->where('id', $validated['candidate_id'])
+            ->firstOrFail();
+
+        abort_if(!$candidate->is_approved, 403, 'Candidate is pending approval.');
+
+        $eligible = match ($position->scope_type) {
+            'global' => true,
+            'faculty' => $student->faculty_id
+                && $position->faculties()->where('faculties.id', $student->faculty_id)->exists(),
+            'program' => $student->program_id
+                && $position->programs()->where('programs.id', $student->program_id)->exists(),
+            default => false,
+        };
+
+        abort_if(!$eligible, 403, 'You are not eligible to vote for this position.');
+
+        if ($position->scope_type === 'faculty') {
+            abort_if((int) $candidate->faculty_id !== (int) $student->faculty_id, 403, 'Candidate not in your faculty scope.');
+        }
+
+        if ($position->scope_type === 'program') {
+            abort_if((int) $candidate->program_id !== (int) $student->program_id, 403, 'Candidate not in your program scope.');
+        }
+
+        return DB::transaction(function () use ($election, $position, $candidate, $student) {
+            $already = ElectionVote::query()
+                ->where('election_id', $election->id)
+                ->where('election_position_id', $position->id)
+                ->where('student_id', $student->id)
+                ->lockForUpdate()
+                ->exists();
+
+            abort_if($already, 422, 'You already voted for this position.');
+
+            $hmac = hash_hmac('sha256', implode('|', [
+                $election->id,
+                $position->id,
+                $candidate->id,
+                $student->id,
+            ]), config('vote.hmac_secret'));
+
+            ElectionVote::create([
+                'election_id'          => $election->id,
+                'election_position_id' => $position->id,
+                'candidate_id'         => $candidate->id,
+                'student_id'           => $student->id,
+                'vote_hmac'            => $hmac,
+            ]);
+
+            return back()->with('success', 'Vote submitted successfully.');
+        });
+    }
 }

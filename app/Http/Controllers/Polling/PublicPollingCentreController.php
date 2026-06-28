@@ -40,60 +40,58 @@ class PublicPollingCentreController extends Controller
         return view('polling.public.start', compact('token', 'centre'));
     }
 
-    public function verifyRegNo(Request $request, string $token)
-    {
-        $centre = $this->centreByToken($token);
+   public function verifyRegNo(Request $request, string $token)
+{
+    $centre = $this->centreByToken($token);
 
-        $validated = $request->validate([
-            'reg_no' => 'required|string',
-        ]);
+    $validated = $request->validate([
+        'reg_no' => 'required|string',
+    ]);
 
-        $regNo = trim($validated['reg_no']);
+    $regNo = trim($validated['reg_no']);
 
-        $student = Student::where('reg_no', $regNo)
-            ->where('status', 'Active')
-            ->first();
+    $student = Student::where('reg_no', $regNo)
+        ->where('status', 'Active')
+        ->first();
 
-        if (!$student) {
-            PollingCentreSession::create([
-                'polling_centre_id' => $centre->id,
-                'election_id'       => $centre->election_id,
-                'reg_no'            => $regNo,
-                'status'            => 'failed',
-                'ip_address'        => $request->ip(),
-                'user_agent'        => $request->userAgent(),
-            ]);
-
-            return back()
-                ->withErrors(['reg_no' => 'Student not found or not active.'])
-                ->withInput();
-        }
-
-        $plainSessionToken = Str::random(80);
-
+    if (!$student) {
         PollingCentreSession::create([
-            'polling_centre_id'  => $centre->id,
-            'election_id'        => $centre->election_id,
-            'student_id'         => $student->id,
-            'reg_no'             => $student->reg_no,
-            'status'             => 'reg_verified',
-            'session_token_hash' => hash('sha256', $plainSessionToken),
-            'expires_at'         => now()->addMinutes(15),
-            'ip_address'         => $request->ip(),
-            'user_agent'         => $request->userAgent(),
+            'polling_centre_id' => $centre->id,
+            'election_id'       => $centre->election_id,
+            'reg_no'            => $regNo,
+            'status'            => 'failed',
+            'ip_address'        => $request->ip(),
+            'user_agent'        => $request->userAgent(),
         ]);
 
-        $maskedName = substr($student->first_name, 0, 1) . '*** ' .
-            substr($student->last_name, 0, 1) . '***';
-
-        return view('polling.public.verify-identity', [
-            'token'         => $token,
-            'centre'        => $centre,
-            'session_token' => $plainSessionToken,
-            'student'       => $student,
-            'masked_name'   => $maskedName,
-        ]);
+        return back()
+            ->withErrors(['reg_no' => 'Student not found or not active.'])
+            ->withInput();
     }
+
+    $plainSessionToken = Str::random(80);
+
+    $session = PollingCentreSession::create([
+        'polling_centre_id'  => $centre->id,
+        'election_id'        => $centre->election_id,
+        'student_id'         => $student->id,
+        'reg_no'             => $student->reg_no,
+        'status'             => 'identity_verified',
+        'session_token_hash' => hash('sha256', $plainSessionToken),
+        'expires_at'         => now()->addMinutes(15),
+        'ip_address'         => $request->ip(),
+        'user_agent'         => $request->userAgent(),
+    ]);
+
+    session([
+        'polling_mode'          => true,
+        'polling_centre_id'     => $centre->id,
+        'polling_session_id'    => $session->id,
+        'polling_session_token' => $plainSessionToken,
+    ]);
+
+    return redirect()->route('polling.public.vote', $token);
+}
 
     public function verifyIdentity(Request $request, string $token)
     {
@@ -144,85 +142,106 @@ class PublicPollingCentreController extends Controller
         return redirect()->route('polling.public.vote', $token);
     }
 
-    public function votePage(string $token)
-    {
-        $centre = $this->centreByToken($token);
-        $session = $this->currentPollingSession($centre);
-        $student = Student::findOrFail($session->student_id);
+   public function votePage(Request $request, string $token)
+{
+    $centre = $this->centreByToken($token);
+    $session = $this->currentPollingSession($centre);
+    $student = Student::findOrFail($session->student_id);
 
-        $elections = Election::query()
-            ->where('id', $centre->election_id)
-            ->where('status', 'open')
-            ->get();
+    $elections = Election::query()
+        ->where('id', $centre->election_id)
+        ->where('status', 'open')
+        ->get();
 
-        $votedPositionIds = ElectionVote::query()
-            ->where('student_id', $student->id)
-            ->whereIn('election_id', $elections->pluck('id'))
-            ->pluck('election_position_id')
-            ->toArray();
+    $votedPositionIds = ElectionVote::query()
+        ->where('student_id', $student->id)
+        ->whereIn('election_id', $elections->pluck('id'))
+        ->pluck('election_position_id')
+        ->toArray();
 
-        $elections->load(['positions' => function ($q) use ($student, $votedPositionIds) {
-            $q->where('is_enabled', true)
-                ->whereNotIn('id', $votedPositionIds)
-                ->where(function ($w) use ($student) {
-                    $w->where('scope_type', 'global')
-                        ->orWhere(function ($q) use ($student) {
-                            $q->where('scope_type', 'program')
-                                ->whereHas('programs', fn ($p) =>
-                                    $p->where('programs.id', $student->program_id)
-                                );
-                        })
-                        ->orWhere(function ($q) use ($student) {
-                            $q->where('scope_type', 'faculty')
-                                ->whereHas('faculties', fn ($f) =>
-                                    $f->where('faculties.id', $student->faculty_id)
-                                );
-                        });
-                })
-                ->orderByRaw("FIELD(scope_type, 'global', 'program', 'faculty')")
-                ->orderBy('id')
-                ->with([
-                    'definition',
-                    'candidates' => function ($c) {
-                        $c->where('is_approved', true)
-                            ->whereHas('student', fn ($s) => $s->where('status', 'Active'))
-                            ->with([
-                                'student.faculty',
-                                'student.program',
-                                'vice.student.faculty',
-                                'vice.student.program',
-                            ]);
-                    },
-                ]);
-        }]);
+    $elections->load(['positions' => function ($q) use ($student, $votedPositionIds) {
+        $q->where('is_enabled', true)
+            ->whereNotIn('id', $votedPositionIds)
+            ->where(function ($w) use ($student) {
+                $w->where('scope_type', 'global')
+                    ->orWhere(function ($q) use ($student) {
+                        $q->where('scope_type', 'program')
+                            ->whereHas('programs', fn ($p) =>
+                                $p->where('programs.id', $student->program_id)
+                            );
+                    })
+                    ->orWhere(function ($q) use ($student) {
+                        $q->where('scope_type', 'faculty')
+                            ->whereHas('faculties', fn ($f) =>
+                                $f->where('faculties.id', $student->faculty_id)
+                            );
+                    });
+            })
+            ->orderByRaw("FIELD(scope_type, 'global', 'program', 'faculty')")
+            ->orderBy('id')
+            ->with([
+                'definition',
+                'candidates' => function ($c) {
+                    $c->where('is_approved', true)
+                        ->whereHas('student', fn ($s) => $s->where('status', 'Active'))
+                        ->with([
+                            'student.faculty',
+                            'student.program',
+                            'vice.student.faculty',
+                            'vice.student.program',
+                        ]);
+                },
+            ]);
+    }]);
 
-        $elections->each(function ($election) use ($student) {
-            $election->positions->each(function ($position) use ($student) {
-                $filtered = $position->candidates->filter(function ($cand) use ($position, $student) {
-                    return match ($position->scope_type) {
-                        'global'  => true,
-                        'faculty' => (int) $cand->faculty_id === (int) $student->faculty_id,
-                        'program' => (int) $cand->program_id === (int) $student->program_id,
-                        default   => false,
-                    };
-                })->values();
+    $elections->each(function ($election) use ($student) {
+        $election->positions->each(function ($position) use ($student) {
+            $filteredCandidates = $position->candidates->filter(function ($candidate) use ($position, $student) {
+                return match ($position->scope_type) {
+                    'global' => true,
 
-                $position->setRelation('candidates', $filtered);
-            });
+                    'faculty' => (int) $candidate->faculty_id === (int) $student->faculty_id,
+
+                    'program' => (int) $candidate->program_id === (int) $student->program_id,
+
+                    default => false,
+                };
+            })->values();
+
+            $position->setRelation('candidates', $filteredCandidates);
         });
 
-        $elections = $elections
-            ->filter(fn ($e) => $e->positions->isNotEmpty())
-            ->values();
+        // Remove positions that have zero candidates after filtering
+        $election->setRelation(
+            'positions',
+            $election->positions
+                ->filter(fn ($position) => $position->candidates->isNotEmpty())
+                ->values()
+        );
+    });
 
-        return view('polling.public.vote', compact(
-            'token',
-            'centre',
-            'student',
-            'session',
-            'elections'
-        ));
+    // Remove elections that have no votable positions
+    $elections = $elections
+        ->filter(fn ($election) => $election->positions->isNotEmpty())
+        ->values();
+
+    // If no remaining position with candidates, auto finish session
+    if ($elections->isEmpty()) {
+        $this->completePollingSession($request, $centre);
+
+        return redirect()
+            ->route('polling.public.show', $token)
+            ->with('success', 'Voting completed. No remaining candidate positions. Next student may continue.');
     }
+
+    return view('polling.public.vote', compact(
+        'token',
+        'centre',
+        'student',
+        'session',
+        'elections'
+    ));
+}
 
     public function storeVote(Request $request, string $token)
     {
