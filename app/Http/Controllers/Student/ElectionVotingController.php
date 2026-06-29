@@ -125,18 +125,9 @@ class ElectionVotingController extends Controller
         $validated = $request->validate([
             'election_position_id' => ['required', 'exists:election_positions,id'],
             'candidate_id'         => ['required', 'exists:election_candidates,id'],
-            'form4_index'          => ['required', 'string'],
         ]);
 
-        // Verify Form Four Index before voting
-        $inputForm4Index = strtolower(trim($validated['form4_index']));
-        $studentForm4Index = strtolower(trim((string) $student->form4_index));
-
-        if (!$studentForm4Index || $inputForm4Index !== $studentForm4Index) {
-            return back()
-                ->withErrors(['form4_index' => 'Invalid Form Four Index number or Your using old version of App. Vote was not submitted try to update in setting .'])
-                ->withInput();
-        }
+       
 
         $position = ElectionPosition::query()
             ->with(['election', 'faculties', 'programs'])
