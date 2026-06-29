@@ -16,21 +16,6 @@
     </div>
 
     <div class="card-body">
-        {{-- Login/Logout Toggle --}}
-        <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
-            <div>
-                <strong class="d-block mb-1">Login/Logout Control During Elections</strong>
-                <small class="text-muted">Disable login/logout to prevent students from sharing credentials during elections</small>
-            </div>
-            <form action="{{ route('system-settings.toggle-login-logout') }}" method="POST" class="mb-0">
-                @csrf
-                <button type="submit" class="btn btn-sm {{ \App\Models\SystemSetting::isLoginLogoutDisabled() ? 'btn-danger' : 'btn-success' }}">
-                    <i class="bi {{ \App\Models\SystemSetting::isLoginLogoutDisabled() ? 'bi-lock-fill' : 'bi-unlock-fill' }} me-1"></i>
-                    {{ \App\Models\SystemSetting::isLoginLogoutDisabled() ? 'Disabled' : 'Enabled' }}
-                </button>
-            </form>
-        </div>
-
         {{-- Validation errors --}}
         @if ($errors->any())
             <div class="alert alert-danger">

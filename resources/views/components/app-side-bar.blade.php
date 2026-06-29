@@ -138,6 +138,15 @@
                 </a>
             </li>
 
+            {{-- System Settings (with permission check) --}}
+            @can('manage-settings')
+            <li>
+                <a href="{{ route('system-settings.index') }}">
+                    <span class="sub-item">System Settings</span>
+                </a>
+            </li>
+            @endcan
+
         </ul>
     </div>
 </li>

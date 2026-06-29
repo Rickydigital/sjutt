@@ -484,6 +484,7 @@ Route::delete('/elections/{election}/polling-centres/{pollingCentre}', [PollingC
     ->name('elections.polling-centres.destroy');
 
     // System Settings
+    Route::get('/system-settings', [SystemSettingController::class, 'index'])->name('system-settings.index');
     Route::post('/system-settings/toggle-login-logout', [SystemSettingController::class, 'toggleLoginLogout'])
         ->name('system-settings.toggle-login-logout');
 
