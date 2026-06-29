@@ -26,7 +26,7 @@ public function index(Request $request)
     $user = Auth::user();
 
     $query = Student::with(['faculty', 'program'])
-        ->select('id', 'first_name', 'last_name', 'reg_no', 'email', 'gender', 'faculty_id', 'program_id', 'status', 'phone');
+        ->select('id', 'first_name', 'last_name', 'reg_no', 'form4_index', 'email', 'gender', 'faculty_id', 'program_id', 'status', 'phone');
 
     // Your existing role filtering logic...
     if ($user->hasRole('Lecturer')) {
@@ -43,6 +43,7 @@ public function index(Request $request)
             $q->where('first_name', 'like', "%{$search}%")
               ->orWhere('last_name', 'like', "%{$search}%")
               ->orWhere('reg_no', 'like', "%{$search}%")
+              ->orWhere('form4_index', 'like', "%{$search}%")
               ->orWhere('email', 'like', "%{$search}%");
         });
     }
@@ -121,7 +122,7 @@ public function index(Request $request)
         'gender'      => 'required|in:male,female',
         'faculty_id'  => 'required|exists:faculties,id',
         'program_id'  => 'required|exists:programs,id',
-        // 'status'      => 'required|in:Active,Inactive,Alumni',
+        'status'      => 'required|in:Active,Inactive,Alumni',
     ]);
 
     $student->update([
@@ -133,7 +134,7 @@ public function index(Request $request)
         'gender'      => $request->gender,
         'faculty_id'  => $request->faculty_id,
         'program_id'  => $request->program_id,
-        // 'status'      => $request->status,
+        'status'      => $request->status,
     ]);
 
     return back()->with('success', 'Student updated successfully! Password unchanged.');

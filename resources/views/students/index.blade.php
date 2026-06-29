@@ -44,7 +44,7 @@
         <div class="row g-3 align-items-end">
             <div class="col-md-3">
                 <input type="text" x-model="search" @keyup.debounce.500ms="applyFilters()" 
-                       class="form-control form-control-sm" placeholder="Search name, reg no, email, phone..." 
+                       class="form-control form-control-sm" placeholder="Search name, reg no, form four, email..." 
                        value="{{ request('search') }}">
             </div>
             <div class="col-md-2">
@@ -92,6 +92,7 @@
                         <th>#</th>
                         <th>Name</th>
                         <th>Reg No</th>
+                        <th>Form Four</th>
                         <th>Phone</th>
                         <th>Email</th>
                         <th>Faculty</th>
@@ -109,6 +110,13 @@
                         <td>{{ $loop->iteration + ($students->currentPage() - 1) * $students->perPage() }}</td>
                         <td><strong>{{ $student->first_name }} {{ $student->last_name }}</strong></td>
                         <td><code>{{ $student->reg_no }}</code></td>
+                        <td>
+                            @if($student->form4_index)
+                                <code>{{ $student->form4_index }}</code>
+                            @else
+                                <em class="text-muted">—</em>
+                            @endif
+                        </td>
                         <td>
                             @if($student->phone)
                                 <a href="tel:{{ $student->phone }}" class="text-decoration-none">{{ $student->phone }}</a>
