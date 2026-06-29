@@ -51,6 +51,7 @@ use App\Http\Controllers\Officer\OfficerPublishResultsController;
 use App\Http\Controllers\Polling\PublicPollingCentreController;
 use App\Http\Controllers\Student\ElectionVotingController;
 use App\Http\Controllers\StudentWeb\Auth\StudentLoginController;
+use App\Http\Controllers\Admin\SystemSettingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -481,6 +482,11 @@ Route::post('/elections/{election}/polling-centres/{pollingCentre}/deactivate', 
 
 Route::delete('/elections/{election}/polling-centres/{pollingCentre}', [PollingCentreController::class, 'destroy'])
     ->name('elections.polling-centres.destroy');
+
+    // System Settings
+    Route::get('/system-settings', [SystemSettingController::class, 'index'])->name('system-settings.index');
+    Route::post('/system-settings/toggle-login-logout', [SystemSettingController::class, 'toggleLoginLogout'])
+        ->name('system-settings.toggle-login-logout');
 
     // Elections (admin can CRUD + assign officer, but NOT open/close)
     Route::get('/elections', [ElectionController::class, 'index'])->name('elections.index');

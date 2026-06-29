@@ -8,6 +8,7 @@ use App\Models\ElectionVote;
 use App\Models\Otp;
 use App\Models\Program;
 use App\Models\Student;
+use App\Models\SystemSetting;
 use App\Notifications\OtpNotification;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -21,6 +22,13 @@ class AuthController extends Controller
 {
     public function login(Request $request)
     {
+        if (SystemSetting::isLoginLogoutDisabled()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Login is currently disabled. Please try again later.',
+            ], 403);
+        }
+
         $request->validate([
             'reg_no'    => 'required|string',
             'password'  => 'required|string',
@@ -351,6 +359,13 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        if (SystemSetting::isLoginLogoutDisabled()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Logout is currently disabled. Please try again later.',
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'id' => 'required|integer|exists:students,id',
         ]);
