@@ -175,7 +175,9 @@ class PermissionSeeder extends Seeder
             'manage research',
             // Notifications (Future)
             'view notifications',
-            'send notifications'
+            'send notifications',
+            // System Settings
+            'manage-settings'
         ];
 
         
@@ -224,7 +226,8 @@ class PermissionSeeder extends Seeder
                         'view attendance', 'create attendance', 'edit attendance', 'export attendance', 'import attendance',
                         'view suggestions', 'reply suggestions',
                         'view calendar', 'view news', 'view events', 'view gallery', 'view faqs', 'view about', 'view fee structures',
-                        'view own profile', 'edit own profile'
+                        'view own profile', 'edit own profile',
+                        'manage-settings'
                     ]);
                     break;
                 case 'Director':
