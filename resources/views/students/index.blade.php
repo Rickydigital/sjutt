@@ -177,6 +177,10 @@
                                                 <input type="text" name="reg_no" class="form-control" value="{{ $student->reg_no }}" required>
                                             </div>
                                             <div class="col-md-6">
+                                                <label>Form Four Index No</label>
+                                                <input type="text" name="form4_index" class="form-control" value="{{ $student->form4_index }}" placeholder="e.g. S0000/0000/0000">
+                                            </div>
+                                            <div class="col-md-6">
                                                 <label>Phone (optional)</label>
                                                 <input type="text" name="phone" class="form-control" value="{{ $student->phone }}" placeholder="+255 xxx xxx xxx">
                                             </div>
@@ -290,6 +294,10 @@
                         <div class="col-md-6">
                             <label>Reg No <span class="text-danger">*</span></label>
                             <input type="text" name="reg_no" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Form Four Index No</label>
+                            <input type="text" name="form4_index" class="form-control" placeholder="e.g. S0000/0000/0000">
                         </div>
                         <div class="col-md-6">
                             <label>Gender <span class="text-danger">*</span></label>

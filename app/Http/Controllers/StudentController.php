@@ -85,6 +85,7 @@ public function index(Request $request)
     {
         $request->validate([
             'reg_no'      => 'required|string|unique:students,reg_no',
+            'form4_index' => 'nullable|string|max:255',
             'first_name'  => 'nullable|string|max:255',
             'last_name'   => 'nullable|string|max:255',
             'email'       => 'nullable|email|unique:students,email',
@@ -96,6 +97,7 @@ public function index(Request $request)
 
         Student::create([
             'reg_no'      => $request->reg_no,
+            'form4_index' => $request->form4_index,
             'first_name'  => $request->first_name,
             'last_name'   => $request->last_name,
             'phone'       => $request->phone,
@@ -115,6 +117,7 @@ public function index(Request $request)
 {
     $request->validate([
         'reg_no'      => ['required', 'string', Rule::unique('students')->ignore($student->id)],
+        'form4_index' => 'nullable|string|max:255',
         'first_name'  => 'nullable|string|max:255',
         'last_name'   => 'nullable|string|max:255',
         'email'       => ['nullable', 'email', Rule::unique('students')->ignore($student->id)],
@@ -127,6 +130,7 @@ public function index(Request $request)
 
     $student->update([
         'reg_no'      => $request->reg_no,
+        'form4_index' => $request->form4_index,
         'first_name'  => $request->first_name,
         'last_name'   => $request->last_name,
         'email'       => $request->email,
