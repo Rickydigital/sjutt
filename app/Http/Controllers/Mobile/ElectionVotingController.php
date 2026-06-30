@@ -1,82 +1,94 @@
 <?php
 
-namespace App\Http\Controllers\Mobile;
+namespace App\Http\Controllers\Student;
 
 use App\Http\Controllers\Controller;
 use App\Models\Election;
 use App\Models\ElectionPosition;
-use App\Models\ElectionResultPublish;
-use App\Models\ElectionResultScope;
 use App\Models\ElectionVote;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ElectionVotingController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $student = $request->user();
+        $student = auth('stuofficer')->user();
 
+        // elections student can vote in (OPEN)
         $elections = Election::query()
             ->where('status', 'open')
             ->orderByDesc('id')
             ->get();
 
+        // all position IDs already voted by this student (across all elections)
         $votedPositionIds = ElectionVote::query()
             ->where('student_id', $student->id)
-            ->whereIn('election_id', $elections->pluck('id'))
             ->pluck('election_position_id')
             ->toArray();
 
+        // Load eligible positions for each election
         $elections->load(['positions' => function ($q) use ($student, $votedPositionIds) {
             $q->where('is_enabled', true)
                 ->whereNotIn('id', $votedPositionIds)
                 ->where(function ($w) use ($student) {
+
+                    // 1) GLOBAL -> everyone sees
                     $w->where(function ($g) use ($student) {
-    $g->where('scope_type', 'global')
-        ->where(function ($x) use ($student) {
-            $x->whereDoesntHave('programs')
-              ->whereDoesntHave('faculties')
-              ->orWhereHas('programs', fn ($p) =>
-                  $p->where('programs.id', $student->program_id)
-              )
-              ->orWhereHas('faculties', fn ($f) =>
-                  $f->where('faculties.id', $student->faculty_id)
-              );
-        });
-})
-                        ->orWhere(function ($q) use ($student) {
-                            $q->where('scope_type', 'program')
-                                ->whereHas('programs', fn ($p) =>
-                                    $p->where('programs.id', $student->program_id)
-                                );
-                        })
-                        ->orWhere(function ($q) use ($student) {
-                            $q->where('scope_type', 'faculty')
-                                ->whereHas('faculties', fn ($f) =>
-                                    $f->where('faculties.id', $student->faculty_id)
-                                );
+                    $g->where('scope_type', 'global')
+                        ->where(function ($x) use ($student) {
+                            $x->whereDoesntHave('programs')
+                            ->whereDoesntHave('faculties')
+                            ->orWhereHas('programs', fn ($p) =>
+                                $p->where('programs.id', $student->program_id)
+                            )
+                            ->orWhereHas('faculties', fn ($f) =>
+                                $f->where('faculties.id', $student->faculty_id)
+                            );
                         });
+                });
+
+                    // 2) PROGRAM -> only if student's program is attached to position
+                    $w->orWhere(function ($q3) use ($student) {
+                        $q3->where('scope_type', 'program')
+                            ->whereHas('programs', fn($p) => $p->where('programs.id', $student->program_id));
+                    });
+
+                    // 3) FACULTY -> only if student's faculty is attached to position
+                    $w->orWhere(function ($q2) use ($student) {
+                        $q2->where('scope_type', 'faculty')
+                            ->whereHas('faculties', fn($f) => $f->where('faculties.id', $student->faculty_id));
+                    });
                 })
+                // priority: global -> program -> faculty
                 ->orderByRaw("FIELD(scope_type, 'global', 'program', 'faculty')")
                 ->orderBy('id')
                 ->with([
                     'definition',
+                    // IMPORTANT: do NOT filter by student's scope here
+                    // because GLOBAL position should show ALL candidates for that position
                     'candidates' => function ($c) {
-                        $c->where('is_approved', true)
-                            ->whereHas('student', fn ($s) => $s->where('status', 'Active'))
-                            ->with([
-                                'student.faculty',
-                                'student.program',
-                                'vice.student.faculty',
-                                'vice.student.program',
-                            ]);
+                        $c->with([
+                            'student.faculty',
+                            'student.program',
+                            'vice.student.faculty',
+                            'vice.student.program',
+                        ])
+                            ->whereHas('student', fn($s) => $s->where('status', 'Active'));
                     },
+
                 ]);
         }]);
 
+        /**
+         * Now filter candidates PER POSITION in PHP:
+         * - global: show all candidates (no faculty/program filtering)
+         * - faculty: only candidates with faculty_id == student's faculty_id
+         * - program: only candidates with program_id == student's program_id
+         */
         $elections->each(function ($election) use ($student) {
             $election->positions->each(function ($position) use ($student) {
+
                 $filtered = $position->candidates->filter(function ($cand) use ($position, $student) {
                     return match ($position->scope_type) {
                         'global'  => true,
@@ -88,117 +100,101 @@ class ElectionVotingController extends Controller
 
                 $position->setRelation('candidates', $filtered);
             });
+
+            // remove positions with zero candidates
+            $election->setRelation(
+                'positions',
+                $election->positions
+                    ->filter(fn($position) => $position->candidates->isNotEmpty())
+                    ->values()
+            );
         });
 
+        // remove elections with no remaining votable positions
         $elections = $elections
-            ->filter(fn ($e) => $e->positions->isNotEmpty())
+            ->filter(fn($e) => $e->positions->isNotEmpty())
             ->values();
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Available elections retrieved successfully.',
-            'data' => [
-                'elections' => $elections,
-            ],
-        ]);
+        return view('vote', compact('elections'));
     }
 
     public function store(Request $request)
     {
-        $student = $request->user();
+        $student = auth('stuofficer')->user();
 
         $validated = $request->validate([
             'election_position_id' => ['required', 'exists:election_positions,id'],
             'candidate_id'         => ['required', 'exists:election_candidates,id'],
-            'form4_index'          => ['nullable', 'string'],
+            'form4_index'          => ['required', 'string'],
         ]);
 
-        // TODO: re-enable form4_index verification once data is confirmed clean
-        // if (empty($validated['form4_index'])) {
-        //     return response()->json([
-        //         'status'  => 'error',
-        //         'message' => 'Your Form Four Index number is required to vote. Please update your app and try again.',
-        //     ], 422);
-        // }
-        // if (!$student->form4_index || !hash_equals((string) $student->form4_index, (string) $validated['form4_index'])) {
-        //     return response()->json([
-        //         'status'  => 'error',
-        //         'message' => 'Invalid Form Four Index number. Please check and try again.',
-        //     ], 403);
-        // }
+        // Verify Form Four Index before voting
+        $inputForm4Index = strtolower(trim($validated['form4_index']));
+        $studentForm4Index = strtolower(trim((string) $student->form4_index));
 
-        return DB::transaction(function () use ($validated, $student) {
-            $position = ElectionPosition::query()
-                ->with(['election', 'faculties', 'programs'])
-                ->where('id', $validated['election_position_id'])
-                ->where('is_enabled', true)
-                ->lockForUpdate()
-                ->firstOrFail();
+        if (!$studentForm4Index || $inputForm4Index !== $studentForm4Index) {
+            return back()
+                ->withErrors(['form4_index' => 'Invalid Form Four Index number or Your using old version of App. Vote was not submitted try to update in setting .'])
+                ->withInput();
+        }
 
-            $election = $position->election;
+        $position = ElectionPosition::query()
+            ->with(['election', 'faculties', 'programs'])
+            ->where('id', $validated['election_position_id'])
+            ->where('is_enabled', true)
+            ->firstOrFail();
 
-            if (!$election || $election->status !== 'open') {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Election is not open.',
-                ], 403);
-            }
+        $election = $position->election;
 
-            if (method_exists($election, 'isStillOpen') && !$election->isStillOpen()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Voting time is closed.',
-                ], 403);
-            }
+        abort_if(!$election || $election->status !== 'open', 403, 'Election is not open.');
 
-            $candidate = $position->candidates()
-                ->where('id', $validated['candidate_id'])
-                ->firstOrFail();
+        if (method_exists($election, 'isStillOpen')) {
+            abort_if(!$election->isStillOpen(), 403, 'Voting time is closed.');
+        }
 
-            if (!$candidate->is_approved) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Candidate is pending approval.',
-                ], 403);
-            }
+        $candidate = $position->candidates()
+            ->where('id', $validated['candidate_id'])
+            ->firstOrFail();
 
-            $eligible = $position->isStudentEligible($student);
+        abort_if(!$candidate->is_approved, 403, 'Candidate is pending approval.');
 
-            if (!$eligible) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'You are not eligible to vote for this position.',
-                ], 403);
-            }
+        $eligible = match ($position->scope_type) {
+            'global' => (
+                !$position->programs()->exists() &&
+                !$position->faculties()->exists()
+            ) || (
+                $student->program_id &&
+                $position->programs()->where('programs.id', $student->program_id)->exists()
+            ) || (
+                $student->faculty_id &&
+                $position->faculties()->where('faculties.id', $student->faculty_id)->exists()
+            ),
+            'faculty' => $student->faculty_id
+                && $position->faculties()->where('faculties.id', $student->faculty_id)->exists(),
+            'program' => $student->program_id
+                && $position->programs()->where('programs.id', $student->program_id)->exists(),
+            default => false,
+        };
 
-            if ($position->scope_type === 'faculty' &&
-                (int) $candidate->faculty_id !== (int) $student->faculty_id) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Candidate not in your faculty scope.',
-                ], 403);
-            }
+        abort_if(!$eligible, 403, 'You are not eligible to vote for this position.');
 
-            if ($position->scope_type === 'program' &&
-                (int) $candidate->program_id !== (int) $student->program_id) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Candidate not in your program scope.',
-                ], 403);
-            }
+        if ($position->scope_type === 'faculty') {
+            abort_if((int) $candidate->faculty_id !== (int) $student->faculty_id, 403, 'Candidate not in your faculty scope.');
+        }
 
+        if ($position->scope_type === 'program') {
+            abort_if((int) $candidate->program_id !== (int) $student->program_id, 403, 'Candidate not in your program scope.');
+        }
+
+        return DB::transaction(function () use ($election, $position, $candidate, $student) {
             $already = ElectionVote::query()
                 ->where('election_id', $election->id)
                 ->where('election_position_id', $position->id)
                 ->where('student_id', $student->id)
+                ->lockForUpdate()
                 ->exists();
 
-            if ($already) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'You already voted for this position.',
-                ], 422);
-            }
+            abort_if($already, 422, 'You already voted for this position.');
 
             $hmac = hash_hmac('sha256', implode('|', [
                 $election->id,
@@ -207,7 +203,7 @@ class ElectionVotingController extends Controller
                 $student->id,
             ]), config('vote.hmac_secret'));
 
-            $vote = ElectionVote::create([
+            ElectionVote::create([
                 'election_id'          => $election->id,
                 'election_position_id' => $position->id,
                 'candidate_id'         => $candidate->id,
@@ -215,130 +211,7 @@ class ElectionVotingController extends Controller
                 'vote_hmac'            => $hmac,
             ]);
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Vote submitted successfully.',
-                'data' => [
-                    'vote' => $vote,
-                ],
-            ], 201);
+            return back()->with('success', 'Vote submitted successfully.');
         });
-    }
-
-    public function myVotes(Request $request)
-    {
-        $student = $request->user();
-
-        $votedPositionIds = ElectionVote::query()
-            ->where('student_id', $student->id)
-            ->pluck('election_position_id')
-            ->toArray();
-
-        return response()->json([
-            'status' => 'success',
-            'data' => [
-                'voted_position_ids' => $votedPositionIds,
-            ],
-        ]);
-    }
-
-    public function results(Request $request, Election $election)
-    {
-        if ($election->status !== 'published') {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Results are not published yet.',
-            ], 403);
-        }
-
-        $publish = ElectionResultPublish::where('election_id', $election->id)
-            ->orderByDesc('version')
-            ->first();
-
-        if (!$publish) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'No published results found.',
-            ], 404);
-        }
-
-        $scopes = ElectionResultScope::where('result_publish_id', $publish->id)
-            ->with([
-                'positions' => function ($q) {
-                    $q->orderByRaw("FIELD(result_scope_id, result_scope_id)")
-                        ->with([
-                            'candidates' => fn ($c) => $c->orderByDesc('vote_count'),
-                        ]);
-                },
-                'faculty:id,name',
-                'program:id,name',
-            ])
-            ->get();
-
-        $formatted = $scopes->map(function ($scope) {
-            return [
-                'scope_type'         => $scope->scope_type,
-                'faculty'            => $scope->faculty ? ['id' => $scope->faculty->id, 'name' => $scope->faculty->name] : null,
-                'program'            => $scope->program ? ['id' => $scope->program->id, 'name' => $scope->program->name] : null,
-                'eligible_students'  => $scope->eligible_students,
-                'voters'             => $scope->voters,
-                'turnout_percent'    => (float) $scope->turnout_percent,
-                'positions'          => $scope->positions->map(function ($pos) {
-                    return [
-                        'position_name'     => $pos->position_name,
-                        'eligible_students' => $pos->eligible_students,
-                        'voters'            => $pos->voters,
-                        'turnout_percent'   => (float) $pos->turnout_percent,
-                        'candidates'        => $pos->candidates->map(function ($cand) {
-                            return [
-                                'candidate_name'   => $cand->candidate_name,
-                                'candidate_reg_no' => $cand->candidate_reg_no,
-                                'vote_count'       => $cand->vote_count,
-                                'vote_percent'     => (float) $cand->vote_percent,
-                                'rank'             => $cand->rank,
-                                'is_winner'        => (bool) $cand->is_winner,
-                            ];
-                        })->values(),
-                    ];
-                })->values(),
-            ];
-        });
-
-        return response()->json([
-            'status' => 'success',
-            'data'   => [
-                'election'     => [
-                    'id'     => $election->id,
-                    'title'  => $election->title,
-                    'status' => $election->status,
-                ],
-                'published_at' => $publish->published_at,
-                'version'      => $publish->version,
-                'notes'        => $publish->notes,
-                'scopes'       => $formatted,
-            ],
-        ]);
-    }
-
-    public function elections(Request $request)
-    {
-        $status = $request->query('status');
-
-        $query = Election::query()->orderByDesc('id');
-
-        if ($status) {
-            $query->where('status', $status);
-        } else {
-            $query->whereIn('status', ['open', 'closed', 'published']);
-        }
-
-        $elections = $query->get(['id', 'title', 'start_date', 'end_date', 'open_time', 'close_time', 'status']);
-
-        return response()->json([
-            'status' => 'success',
-            'data'   => [
-                'elections' => $elections,
-            ],
-        ]);
     }
 }
