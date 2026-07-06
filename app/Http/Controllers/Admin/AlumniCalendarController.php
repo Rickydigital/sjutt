@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Models\AlumniCalendar;
 use App\Models\AlumniEvent;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
 
 class AlumniCalendarController extends Controller
 {

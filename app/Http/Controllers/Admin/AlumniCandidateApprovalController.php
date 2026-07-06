@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
+use Illuminate\Routing\Controller;
 use App\Models\AlumniElection;
 use App\Models\AlumniElectionCandidate;
 use Illuminate\Http\Request;

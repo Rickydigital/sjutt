@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Imports\AlumniImport;
+use Illuminate\Routing\Controller;
 use App\Models\Alumni;
 use App\Models\Country;
 use App\Models\EmploymentSector;

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
+use Illuminate\Routing\Controller;
 use App\Models\AlumniPost;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
