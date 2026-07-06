@@ -7,6 +7,7 @@ use App\Models\AlumniElection;
 use App\Models\AlumniElectionCandidate;
 use App\Models\AlumniElectionPosition;
 use App\Models\AlumniElectionVote;
+use App\Services\ImageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -38,8 +39,28 @@ class AlumniElectionController extends Controller
     {
         $alumni = $request->user();
 
+        if (!$alumni->isProfileComplete()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Your profile must be complete before you can apply as a candidate.',
+                'requires_profile_update' => true,
+            ], 403);
+        }
+
         if (!$alumniElection->isApplicationOpen()) {
             return response()->json(['status' => 'error', 'message' => 'Applications are not open.'], 403);
+        }
+
+        $existingApplication = AlumniElectionCandidate::where('alumni_election_id', $alumniElection->id)
+            ->where('alumni_id', $alumni->id)
+            ->whereIn('application_status', ['pending', 'approved'])
+            ->first();
+
+        if ($existingApplication) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'You have already submitted an application for this election.',
+            ], 422);
         }
 
         $data = $request->validate([
@@ -78,7 +99,12 @@ class AlumniElectionController extends Controller
 
         $photoPath = null;
         if ($request->hasFile('photo')) {
-            $photoPath = $request->file('photo')->store('alumni-election-candidates', 'public');
+            $photoPath = ImageService::storeAsWebP(
+                $request->file('photo'),
+                'alumni/election-candidates',
+                quality: 85,
+                maxWidth: 600
+            );
         }
 
         $candidate = DB::transaction(function () use ($data, $alumniElection, $alumni, $photoPath) {
@@ -141,6 +167,14 @@ class AlumniElectionController extends Controller
     public function vote(Request $request, AlumniElection $alumniElection)
     {
         $alumni = $request->user();
+
+        if (!$alumni->isProfileComplete()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Your profile must be complete before you can vote.',
+                'requires_profile_update' => true,
+            ], 403);
+        }
 
         if (!$alumniElection->isVotingOpen()) {
             return response()->json(['status' => 'error', 'message' => 'Voting is not open.'], 403);

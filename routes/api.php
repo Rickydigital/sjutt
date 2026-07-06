@@ -19,6 +19,8 @@ use App\Http\Controllers\FirebaseNotificationController;
 use App\Http\Controllers\LecturerCourseController;
 use App\Http\Controllers\Mobile\Alumni\AlumniAuthController;
 use App\Http\Controllers\Mobile\Alumni\AlumniContentController;
+use App\Http\Controllers\Mobile\Alumni\AlumniElectionController as MobileAlumniElectionController;
+use App\Http\Controllers\Mobile\Alumni\AlumniLookupController;
 use App\Http\Controllers\Mobile\AppVersionController;
 use App\Http\Controllers\Mobile\StaffAuthController;
 use App\Http\Controllers\Mobile\ElectionVotingController;
@@ -44,6 +46,9 @@ Route::post('/staff/verify-reset-password-otp', [StaffAuthController::class, 've
 
 //Alumin
 Route::prefix('alumni')->group(function (): void {
+    // Lookup data (public — used for registration and profile completion dropdowns)
+    Route::get('/lookups', [AlumniLookupController::class, 'index']);
+
     // Public auth flow
     Route::post('/check-email', [AlumniAuthController::class, 'checkEmail']);
     Route::post('/register', [AlumniAuthController::class, 'register']);
@@ -67,13 +72,13 @@ Route::prefix('alumni')->group(function (): void {
     });
 });
 Route::middleware('auth:sanctum')->prefix('alumni/elections')->name('api.alumni.elections.')->group(function () {
-    Route::get('/', [AlumniElectionController::class, 'elections'])->name('index');
-    Route::get('/{alumniElection}', [AlumniElectionController::class, 'show'])->name('show');
-    Route::post('/{alumniElection}/apply', [AlumniElectionController::class, 'apply'])->name('apply');
-    Route::get('/me/applications', [AlumniElectionController::class, 'myApplications'])->name('my-applications');
-    Route::get('/{alumniElection}/voting', [AlumniElectionController::class, 'voting'])->name('voting');
-    Route::post('/{alumniElection}/vote', [AlumniElectionController::class, 'vote'])->name('vote');
-    Route::get('/{alumniElection}/results', [AlumniElectionController::class, 'results'])->name('results');
+    Route::get('/', [MobileAlumniElectionController::class, 'elections'])->name('index');
+    Route::get('/{alumniElection}', [MobileAlumniElectionController::class, 'show'])->name('show');
+    Route::post('/{alumniElection}/apply', [MobileAlumniElectionController::class, 'apply'])->name('apply');
+    Route::get('/me/applications', [MobileAlumniElectionController::class, 'myApplications'])->name('my-applications');
+    Route::get('/{alumniElection}/voting', [MobileAlumniElectionController::class, 'voting'])->name('voting');
+    Route::post('/{alumniElection}/vote', [MobileAlumniElectionController::class, 'vote'])->name('vote');
+    Route::get('/{alumniElection}/results', [MobileAlumniElectionController::class, 'results'])->name('results');
 });
 
 Route::prefix('alumni')->name('api.alumni.')->group(function () {

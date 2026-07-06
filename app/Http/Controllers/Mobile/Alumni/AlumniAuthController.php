@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Mobile\Alumni;
 
 use App\Http\Controllers\Controller;
 use App\Models\Alumni;
+use App\Services\ImageService;
 use App\Models\AlumniEducation;
 use App\Models\AlumniEmployment;
 use App\Models\Country;
@@ -646,7 +647,12 @@ class AlumniAuthController extends Controller
             return null;
         }
 
-        return $request->file('profile_photo')->store('alumni/profile_photos', 'public');
+        return ImageService::storeAsWebP(
+            $request->file('profile_photo'),
+            'alumni/profile_photos',
+            quality: 85,
+            maxWidth: 800
+        );
     }
 
     private function syncEducations(Alumni $alumni, Request $request): void

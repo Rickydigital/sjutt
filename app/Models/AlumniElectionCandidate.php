@@ -15,7 +15,14 @@ class AlumniElectionCandidate extends Model
         'rejection_reason','approved_by','approved_at'
     ];
 
+    protected $appends = ['photo_url'];
+
     protected $casts = ['date_of_birth' => 'date','approved_at' => 'datetime'];
+
+    public function getPhotoUrlAttribute(): ?string
+    {
+        return $this->photo ? asset('storage/' . $this->photo) : null;
+    }
 
     public function election(): BelongsTo { return $this->belongsTo(AlumniElection::class, 'alumni_election_id'); }
     public function position(): BelongsTo { return $this->belongsTo(AlumniElectionPosition::class, 'alumni_election_position_id'); }

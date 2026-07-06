@@ -41,6 +41,22 @@ class Alumni extends Authenticatable
         return trim($this->f_name . ' ' . $this->m_name . ' ' . $this->l_name);
     }
 
+    public function isProfileComplete(): bool
+    {
+        $this->loadMissing(['educations', 'employments']);
+
+        $requiredFields = ['f_name', 'l_name', 'email', 'phone', 'date_of_birth', 'gender', 'settlement_country_id', 'settlement_region', 'settlement_city'];
+
+        foreach ($requiredFields as $field) {
+            if (blank($this->{$field})) return false;
+        }
+
+        if ($this->educations->isEmpty()) return false;
+        if ($this->employments->isEmpty()) return false;
+
+        return true;
+    }
+
     public function routeNotificationForMail(): string
     {
         return $this->email;
