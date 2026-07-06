@@ -66,6 +66,61 @@
                 </li>
                 @endcanany
 
+                @canany([
+    'view alumni',
+    'manage alumni',
+    'view alumni events',
+    'view alumni calendar',
+    'view alumni posts'
+])
+<li class="nav-item">
+    <a data-bs-toggle="collapse" href="#alumniMenu">
+        <i class="bi bi-mortarboard-fill"></i>
+        <p>Alumni</p>
+        <span class="caret"></span>
+    </a>
+
+    <div class="collapse" id="alumniMenu">
+        <ul class="nav nav-collapse">
+
+            @canany(['view alumni','manage alumni'])
+            <li>
+                <a href="{{ route('alumni.index') }}">
+                    <span class="sub-item">Alumni Records</span>
+                </a>
+            </li>
+            @endcanany
+
+            @can('view alumni events')
+            <li>
+                <a href="{{ route('alumni.events.index') }}">
+                    <span class="sub-item">Alumni Events</span>
+                </a>
+            </li>
+            @endcan
+
+            @can('view alumni calendar')
+            <li>
+                <a href="{{ route('alumni.calendar.index') }}">
+                    <span class="sub-item">Alumni Calendar</span>
+                </a>
+            </li>
+            @endcan
+
+            @can('view alumni posts')
+            <li>
+                <a href="{{ route('alumni.posts.index') }}">
+                    <span class="sub-item">Alumni Posts</span>
+                </a>
+            </li>
+            @endcan
+
+        </ul>
+    </div>
+</li>
+@endcanany
+
+
                 {{-- Structures--}}
                 @canany(['view buildings', 'view venues'])
                 <li class="nav-item">
@@ -112,6 +167,58 @@
                     </div>
                 </li>
                 @endcanany
+
+                @canany([
+    'view alumni elections',
+    'manage alumni elections',
+    'approve alumni candidates'
+])
+<li class="nav-item">
+    <a data-bs-toggle="collapse" href="#alumniElectionMenu">
+        <i class="bi bi-award-fill"></i>
+        <p>Alumni Elections</p>
+        <span class="caret"></span>
+    </a>
+
+    <div class="collapse" id="alumniElectionMenu">
+        <ul class="nav nav-collapse">
+
+            @can('view alumni elections')
+            <li>
+                <a href="{{ route('alumni-elections.index') }}">
+                    <span class="sub-item">Elections</span>
+                </a>
+            </li>
+            @endcan
+
+            @can('manage alumni elections')
+            <li>
+                <a href="{{ route('alumni-elections.index') }}">
+                    <span class="sub-item">Election Positions</span>
+                </a>
+            </li>
+            @endcan
+
+            @can('manage alumni elections')
+            <li>
+                <a href="{{ route('alumni-elections.index') }}">
+                    <span class="sub-item">Election Officers</span>
+                </a>
+            </li>
+            @endcan
+
+            @can('approve alumni candidates')
+            <li>
+                <a href="{{ route('alumni-elections.candidates.index', ['alumniElection' => request('alumniElection') ?? 1]) }}">
+                    <span class="sub-item">Candidate Applications</span>
+                </a>
+            </li>
+            @endcan
+
+        </ul>
+    </div>
+</li>
+@endcanany
 
                 @role('Admin|Dean Of Students')
 <li class="nav-item">

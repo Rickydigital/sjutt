@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AlumniElectionController;
 use App\Http\Controllers\Mobile\CourseController;
 use App\Http\Controllers\Mobile\VideoController;
 use Illuminate\Support\Facades\Route;
@@ -16,6 +17,8 @@ use App\Http\Controllers\Mobile\CalendarController;
 use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\FirebaseNotificationController;
 use App\Http\Controllers\LecturerCourseController;
+use App\Http\Controllers\Mobile\Alumni\AlumniAuthController;
+use App\Http\Controllers\Mobile\Alumni\AlumniContentController;
 use App\Http\Controllers\Mobile\AppVersionController;
 use App\Http\Controllers\Mobile\StaffAuthController;
 use App\Http\Controllers\Mobile\ElectionVotingController;
@@ -39,8 +42,50 @@ Route::post('/staff/login', [StaffAuthController::class, 'login']);
 Route::post('/staff/forget-password', [StaffAuthController::class, 'forgetPassword']);
 Route::post('/staff/verify-reset-password-otp', [StaffAuthController::class, 'verifyResetPasswordOtp']);
 
+//Alumin
+Route::prefix('alumni')->group(function (): void {
+    // Public auth flow
+    Route::post('/check-email', [AlumniAuthController::class, 'checkEmail']);
+    Route::post('/register', [AlumniAuthController::class, 'register']);
+    Route::post('/first-login', [AlumniAuthController::class, 'firstLogin']);
+    Route::post('/login', [AlumniAuthController::class, 'login']);
 
+    // Password reset flow
+    Route::post('/forgot-password', [AlumniAuthController::class, 'forgotPassword']);
+    Route::post('/verify-reset-password-otp', [AlumniAuthController::class, 'verifyResetPasswordOtp']);
 
+    // Requires reset token returned by verify-reset-password-otp
+    Route::middleware('auth:sanctum')->post('/reset-password', [AlumniAuthController::class, 'resetPassword']);
+
+    // Authenticated alumni routes
+    Route::middleware('auth:sanctum')->group(function (): void {
+        Route::get('/profile', [AlumniAuthController::class, 'profile']);
+        Route::post('/profile/update', [AlumniAuthController::class, 'updateProfile']);
+        Route::post('/change-password', [AlumniAuthController::class, 'changePassword']);
+        Route::post('/store-token', [AlumniAuthController::class, 'storeToken']);
+        Route::post('/logout', [AlumniAuthController::class, 'logout']);
+    });
+});
+Route::middleware('auth:sanctum')->prefix('alumni/elections')->name('api.alumni.elections.')->group(function () {
+    Route::get('/', [AlumniElectionController::class, 'elections'])->name('index');
+    Route::get('/{alumniElection}', [AlumniElectionController::class, 'show'])->name('show');
+    Route::post('/{alumniElection}/apply', [AlumniElectionController::class, 'apply'])->name('apply');
+    Route::get('/me/applications', [AlumniElectionController::class, 'myApplications'])->name('my-applications');
+    Route::get('/{alumniElection}/voting', [AlumniElectionController::class, 'voting'])->name('voting');
+    Route::post('/{alumniElection}/vote', [AlumniElectionController::class, 'vote'])->name('vote');
+    Route::get('/{alumniElection}/results', [AlumniElectionController::class, 'results'])->name('results');
+});
+
+Route::prefix('alumni')->name('api.alumni.')->group(function () {
+    Route::get('/events', [AlumniContentController::class, 'events']);
+    Route::get('/events/{event}', [AlumniContentController::class, 'eventShow']);
+    Route::get('/calendar', [AlumniContentController::class, 'calendars']);
+    Route::get('/posts', [AlumniContentController::class, 'posts']);
+    Route::get('/posts/{post}', [AlumniContentController::class, 'postShow']);
+
+    // Later, when alumni are allowed to share posts, keep this route protected.
+    Route::middleware('auth:sanctum')->post('/posts', [AlumniContentController::class, 'submitPost']);
+});
 
 
 Route::middleware('mobile-auth')->group(function (): void {

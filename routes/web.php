@@ -11,6 +11,11 @@ use App\Http\Controllers\ExaminationTimetableController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\GalleryController;
 use App\Http\Controllers\Admin\AboutController;
+use App\Http\Controllers\Admin\AlumniCalendarController;
+use App\Http\Controllers\Admin\AlumniCandidateApprovalController;
+use App\Http\Controllers\Admin\AlumniElectionController;
+use App\Http\Controllers\Admin\AlumniEventController;
+use App\Http\Controllers\Admin\AlumniPostController;
 use App\Http\Controllers\Admin\ElectionCandidateApprovalController;
 use App\Http\Controllers\Admin\FeeStructureController;
 use App\Http\Controllers\BuildingController;
@@ -121,6 +126,36 @@ Route::get('/', function () {
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('auth');
 
 Route::middleware(['web', 'auth'])->group(function () {
+
+    Route::get('/alumni', [AlumniController::class, 'index'])->name('alumni.index')->middleware(['permission:view alumni|manage alumni']);
+    Route::post('/alumni', [AlumniController::class, 'store'])->name('alumni.store')->middleware(['permission:manage alumni|create alumni']);
+    Route::post('/alumni/import', [AlumniController::class, 'import'])->name('alumni.import')->middleware(['permission:manage alumni|import alumni']);
+    Route::get('/alumni/{alumnus}', [AlumniController::class, 'show'])->name('alumni.show')->middleware(['permission:view alumni|manage alumni']);
+    Route::put('/alumni/{alumnus}', [AlumniController::class, 'update'])->name('alumni.update')->middleware(['permission:manage alumni|edit alumni']);
+    Route::patch('/alumni/{alumnus}/activate', [AlumniController::class, 'activate'])->name('alumni.activate')->middleware(['permission:manage alumni|activate alumni']);
+    Route::patch('/alumni/{alumnus}/deactivate', [AlumniController::class, 'deactivate'])->name('alumni.deactivate')->middleware(['permission:manage alumni|deactivate alumni']);
+    Route::patch('/alumni/{alumnus}/suspend', [AlumniController::class, 'suspend'])->name('alumni.suspend')->middleware(['permission:manage alumni|suspend alumni']);
+    Route::delete('/alumni/{alumnus}', [AlumniController::class, 'destroy'])->name('alumni.destroy')->middleware(['permission:manage alumni']);
+    Route::get('/alumni-elections', [AlumniElectionController::class, 'index'])->name('alumni-elections.index');
+    Route::post('/alumni-elections', [AlumniElectionController::class, 'store'])->name('alumni-elections.store');
+    Route::get('/alumni-elections/{alumniElection}', [AlumniElectionController::class, 'show'])->name('alumni-elections.show');
+    Route::put('/alumni-elections/{alumniElection}', [AlumniElectionController::class, 'update'])->name('alumni-elections.update');
+    Route::delete('/alumni-elections/{alumniElection}', [AlumniElectionController::class, 'destroy'])->name('alumni-elections.destroy');
+
+    Route::post('/alumni-elections/{alumniElection}/positions', [AlumniElectionController::class, 'storePosition'])->name('alumni-elections.positions.store');
+    Route::put('/alumni-election-positions/{position}', [AlumniElectionController::class, 'updatePosition'])->name('alumni-elections.positions.update');
+    Route::delete('/alumni-election-positions/{position}', [AlumniElectionController::class, 'deletePosition'])->name('alumni-elections.positions.destroy');
+
+    Route::post('/alumni-elections/{alumniElection}/officers', [AlumniElectionController::class, 'assignOfficer'])->name('alumni-elections.officers.assign');
+    Route::patch('/alumni-election-officers/{officer}/remove', [AlumniElectionController::class, 'removeOfficer'])->name('alumni-elections.officers.remove');
+
+    Route::patch('/alumni-elections/{alumniElection}/status', [AlumniElectionController::class, 'changeStatus'])->name('alumni-elections.status');
+    Route::get('/alumni-elections/{alumniElection}/results', [AlumniElectionController::class, 'results'])->name('alumni-elections.results');
+
+    Route::get('/alumni-elections/{alumniElection}/candidates', [AlumniCandidateApprovalController::class, 'index'])->name('alumni-elections.candidates.index');
+    Route::patch('/alumni-election-candidates/{candidate}/approve', [AlumniCandidateApprovalController::class, 'approve'])->name('alumni-elections.candidates.approve');
+    Route::patch('/alumni-election-candidates/{candidate}/reject', [AlumniCandidateApprovalController::class, 'reject'])->name('alumni-elections.candidates.reject');
+
     // Profile
     //Route::get('/timetables/available-venues', [TimetableController::class, 'getAvailableVenues'])->name('timetables.available-venues');
     Route::get('/timetables/available-venues', [TimetableController::class, 'availableVenues'])
@@ -450,6 +485,25 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/enrolled-courses/{enrolled_course}/edit', [EnrolledCourseController::class, 'edit'])->name('enrolled-courses.edit')->middleware(['permission:view enrolled courses']);
     Route::put('/enrolled-courses/{enrolled_course}', [EnrolledCourseController::class, 'update'])->name('enrolled-courses.update')->middleware(['permission:edit enrolled courses']);
     Route::delete('/enrolled-courses/{enrolled_course}', [EnrolledCourseController::class, 'destroy'])->name('enrolled-courses.destroy')->middleware(['permission:delete enrolled courses']);
+});
+
+Route::middleware(['web', 'auth'])->prefix('alumni')->name('alumni.')->group(function () {
+    Route::get('/events', [AlumniEventController::class, 'index'])->name('events.index');
+    Route::post('/events', [AlumniEventController::class, 'store'])->name('events.store');
+    Route::put('/events/{alumniEvent}', [AlumniEventController::class, 'update'])->name('events.update');
+    Route::delete('/events/{alumniEvent}', [AlumniEventController::class, 'destroy'])->name('events.destroy');
+
+    Route::get('/calendar', [AlumniCalendarController::class, 'index'])->name('calendar.index');
+    Route::post('/calendar', [AlumniCalendarController::class, 'store'])->name('calendar.store');
+    Route::put('/calendar/{alumniCalendar}', [AlumniCalendarController::class, 'update'])->name('calendar.update');
+    Route::delete('/calendar/{alumniCalendar}', [AlumniCalendarController::class, 'destroy'])->name('calendar.destroy');
+
+    Route::get('/posts', [AlumniPostController::class, 'index'])->name('posts.index');
+    Route::post('/posts', [AlumniPostController::class, 'store'])->name('posts.store');
+    Route::put('/posts/{alumniPost}', [AlumniPostController::class, 'update'])->name('posts.update');
+    Route::patch('/posts/{alumniPost}/approve', [AlumniPostController::class, 'approve'])->name('posts.approve');
+    Route::patch('/posts/{alumniPost}/reject', [AlumniPostController::class, 'reject'])->name('posts.reject');
+    Route::delete('/posts/{alumniPost}', [AlumniPostController::class, 'destroy'])->name('posts.destroy');
 });
 
 
