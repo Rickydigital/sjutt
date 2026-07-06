@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class AlumniEducation extends Model
 {
+    protected $table = 'alumni_educations';
     protected $fillable = ['alumni_id', 'faculty_id', 'program_id', 'graduation_year_id', 'degree_program_major'];
 
     public function alumni(){ return $this->belongsTo(Alumni::class); }

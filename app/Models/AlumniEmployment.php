@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class AlumniEmployment extends Model
 {
+    protected $table = 'alumni_employments';
     protected $fillable = ['alumni_id', 'employment_state_id', 'employment_sector_id', 'employment_year_id', 'organization', 'is_current'];
     protected $casts = ['is_current' => 'boolean'];
 
