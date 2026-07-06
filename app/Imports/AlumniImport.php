@@ -50,7 +50,7 @@ class AlumniImport implements ToCollection, WithHeadingRow
                     'date_of_birth' => $this->dateValue($row['date_of_birth'] ?? $row['dob'] ?? null),
                     'gender' => $this->gender($row['gender'] ?? null),
                     'phone' => $row['phone'] ?? $row['mobile_phone_number'] ?? null,
-                    'nida_number' => $row['nida_number'] ?? null,
+                    'nida_number' => $this->nullableValue($row['nida_number'] ?? null),
                     'settlement_country_id' => $country?->id,
                     'settlement_region' => $row['region'] ?? $row['province_county_region'] ?? null,
                     'settlement_city' => $row['city'] ?? $row['town_village'] ?? null,
@@ -87,6 +87,28 @@ class AlumniImport implements ToCollection, WithHeadingRow
         }
     }
 
+    private function nullableValue($value): ?string
+{
+    $value = trim((string) $value);
+
+    if ($value === '') {
+        return null;
+    }
+
+    return in_array(strtolower($value), [
+        'nil',
+        'nill',
+        'null',
+        'none',
+        'n/a',
+        'na',
+        '-',
+        '_',
+        'no',
+        'not available',
+        'not applicable',
+    ], true) ? null : $value;
+}
     private function country($value): ?Country
     {
         $value = trim((string) $value);
