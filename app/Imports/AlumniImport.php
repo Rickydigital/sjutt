@@ -21,16 +21,32 @@ use Illuminate\Support\Collection;
 
 class AlumniImport implements ToCollection, WithHeadingRow
 {
+    public int $rowsRead = 0;
+    public int $created = 0;
+    public int $updated = 0;
+    public int $skipped = 0;
+    public int $emailsSent = 0;
+
+    public function __construct(
+        private $command = null,
+        private bool $sendMail = true
+    ) {}
+
     public function collection(Collection $rows): void
     {
         foreach ($rows as $row) {
+            $this->rowsRead++;
+            $this->command?->line("Processing row {$this->rowsRead}...");
+
             $email = trim((string) ($row['email'] ?? $row['email_address'] ?? ''));
 
             if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $this->skipped++;
+                $this->command?->warn("Skipped row {$this->rowsRead}: invalid email");
                 continue;
             }
 
-            $temporaryPassword = Str::password(10, letters: true, numbers: true, symbols: false);
+            $temporaryPassword = Str::random(10);
 
             $country = $this->country($row['country'] ?? $row['settlement_country'] ?? null);
             $employmentState = $this->employmentState($row['employment_state'] ?? $row['state_of_employment'] ?? null);
@@ -43,17 +59,17 @@ class AlumniImport implements ToCollection, WithHeadingRow
             $alumnus = Alumni::updateOrCreate(
                 ['email' => $email],
                 [
-                    'f_name' => $row['f_name'] ?? $row['first_name'] ?? $row['firstname'] ?? 'Unknown',
-                    'm_name' => $row['m_name'] ?? $row['middle_name'] ?? null,
-                    'l_name' => $row['l_name'] ?? $row['last_name'] ?? $row['lastname'] ?? 'Unknown',
+                    'f_name' => $this->nullableValue($row['f_name'] ?? $row['first_name'] ?? $row['firstname'] ?? null) ?? 'Unknown',
+                    'm_name' => $this->nullableValue($row['m_name'] ?? $row['middle_name'] ?? null),
+                    'l_name' => $this->nullableValue($row['l_name'] ?? $row['last_name'] ?? $row['lastname'] ?? null) ?? 'Unknown',
                     'password' => Hash::make($temporaryPassword),
                     'date_of_birth' => $this->dateValue($row['date_of_birth'] ?? $row['dob'] ?? null),
                     'gender' => $this->gender($row['gender'] ?? null),
-                    'phone' => $row['phone'] ?? $row['mobile_phone_number'] ?? null,
+                    'phone' => $this->nullableValue($row['phone'] ?? $row['mobile_phone_number'] ?? null),
                     'nida_number' => $this->nullableValue($row['nida_number'] ?? null),
                     'settlement_country_id' => $country?->id,
-                    'settlement_region' => $row['region'] ?? $row['province_county_region'] ?? null,
-                    'settlement_city' => $row['city'] ?? $row['town_village'] ?? null,
+                    'settlement_region' => $this->nullableValue($row['region'] ?? $row['province_county_region'] ?? null),
+                    'settlement_city' => $this->nullableValue($row['city'] ?? $row['town_village'] ?? null),
                     'interested_meetings' => $this->yesNo($row['interested_meetings'] ?? null),
                     'interested_social_platform' => $this->yesNo($row['interested_social_platform'] ?? null),
                     'status' => 'pending',
@@ -62,80 +78,91 @@ class AlumniImport implements ToCollection, WithHeadingRow
                 ]
             );
 
+            if ($alumnus->wasRecentlyCreated) {
+                $this->created++;
+                $this->command?->info("Created: {$alumnus->email}");
+            } else {
+                $this->updated++;
+                $this->command?->line("Updated: {$alumnus->email}");
+            }
+
             AlumniEducation::updateOrCreate(
-                ['alumni_id' => $alumnus->id, 'graduation_year_id' => $graduationYear?->id],
+                [
+                    'alumni_id' => $alumnus->id,
+                    'graduation_year_id' => $graduationYear?->id,
+                ],
                 [
                     'faculty_id' => $faculty?->id,
                     'program_id' => $program?->id,
-                    'degree_program_major' => $row['degree_program_major'] ?? $row['major'] ?? null,
+                    'degree_program_major' => $this->nullableValue($row['degree_program_major'] ?? $row['major'] ?? null),
                 ]
             );
 
             AlumniEmployment::updateOrCreate(
-                ['alumni_id' => $alumnus->id, 'is_current' => true],
+                [
+                    'alumni_id' => $alumnus->id,
+                    'is_current' => true,
+                ],
                 [
                     'employment_state_id' => $employmentState?->id,
                     'employment_sector_id' => $employmentSector?->id,
                     'employment_year_id' => $employmentYear?->id,
-                    'organization' => $row['organization'] ?? $row['work_organization'] ?? 'NIL',
+                    'organization' => $this->nullableValue($row['organization'] ?? $row['work_organization'] ?? null) ?? 'NIL',
                 ]
             );
 
-            if ($alumnus->wasRecentlyCreated) {
+            if ($this->sendMail && $alumnus->wasRecentlyCreated) {
+                $this->command?->line("Sending email to {$alumnus->email}...");
+
                 $alumnus->notify(new AlumniTemporaryPasswordNotification($temporaryPassword));
+
+                $this->emailsSent++;
+                $this->command?->info("Email sent to {$alumnus->email}");
             }
         }
     }
 
     private function nullableValue($value): ?string
-{
-    $value = trim((string) $value);
-
-    if ($value === '') {
-        return null;
-    }
-
-    return in_array(strtolower($value), [
-        'nil',
-        'nill',
-        'null',
-        'none',
-        'n/a',
-        'na',
-        '-',
-        '_',
-        'no',
-        'not available',
-        'not applicable',
-    ], true) ? null : $value;
-}
-    private function country($value): ?Country
     {
         $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        return in_array(strtolower($value), [
+            'nil', 'nill', 'null', 'none', 'n/a', 'na', '-', '_', 'no',
+            'not available', 'not applicable'
+        ], true) ? null : $value;
+    }
+
+    private function country($value): ?Country
+    {
+        $value = $this->nullableValue($value);
         return $value ? Country::firstOrCreate(['name' => $value], ['code' => null]) : null;
     }
 
     private function employmentState($value): ?EmploymentState
     {
-        $value = trim((string) $value);
+        $value = $this->nullableValue($value);
         return $value ? EmploymentState::firstOrCreate(['name' => $value]) : null;
     }
 
     private function employmentSector($value): ?EmploymentSector
     {
-        $value = trim((string) $value);
+        $value = $this->nullableValue($value);
         return $value ? EmploymentSector::firstOrCreate(['name' => $value]) : null;
     }
 
     private function faculty($value): ?Faculty
     {
-        $value = trim((string) $value);
+        $value = $this->nullableValue($value);
         return $value ? Faculty::where('name', 'like', $value)->first() : null;
     }
 
     private function program($value): ?Program
     {
-        $value = trim((string) $value);
+        $value = $this->nullableValue($value);
         return $value ? Program::where('name', 'like', $value)->first() : null;
     }
 
@@ -153,6 +180,7 @@ class AlumniImport implements ToCollection, WithHeadingRow
     private function gender($value): ?string
     {
         $value = strtolower(trim((string) $value));
+
         return match ($value) {
             'male', 'm', 'man' => 'male',
             'female', 'f', 'woman' => 'female',
@@ -164,6 +192,7 @@ class AlumniImport implements ToCollection, WithHeadingRow
     private function dateValue($value): ?string
     {
         if (!$value) return null;
+
         try {
             return \Carbon\Carbon::parse($value)->format('Y-m-d');
         } catch (\Throwable) {
