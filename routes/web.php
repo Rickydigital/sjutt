@@ -125,6 +125,25 @@ Route::get('/', function () {
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('auth');
 
+Route::middleware(['web', 'auth'])->prefix('alumni')->name('alumni.')->group(function () {
+    Route::get('/events', [AlumniEventController::class, 'index'])->name('events.index');
+    Route::post('/events', [AlumniEventController::class, 'store'])->name('events.store');
+    Route::put('/events/{alumniEvent}', [AlumniEventController::class, 'update'])->name('events.update');
+    Route::delete('/events/{alumniEvent}', [AlumniEventController::class, 'destroy'])->name('events.destroy');
+
+    Route::get('/calendar', [AlumniCalendarController::class, 'index'])->name('calendar.index');
+    Route::post('/calendar', [AlumniCalendarController::class, 'store'])->name('calendar.store');
+    Route::put('/calendar/{alumniCalendar}', [AlumniCalendarController::class, 'update'])->name('calendar.update');
+    Route::delete('/calendar/{alumniCalendar}', [AlumniCalendarController::class, 'destroy'])->name('calendar.destroy');
+
+    Route::get('/posts', [AlumniPostController::class, 'index'])->name('posts.index');
+    Route::post('/posts', [AlumniPostController::class, 'store'])->name('posts.store');
+    Route::put('/posts/{alumniPost}', [AlumniPostController::class, 'update'])->name('posts.update');
+    Route::patch('/posts/{alumniPost}/approve', [AlumniPostController::class, 'approve'])->name('posts.approve');
+    Route::patch('/posts/{alumniPost}/reject', [AlumniPostController::class, 'reject'])->name('posts.reject');
+    Route::delete('/posts/{alumniPost}', [AlumniPostController::class, 'destroy'])->name('posts.destroy');
+});
+
 Route::middleware(['web', 'auth'])->group(function () {
 
     Route::get('/alumni', [AlumniController::class, 'index'])->name('alumni.index')->middleware(['permission:view alumni|manage alumni']);
@@ -487,24 +506,7 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::delete('/enrolled-courses/{enrolled_course}', [EnrolledCourseController::class, 'destroy'])->name('enrolled-courses.destroy')->middleware(['permission:delete enrolled courses']);
 });
 
-Route::middleware(['web', 'auth'])->prefix('alumni')->name('alumni.')->group(function () {
-    Route::get('/events', [AlumniEventController::class, 'index'])->name('events.index');
-    Route::post('/events', [AlumniEventController::class, 'store'])->name('events.store');
-    Route::put('/events/{alumniEvent}', [AlumniEventController::class, 'update'])->name('events.update');
-    Route::delete('/events/{alumniEvent}', [AlumniEventController::class, 'destroy'])->name('events.destroy');
 
-    Route::get('/calendar', [AlumniCalendarController::class, 'index'])->name('calendar.index');
-    Route::post('/calendar', [AlumniCalendarController::class, 'store'])->name('calendar.store');
-    Route::put('/calendar/{alumniCalendar}', [AlumniCalendarController::class, 'update'])->name('calendar.update');
-    Route::delete('/calendar/{alumniCalendar}', [AlumniCalendarController::class, 'destroy'])->name('calendar.destroy');
-
-    Route::get('/posts', [AlumniPostController::class, 'index'])->name('posts.index');
-    Route::post('/posts', [AlumniPostController::class, 'store'])->name('posts.store');
-    Route::put('/posts/{alumniPost}', [AlumniPostController::class, 'update'])->name('posts.update');
-    Route::patch('/posts/{alumniPost}/approve', [AlumniPostController::class, 'approve'])->name('posts.approve');
-    Route::patch('/posts/{alumniPost}/reject', [AlumniPostController::class, 'reject'])->name('posts.reject');
-    Route::delete('/posts/{alumniPost}', [AlumniPostController::class, 'destroy'])->name('posts.destroy');
-});
 
 
 // =======================================================================
