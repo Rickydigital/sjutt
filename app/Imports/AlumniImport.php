@@ -33,85 +33,75 @@ class AlumniImport implements ToCollection, WithHeadingRow
     ) {}
 
     public function collection(Collection $rows): void
-    {
-        foreach ($rows as $row) {
-            $this->rowsRead++;
-            $this->command?->line("Processing row {$this->rowsRead}...");
+{
+    foreach ($rows as $row) {
+        $this->rowsRead++;
+        $this->command?->line("Processing row {$this->rowsRead}...");
 
-            $email = trim((string) ($row['email'] ?? $row['email_address'] ?? ''));
+        $email = trim((string) ($row['email'] ?? $row['email_address'] ?? ''));
 
-            if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $this->skipped++;
-                $this->command?->warn("Skipped row {$this->rowsRead}: invalid email");
-                continue;
-            }
-
-            $temporaryPassword = Str::random(10);
-
-            $country = $this->country($row['country'] ?? $row['settlement_country'] ?? null);
-            $employmentState = $this->employmentState($row['employment_state'] ?? $row['state_of_employment'] ?? null);
-            $employmentSector = $this->employmentSector($row['employment_sector'] ?? null);
-            $employmentYear = $this->yearModel(EmploymentYear::class, $row['employment_year'] ?? $row['year_of_employment'] ?? null);
-            $graduationYear = $this->yearModel(GraduationYear::class, $row['graduation_year'] ?? $row['year_of_graduation'] ?? null);
-            $faculty = $this->faculty($row['faculty'] ?? $row['college_school_faculty'] ?? null);
-            $program = $this->program($row['program'] ?? $row['degree_program'] ?? null);
-
-            $alumnus = Alumni::firstOrCreate(
-                ['email' => $email],
-                [
-                    'f_name' => $this->nullableValue($row['f_name'] ?? $row['first_name'] ?? $row['firstname'] ?? null) ?? 'Unknown',
-                    'm_name' => $this->nullableValue($row['m_name'] ?? $row['middle_name'] ?? null),
-                    'l_name' => $this->nullableValue($row['l_name'] ?? $row['last_name'] ?? $row['lastname'] ?? null) ?? 'Unknown',
-                    'password' => Hash::make($temporaryPassword),
-                    'date_of_birth' => $this->dateValue($row['date_of_birth'] ?? $row['dob'] ?? null),
-                    'gender' => $this->gender($row['gender'] ?? null),
-                    'phone' => $this->nullableValue($row['phone'] ?? $row['mobile_phone_number'] ?? null),
-                    'nida_number' => $this->nullableValue($row['nida_number'] ?? null),
-                    'settlement_country_id' => $country?->id,
-                    'settlement_region' => $this->nullableValue($row['region'] ?? $row['province_county_region'] ?? null),
-                    'settlement_city' => $this->nullableValue($row['city'] ?? $row['town_village'] ?? null),
-                    'interested_meetings' => $this->yesNo($row['interested_meetings'] ?? null),
-                    'interested_social_platform' => $this->yesNo($row['interested_social_platform'] ?? null),
-                    'status' => 'pending',
-                    'is_active' => false,
-                    'imported_at' => now(),
-                ]
-            );
-
-            if ($alumnus->wasRecentlyCreated) {
-                $this->created++;
-                $this->command?->info("Created: {$alumnus->email}");
-            } else {
-                $this->updated++;
-                $this->command?->line("Updated: {$alumnus->email}");
-            }
-
-            AlumniEducation::updateOrCreate(
-                [
-                    'alumni_id' => $alumnus->id,
-                    'graduation_year_id' => $graduationYear?->id,
-                ],
-                [
-                    'faculty_id' => $faculty?->id,
-                    'program_id' => $program?->id,
-                    'degree_program_major' => $this->nullableValue($row['degree_program_major'] ?? $row['major'] ?? null),
-                ]
-            );
-
-            AlumniEmployment::updateOrCreate(
-                [
-                    'alumni_id' => $alumnus->id,
-                    'is_current' => true,
-                ],
-                [
-                    'employment_state_id' => $employmentState?->id,
-                    'employment_sector_id' => $employmentSector?->id,
-                    'employment_year_id' => $employmentYear?->id,
-                    'organization' => $this->nullableValue($row['organization'] ?? $row['work_organization'] ?? null) ?? 'NIL',
-                ]
-            );
+        if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->skipped++;
+            $this->command?->warn("Skipped row {$this->rowsRead}: invalid email");
+            continue;
         }
+
+        if (Alumni::where('email', $email)->exists()) {
+            $this->skipped++;
+            $this->command?->warn("Skipped existing alumni: {$email}");
+            continue;
+        }
+
+        $temporaryPassword = Str::random(10);
+
+        $country = $this->country($row['country'] ?? $row['settlement_country'] ?? null);
+        $employmentState = $this->employmentState($row['employment_state'] ?? $row['state_of_employment'] ?? null);
+        $employmentSector = $this->employmentSector($row['employment_sector'] ?? null);
+        $employmentYear = $this->yearModel(EmploymentYear::class, $row['employment_year'] ?? $row['year_of_employment'] ?? null);
+        $graduationYear = $this->yearModel(GraduationYear::class, $row['graduation_year'] ?? $row['year_of_graduation'] ?? null);
+        $faculty = $this->faculty($row['faculty'] ?? $row['college_school_faculty'] ?? null);
+        $program = $this->program($row['program'] ?? $row['degree_program'] ?? null);
+
+        $alumnus = Alumni::create([
+            'f_name' => $this->nullableValue($row['f_name'] ?? $row['first_name'] ?? $row['firstname'] ?? null) ?? 'Unknown',
+            'm_name' => $this->nullableValue($row['m_name'] ?? $row['middle_name'] ?? null),
+            'l_name' => $this->nullableValue($row['l_name'] ?? $row['last_name'] ?? $row['lastname'] ?? null) ?? 'Unknown',
+            'password' => Hash::make($temporaryPassword),
+            'date_of_birth' => $this->dateValue($row['date_of_birth'] ?? $row['dob'] ?? null),
+            'gender' => $this->gender($row['gender'] ?? null),
+            'phone' => $this->nullableValue($row['phone'] ?? $row['mobile_phone_number'] ?? null),
+            'nida_number' => $this->nullableValue($row['nida_number'] ?? null),
+            'settlement_country_id' => $country?->id,
+            'settlement_region' => $this->nullableValue($row['region'] ?? $row['province_county_region'] ?? null),
+            'settlement_city' => $this->nullableValue($row['city'] ?? $row['town_village'] ?? null),
+            'interested_meetings' => $this->yesNo($row['interested_meetings'] ?? null),
+            'interested_social_platform' => $this->yesNo($row['interested_social_platform'] ?? null),
+            'status' => 'pending',
+            'is_active' => false,
+            'imported_at' => now(),
+        ]);
+
+        $this->created++;
+        $this->command?->info("Created: {$alumnus->email}");
+
+        AlumniEducation::create([
+            'alumni_id' => $alumnus->id,
+            'faculty_id' => $faculty?->id,
+            'program_id' => $program?->id,
+            'graduation_year_id' => $graduationYear?->id,
+            'degree_program_major' => $this->nullableValue($row['degree_program_major'] ?? $row['major'] ?? null),
+        ]);
+
+        AlumniEmployment::create([
+            'alumni_id' => $alumnus->id,
+            'employment_state_id' => $employmentState?->id,
+            'employment_sector_id' => $employmentSector?->id,
+            'employment_year_id' => $employmentYear?->id,
+            'organization' => $this->nullableValue($row['organization'] ?? $row['work_organization'] ?? null) ?? 'NIL',
+            'is_current' => true,
+        ]);
     }
+}
 
     private function nullableValue($value): ?string
     {
