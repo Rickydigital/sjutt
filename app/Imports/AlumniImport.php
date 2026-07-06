@@ -61,6 +61,12 @@ class AlumniImport implements ToCollection, WithHeadingRow
         $graduationYear = $this->yearModel(GraduationYear::class, $row['graduation_year'] ?? $row['year_of_graduation'] ?? null);
         $faculty = $this->faculty($row['faculty'] ?? $row['college_school_faculty'] ?? null);
         $program = $this->program($row['program'] ?? $row['degree_program'] ?? null);
+        $nidaNumber = $this->nullableValue($row['nida_number'] ?? null);
+
+        if ($nidaNumber && Alumni::where('nida_number', $nidaNumber)->exists()) {
+            $this->command?->warn("Duplicate NIDA found on row {$this->rowsRead}: {$nidaNumber}. Saved as NULL.");
+            $nidaNumber = null;
+        }
 
         $alumnus = Alumni::create([
             'email' => $email,
@@ -71,7 +77,7 @@ class AlumniImport implements ToCollection, WithHeadingRow
             'date_of_birth' => $this->dateValue($row['date_of_birth'] ?? $row['dob'] ?? null),
             'gender' => $this->gender($row['gender'] ?? null),
             'phone' => $this->nullableValue($row['phone'] ?? $row['mobile_phone_number'] ?? null),
-            'nida_number' => $this->nullableValue($row['nida_number'] ?? null),
+            'nida_number' => $nidaNumber,
             'settlement_country_id' => $country?->id,
             'settlement_region' => $this->nullableValue($row['region'] ?? $row['province_county_region'] ?? null),
             'settlement_city' => $this->nullableValue($row['city'] ?? $row['town_village'] ?? null),
