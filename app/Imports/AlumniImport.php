@@ -63,6 +63,7 @@ class AlumniImport implements ToCollection, WithHeadingRow
         $program = $this->program($row['program'] ?? $row['degree_program'] ?? null);
 
         $alumnus = Alumni::create([
+            'email' => $email,
             'f_name' => $this->nullableValue($row['f_name'] ?? $row['first_name'] ?? $row['firstname'] ?? null) ?? 'Unknown',
             'm_name' => $this->nullableValue($row['m_name'] ?? $row['middle_name'] ?? null),
             'l_name' => $this->nullableValue($row['l_name'] ?? $row['last_name'] ?? $row['lastname'] ?? null) ?? 'Unknown',
