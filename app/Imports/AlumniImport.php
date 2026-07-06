@@ -56,7 +56,7 @@ class AlumniImport implements ToCollection, WithHeadingRow
             $faculty = $this->faculty($row['faculty'] ?? $row['college_school_faculty'] ?? null);
             $program = $this->program($row['program'] ?? $row['degree_program'] ?? null);
 
-            $alumnus = Alumni::updateOrCreate(
+            $alumnus = Alumni::firstOrCreate(
                 ['email' => $email],
                 [
                     'f_name' => $this->nullableValue($row['f_name'] ?? $row['first_name'] ?? $row['firstname'] ?? null) ?? 'Unknown',
@@ -110,15 +110,6 @@ class AlumniImport implements ToCollection, WithHeadingRow
                     'organization' => $this->nullableValue($row['organization'] ?? $row['work_organization'] ?? null) ?? 'NIL',
                 ]
             );
-
-            if ($this->sendMail && $alumnus->wasRecentlyCreated) {
-                $this->command?->line("Sending email to {$alumnus->email}...");
-
-                $alumnus->notify(new AlumniTemporaryPasswordNotification($temporaryPassword));
-
-                $this->emailsSent++;
-                $this->command?->info("Email sent to {$alumnus->email}");
-            }
         }
     }
 

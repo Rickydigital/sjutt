@@ -15,7 +15,7 @@ class Alumni extends Authenticatable
     protected $fillable = [
         'f_name', 'm_name', 'l_name', 'email', 'password', 'date_of_birth', 'gender', 'phone', 'profile_photo',
         'nida_number', 'settlement_country_id', 'settlement_region', 'settlement_city', 'interested_meetings',
-        'interested_social_platform', 'status', 'is_active', 'password_changed_at', 'first_login_at', 'last_login_at', 'imported_at',
+        'interested_social_platform', 'status', 'is_active', 'password_changed_at', 'first_login_at', 'last_login_at', 'imported_at', 'temporary_password_sent_at',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -32,6 +32,7 @@ class Alumni extends Authenticatable
             'first_login_at' => 'datetime',
             'last_login_at' => 'datetime',
             'imported_at' => 'datetime',
+            'temporary_password_sent_at' => 'datetime',
         ];
     }
 
