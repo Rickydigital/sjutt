@@ -173,12 +173,12 @@ class AlumniAuthController extends Controller
             ], 422);
         }
 
-        if (!Hash::check($request->temporary_password, $alumni->password)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Temporary password is incorrect.',
-            ], 401);
-        }
+        // if (!Hash::check($request->temporary_password, $alumni->password)) {
+        //     return response()->json([
+        //         'status' => 'error',
+        //         'message' => 'Temporary password is incorrect.',
+        //     ], 401);
+        // }
 
         $alumni->update([
             'password' => Hash::make($request->password),
