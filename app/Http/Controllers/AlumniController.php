@@ -16,6 +16,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use App\Notifications\AlumniPasswordResetNotification;
+use App\Notifications\AlumniTemporaryPasswordNotification;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -28,6 +32,7 @@ class AlumniController extends Controller
         $this->middleware('permission:manage alumni|edit alumni')->only(['update']);
         $this->middleware('permission:manage alumni|import alumni')->only(['import']);
         $this->middleware('permission:manage alumni|activate alumni')->only(['activate']);
+        $this->middleware('permission:manage alumni')->only(['resendTempPassword', 'sendResetLink']);
         $this->middleware('permission:manage alumni|deactivate alumni')->only(['deactivate']);
         $this->middleware('permission:manage alumni|suspend alumni')->only(['suspend']);
         $this->middleware('permission:manage alumni')->only(['destroy']);
@@ -87,7 +92,10 @@ class AlumniController extends Controller
     {
         $validated = $this->validateAlumni($request);
 
-        DB::transaction(function () use ($validated, $request) {
+        // Default temp password = lowercase last name; admin can supply their own
+        $plainPassword = $validated['password'] ?? strtolower($validated['l_name']);
+
+        $alumnus = DB::transaction(function () use ($validated, $request, $plainPassword) {
             $photoPath = $request->hasFile('profile_photo')
                 ? $request->file('profile_photo')->store('alumni/photos', 'public')
                 : null;
@@ -97,7 +105,7 @@ class AlumniController extends Controller
                 'm_name' => $validated['m_name'] ?? null,
                 'l_name' => $validated['l_name'],
                 'email' => $validated['email'],
-                'password' => Hash::make($validated['password'] ?? 'sjut123456'),
+                'password' => Hash::make($plainPassword),
                 'date_of_birth' => $validated['date_of_birth'] ?? null,
                 'gender' => $validated['gender'] ?? null,
                 'phone' => $validated['phone'] ?? null,
@@ -114,9 +122,18 @@ class AlumniController extends Controller
             ]);
 
             $this->syncEducationAndEmployment($alumnus, $validated, $request);
+
+            return $alumnus;
         });
 
-        return back()->with('success', 'Alumni created successfully.');
+        try {
+            $alumnus->notify(new AlumniTemporaryPasswordNotification($plainPassword));
+            $alumnus->update(['temporary_password_sent_at' => now()]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to send alumni temp password email to ' . $alumnus->email . ': ' . $e->getMessage());
+        }
+
+        return back()->with('success', 'Alumni created and credentials emailed successfully.');
     }
 
     public function update(Request $request, Alumni $alumnus)
@@ -204,6 +221,46 @@ class AlumniController extends Controller
         $alumnus->tokens()->delete();
 
         return back()->with('success', 'Alumni suspended successfully.');
+    }
+
+    public function resendTempPassword(Alumni $alumnus)
+    {
+        $tempPassword = Str::random(10);
+
+        $alumnus->update([
+            'password' => Hash::make($tempPassword),
+            'is_active' => false,
+            'status' => 'pending',
+            'password_changed_at' => null,
+        ]);
+
+        try {
+            $alumnus->notify(new AlumniTemporaryPasswordNotification($tempPassword));
+            $alumnus->update(['temporary_password_sent_at' => now()]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to resend alumni temp password to ' . $alumnus->email . ': ' . $e->getMessage());
+            return back()->with('error', 'Password reset but email delivery failed. Check server logs.');
+        }
+
+        return back()->with('success', 'New temporary password sent to ' . $alumnus->email);
+    }
+
+    public function sendResetLink(Alumni $alumnus)
+    {
+        $resetUrl = URL::temporarySignedRoute(
+            'alumni.reset.show',
+            now()->addHours(48),
+            ['alumnus' => $alumnus->id]
+        );
+
+        try {
+            $alumnus->notify(new AlumniPasswordResetNotification($resetUrl));
+        } catch (\Throwable $e) {
+            Log::error('Failed to send alumni password reset link to ' . $alumnus->email . ': ' . $e->getMessage());
+            return back()->with('error', 'Could not send reset link. Check server logs.');
+        }
+
+        return back()->with('success', 'Password reset link sent to ' . $alumnus->email . ' (expires in 48 hours).');
     }
 
     public function destroy(Alumni $alumnus)

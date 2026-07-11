@@ -91,6 +91,15 @@ class AlumniImport implements ToCollection, WithHeadingRow
         $this->created++;
         $this->command?->info("Created: {$alumnus->email}");
 
+        try {
+            $alumnus->notify(new AlumniTemporaryPasswordNotification($temporaryPassword));
+            $alumnus->update(['temporary_password_sent_at' => now()]);
+            $this->emailsSent++;
+            $this->command?->info("  ✉  Email sent to {$alumnus->email}");
+        } catch (\Throwable $e) {
+            $this->command?->warn("  ✗  Email failed for {$alumnus->email}: {$e->getMessage()}");
+        }
+
         AlumniEducation::create([
             'alumni_id' => $alumnus->id,
             'faculty_id' => $faculty?->id,

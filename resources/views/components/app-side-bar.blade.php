@@ -191,22 +191,6 @@
             </li>
             @endcan
 
-            @can('manage alumni elections')
-            <li>
-                <a href="{{ route('alumni-elections.index') }}">
-                    <span class="sub-item">Election Positions</span>
-                </a>
-            </li>
-            @endcan
-
-            @can('manage alumni elections')
-            <li>
-                <a href="{{ route('alumni-elections.index') }}">
-                    <span class="sub-item">Election Officers</span>
-                </a>
-            </li>
-            @endcan
-
             @can('approve alumni candidates')
             <li>
                 <a href="{{ route('alumni-elections.candidates.index', ['alumniElection' => request('alumniElection') ?? 1]) }}">
