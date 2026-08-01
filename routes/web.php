@@ -28,6 +28,7 @@ use App\Http\Controllers\VenueController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\IptController;
 use App\Http\Controllers\AlumniController;
+use App\Http\Controllers\AlumniPasswordResetController;
 use App\Http\Controllers\EnrolledCourseController;
 use App\Http\Controllers\ExaminationController;
 use App\Http\Controllers\LibraryController;
@@ -155,6 +156,8 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::patch('/alumni/{alumnus}/deactivate', [AlumniController::class, 'deactivate'])->name('alumni.deactivate')->middleware(['permission:manage alumni|deactivate alumni']);
     Route::patch('/alumni/{alumnus}/suspend', [AlumniController::class, 'suspend'])->name('alumni.suspend')->middleware(['permission:manage alumni|suspend alumni']);
     Route::delete('/alumni/{alumnus}', [AlumniController::class, 'destroy'])->name('alumni.destroy')->middleware(['permission:manage alumni']);
+    Route::post('/alumni/{alumnus}/resend-temp-password', [AlumniController::class, 'resendTempPassword'])->name('alumni.resend-temp-password')->middleware(['permission:manage alumni']);
+    Route::post('/alumni/{alumnus}/send-reset-link', [AlumniController::class, 'sendResetLink'])->name('alumni.send-reset-link')->middleware(['permission:manage alumni']);
     Route::get('/alumni-elections', [AlumniElectionController::class, 'index'])->name('alumni-elections.index');
     Route::post('/alumni-elections', [AlumniElectionController::class, 'store'])->name('alumni-elections.store');
     Route::get('/alumni-elections/{alumniElection}', [AlumniElectionController::class, 'show'])->name('alumni-elections.show');
@@ -485,14 +488,9 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::put('/ipt/{ipt}', [IptController::class, 'update'])->name('ipt.update')->middleware(['permission:edit ipt']);
     Route::delete('/ipt/{ipt}', [IptController::class, 'destroy'])->name('ipt.destroy')->middleware(['permission:delete ipt']);
 
-    // Alumni
-    Route::get('/alumni', [AlumniController::class, 'index'])->name('alumni.index')->middleware(['permission:view alumni']);
-    Route::get('/alumni/create', [AlumniController::class, 'create'])->name('alumni.create')->middleware(['permission:view alumni']);
-    Route::post('/alumni', [AlumniController::class, 'store'])->name('alumni.store')->middleware(['permission:create alumni']);
-    Route::get('/alumni/{alumnus}', [AlumniController::class, 'show'])->name('alumni.show')->middleware(['permission:view alumni']);
-    Route::get('/alumni/{alumnus}/edit', [AlumniController::class, 'edit'])->name('alumni.edit')->middleware(['permission:view alumni']);
-    Route::put('/alumni/{alumnus}', [AlumniController::class, 'update'])->name('alumni.update')->middleware(['permission:edit alumni']);
-    Route::delete('/alumni/{alumnus}', [AlumniController::class, 'destroy'])->name('alumni.destroy')->middleware(['permission:delete alumni']);
+    // Alumni password reset — visited by alumni without admin session (signed URLs only)
+    Route::get('/alumni/{alumnus}/reset', [AlumniPasswordResetController::class, 'showForm'])->name('alumni.reset.show')->middleware('signed');
+    Route::post('/alumni/{alumnus}/reset', [AlumniPasswordResetController::class, 'resetPassword'])->name('alumni.reset.submit')->middleware('signed');
 
     // Enrolled Courses
     Route::post('/enrolled-courses/{course}/enroll', [EnrolledCourseController::class, 'enroll'])->name('enrolled-courses.enroll')->middleware(['permission:enroll courses']);

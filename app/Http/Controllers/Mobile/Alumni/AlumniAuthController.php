@@ -34,14 +34,17 @@ class AlumniAuthController extends Controller
         $alumni = Alumni::where('email', strtolower(trim($request->email)))->first();
 
         if (!$alumni) {
+            // Self-registration disabled — accounts are seeded by admin only.
+            // return response()->json([
+            //     'status' => 'success',
+            //     'action' => 'register',
+            //     'message' => 'No alumni account found. Please complete registration.',
+            //     'data' => ['email' => strtolower(trim($request->email))],
+            // ]);
             return response()->json([
-                'status' => 'success',
-                'action' => 'register',
-                'message' => 'No alumni account found. Please complete registration.',
-                'data' => [
-                    'email' => strtolower(trim($request->email)),
-                ],
-            ]);
+                'status' => 'error',
+                'message' => 'No alumni account found. Please contact the Students\' Union.',
+            ], 404);
         }
 
         if ($alumni->status === 'suspended') {
@@ -230,11 +233,13 @@ class AlumniAuthController extends Controller
         }
 
         if (!$alumni->is_active || $alumni->status !== 'active') {
+            // Return 200 so the mobile client can detect this case without httpPost swallowing it
             return response()->json([
-                'status' => 'error',
+                'status' => 'first_login',
                 'action' => 'first_login',
-                'message' => 'Please complete first login using your temporary password.',
-            ], 403);
+                'message' => 'Please activate your account using your temporary password.',
+                'data' => ['email' => $alumni->email],
+            ]);
         }
 
         $alumni->update([
