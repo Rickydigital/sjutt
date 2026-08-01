@@ -21,7 +21,7 @@ class AlumniCandidateApprovalController extends Controller
         $this->authorizeOfficerAccess($alumniElection);
 
         $candidates = $alumniElection->candidates()
-            ->with(['alumni','position','sponsors'])
+            ->with(['alumni','position','sponsors','approver'])
             ->latest()
             ->paginate(25);
 
