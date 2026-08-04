@@ -443,17 +443,17 @@ class AlumniAuthController extends Controller
             ], 400);
         }
 
-        $alumni = Alumni::findOrFail($data['alumni_id']);
-        $otpRecord->update(['used' => true]);
+        // $alumni = Alumni::findOrFail($data['alumni_id']);
+        // $otpRecord->update(['used' => true]);
 
-        $resetToken = $alumni->createToken('reset-password-temp-alumni', ['reset-password'], now()->addMinutes(15))->plainTextToken;
+        // $resetToken = $alumni->createToken('reset-password-temp-alumni', ['reset-password'], now()->addMinutes(15))->plainTextToken;
 
         return response()->json([
             'status' => 'success',
-            'message' => 'OTP verified successfully.',
+            'message' => 'OTP verified successfully. You can now create a new password.',
             'data' => [
-                'reset_token' => $resetToken,
-                'expires_in_minutes' => 15,
+                'email' => strtolower(trim($request->email)),
+                'otp' => $request->otp,
             ],
         ]);
     }
@@ -462,21 +462,56 @@ class AlumniAuthController extends Controller
      * 10) Reset password. Call using reset token as Bearer token.
      */
     public function resetPassword(Request $request)
-    {
-        $request->validate([
-            'password' => ['required', 'string', 'min:6', 'confirmed'],
-        ]);
+{
+    $request->validate([
+        'email' => ['required', 'email'],
+        'otp' => ['required', 'string', 'size:6'],
+        'password' => ['required', 'string', 'min:6', 'confirmed'],
+    ]);
 
-        $alumni = $request->user();
+    $email = strtolower(trim($request->email));
 
-        $token = $alumni?->currentAccessToken();
-        if (!$token || !in_array('reset-password', $token->abilities ?? [], true)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid reset token.',
-            ], 403);
-        }
+    $otpRecord = Otp::where('email', $email)
+        ->where('otp', $request->otp)
+        ->where('used', false)
+        ->where('expires_at', '>', now())
+        ->first();
 
+    if (!$otpRecord) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Invalid or expired OTP.',
+        ], 400);
+    }
+
+    $data = json_decode($otpRecord->data, true);
+
+    if (($data['purpose'] ?? null) !== 'reset_password_alumni') {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Invalid OTP purpose.',
+        ], 400);
+    }
+
+    $alumni = Alumni::where('id', $data['alumni_id'] ?? null)
+        ->where('email', $email)
+        ->first();
+
+    if (!$alumni) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Alumni account not found.',
+        ], 404);
+    }
+
+    if ($alumni->status === 'suspended') {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Your alumni account has been suspended.',
+        ], 403);
+    }
+
+    DB::transaction(function () use ($alumni, $request, $otpRecord) {
         $alumni->update([
             'password' => Hash::make($request->password),
             'password_changed_at' => now(),
@@ -484,13 +519,19 @@ class AlumniAuthController extends Controller
             'status' => 'active',
         ]);
 
-        $token->delete();
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Password reset successfully. Please login.',
+        $otpRecord->update([
+            'used' => true,
         ]);
-    }
+
+        // Remove old login/reset tokens after password change.
+        $alumni->tokens()->delete();
+    });
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Password reset successfully. Please login.',
+    ]);
+}
 
     /**
      * 11) FCM token save.
