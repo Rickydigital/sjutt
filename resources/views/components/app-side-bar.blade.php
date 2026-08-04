@@ -347,7 +347,6 @@
 
                 {{-- Academic Planning --}}
 @canany([
-    'view academic years',
     'view timetables',
     'view examination timetables',
     'view calendar'
@@ -363,7 +362,7 @@
         <ul class="nav nav-collapse">
 
             {{-- Academic Years --}}
-            @can('view academic years')
+            @can('view timetables')
             <li>
                 <a href="{{ route('academic-years.index') }}">
                     <span class="sub-item">Academic Years</span>
