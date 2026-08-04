@@ -60,7 +60,10 @@ Route::prefix('alumni')->group(function (): void {
     Route::post('/verify-reset-password-otp', [AlumniAuthController::class, 'verifyResetPasswordOtp']);
 
     // Requires reset token returned by verify-reset-password-otp
-    Route::middleware('auth:sanctum')->post('/reset-password', [AlumniAuthController::class, 'resetPassword']);
+    Route::post(
+        '/reset-password',
+        [AlumniAuthController::class, 'resetPassword']
+    );
 
     // Authenticated alumni routes
     Route::middleware('auth:sanctum')->group(function (): void {
