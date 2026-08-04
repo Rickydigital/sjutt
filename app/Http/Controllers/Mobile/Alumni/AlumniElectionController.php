@@ -29,7 +29,7 @@ class AlumniElectionController extends Controller
     public function show(Request $request, AlumniElection $alumniElection)
     {
         $alumniElection->load(['positions' => function ($q) {
-            $q->where('is_enabled', true)->with(['candidates' => fn ($c) => $c->where('application_status', 'approved')]);
+            $q->where('is_enabled', true)->with(['candidates' => fn ($c) => $c->where('application_status', 'approved')->with('alumni')]);
         }]);
 
         return response()->json(['status' => 'success', 'data' => ['election' => $alumniElection]]);
@@ -230,7 +230,7 @@ class AlumniElectionController extends Controller
         }
 
         $positions = $alumniElection->positions()->with(['candidates' => function ($q) {
-            $q->where('application_status', 'approved')->withCount('votes')->orderByDesc('votes_count');
+            $q->where('application_status', 'approved')->with('alumni')->withCount('votes')->orderByDesc('votes_count');
         }])->get();
 
         return response()->json(['status' => 'success', 'data' => ['election' => $alumniElection, 'positions' => $positions]]);
