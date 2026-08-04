@@ -39,48 +39,86 @@ class AlumniController extends Controller
     }
 
     public function index(Request $request)
-    {
-        $query = Alumni::query()
-            ->with(['country', 'educations.faculty', 'educations.program', 'educations.graduationYear', 'employments.employmentState', 'employments.employmentSector'])
-            ->latest();
+{
+    $query = Alumni::query()
+        ->with([
+            'country',
+            'educations.faculty',
+            'educations.program',
+            'educations.graduationYear',
+            'employments.employmentState',
+            'employments.employmentSector',
+        ])
+        ->latest();
 
-        if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('f_name', 'like', "%{$search}%")
-                    ->orWhere('m_name', 'like', "%{$search}%")
-                    ->orWhere('l_name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('phone', 'like', "%{$search}%")
-                    ->orWhere('nida_number', 'like', "%{$search}%")
-                    ->orWhere('organization', 'like', "%{$search}%");
-            });
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('is_active')) {
-            $query->where('is_active', (bool) $request->is_active);
-        }
-
-        if ($request->filled('faculty_id')) {
-            $query->whereHas('educations', fn ($q) => $q->where('faculty_id', $request->faculty_id));
-        }
-
-        if ($request->filled('program_id')) {
-            $query->whereHas('educations', fn ($q) => $q->where('program_id', $request->program_id));
-        }
-
-        if ($request->filled('graduation_year_id')) {
-            $query->whereHas('educations', fn ($q) => $q->where('graduation_year_id', $request->graduation_year_id));
-        }
-
-        $alumni = $query->paginate(25)->withQueryString();
-
-        return view('alumni.index', array_merge($this->formData(), compact('alumni')));
+    if ($search = trim($request->input('search', ''))) {
+        $query->where(function ($q) use ($search) {
+            $q->where('f_name', 'like', "%{$search}%")
+                ->orWhere('m_name', 'like', "%{$search}%")
+                ->orWhere('l_name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('phone', 'like', "%{$search}%")
+                ->orWhere('nida_number', 'like', "%{$search}%")
+                ->orWhereHas('employments', function ($employmentQuery) use ($search) {
+                    $employmentQuery->where(
+                        'organization',
+                        'like',
+                        "%{$search}%"
+                    );
+                });
+        });
     }
 
+    if ($request->filled('status')) {
+        $query->where('status', $request->status);
+    }
+
+    if ($request->filled('is_active')) {
+        $query->where(
+            'is_active',
+            $request->boolean('is_active')
+        );
+    }
+
+    if ($request->filled('faculty_id')) {
+        $query->whereHas('educations', function ($educationQuery) use ($request) {
+            $educationQuery->where(
+                'faculty_id',
+                $request->faculty_id
+            );
+        });
+    }
+
+    if ($request->filled('program_id')) {
+        $query->whereHas('educations', function ($educationQuery) use ($request) {
+            $educationQuery->where(
+                'program_id',
+                $request->program_id
+            );
+        });
+    }
+
+    if ($request->filled('graduation_year_id')) {
+        $query->whereHas('educations', function ($educationQuery) use ($request) {
+            $educationQuery->where(
+                'graduation_year_id',
+                $request->graduation_year_id
+            );
+        });
+    }
+
+    $alumni = $query
+        ->paginate(25)
+        ->withQueryString();
+
+    return view(
+        'alumni.index',
+        array_merge(
+            $this->formData(),
+            compact('alumni')
+        )
+    );
+}
     public function show(Alumni $alumnus)
     {
         $alumnus->load(['country', 'educations.faculty', 'educations.program', 'educations.graduationYear', 'employments.employmentState', 'employments.employmentSector', 'employments.employmentYear', 'socialPlatforms']);
