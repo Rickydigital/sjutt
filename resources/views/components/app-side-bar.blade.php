@@ -345,41 +345,62 @@
                 </li>
                 @endcanany
 
-                {{-- Timetables & Calendar--}}
-                @canany(['view timetables', 'view examination timetables', 'view calendar'])
-                <li class="nav-item">
-                    <a data-bs-toggle="collapse" href="#timetables">
-                        <i class="bi bi-table"></i>
-                        <p>Timetables & Calendar</p>
-                        <span class="caret"></span>
-                    </a>
-                    <div class="collapse" id="timetables">
-                        <ul class="nav nav-collapse">
-                            @can('view timetables')
-                            <li>
-                                <a href="{{ route('timetable.index') }}">
-                                    <span class="sub-item">Lecture Timetable</span>
-                                </a>
-                            </li>
-                            @endcan
-                            @can('view examination timetables')
-                            <li>
-                                <a href="{{ route('timetables.index') }}">
-                                    <span class="sub-item">Examination Timetable</span>
-                                </a>
-                            </li>
-                            @endcan
-                            @can('view calendar')
-                            <li>
-                                <a href="{{ route('calendar.index') }}">
-                                    <span class="sub-item">University Calendar</span>
-                                </a>
-                            </li>
-                            @endcan
-                        </ul>
-                    </div>
-                </li>
-                @endcanany
+                {{-- Academic Planning --}}
+@canany([
+    'view timetables',
+    'view examination timetables',
+    'view calendar'
+])
+<li class="nav-item">
+    <a data-bs-toggle="collapse" href="#academicPlanning">
+        <i class="bi bi-calendar3"></i>
+        <p>Academic Planning</p>
+        <span class="caret"></span>
+    </a>
+
+    <div class="collapse" id="academicPlanning">
+        <ul class="nav nav-collapse">
+
+            {{-- Academic Years --}}
+            @can('view timetables')
+            <li>
+                <a href="{{ route('academic-years.index') }}">
+                    <span class="sub-item">Academic Years</span>
+                </a>
+            </li>
+            @endcan
+
+            {{-- Lecture Timetable --}}
+            @can('view timetables')
+            <li>
+                <a href="{{ route('timetable.index') }}">
+                    <span class="sub-item">Lecture Timetable</span>
+                </a>
+            </li>
+            @endcan
+
+            {{-- Examination Timetable --}}
+            @can('view examination timetables')
+            <li>
+                <a href="{{ route('timetables.index') }}">
+                    <span class="sub-item">Examination Timetable</span>
+                </a>
+            </li>
+            @endcan
+
+            {{-- Academic Almanac --}}
+            @can('view calendar')
+            <li>
+                <a href="{{ route('almanac.index') }}">
+                    <span class="sub-item">Academic Almanac</span>
+                </a>
+            </li>
+            @endcan
+
+        </ul>
+    </div>
+</li>
+@endcanany
 
                 {{-- Attendance --}}
                 @can('view attendance')

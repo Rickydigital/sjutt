@@ -4,16 +4,20 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
-class AcademicYear extends Model
+class AlmanacSetup extends Model
 {
     protected $fillable = [
-        'name',
+        'academic_year_id',
+        'title',
         'start_date',
         'end_date',
         'status',
         'activated_at',
+        'created_by',
     ];
 
     protected $casts = [
@@ -22,19 +26,29 @@ class AcademicYear extends Model
         'activated_at' => 'datetime',
     ];
 
-    public function almanacSetups()
+    public function academicYear(): BelongsTo
     {
-        return $this->hasMany(AlmanacSetup::class);
+        return $this->belongsTo(AcademicYear::class);
     }
 
-    public function timetableSemesters()
+    public function creator(): BelongsTo
     {
-        return $this->hasMany(TimetableSemester::class);
+        return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function examSetups()
+    public function programGroups(): HasMany
     {
-        return $this->hasMany(ExamSetup::class);
+        return $this->hasMany(AlmanacProgramGroup::class)->orderBy('display_order');
+    }
+
+    public function weekBlocks(): HasMany
+    {
+        return $this->hasMany(AlmanacWeekBlock::class);
+    }
+
+    public function events(): HasMany
+    {
+        return $this->hasMany(AlmanacEvent::class);
     }
 
     public function scopeActive(Builder $query): Builder
@@ -54,28 +68,20 @@ class AcademicYear extends Model
 
     public static function getCurrent(): ?self
     {
-        return self::query()
+        return self::with('academicYear')
             ->active()
             ->latest('activated_at')
             ->latest('id')
             ->first();
     }
 
-    public function isActive(): bool
-    {
-        return $this->status === 'active';
-    }
-
     public function activate(): void
     {
-        DB::transaction(function () {
-            static::query()
-                ->where('id', '!=', $this->id)
+        DB::transaction(function (): void {
+            self::query()
+                ->whereKeyNot($this->getKey())
                 ->where('status', 'active')
-                ->update([
-                    'status' => 'archived',
-                    'activated_at' => null,
-                ]);
+                ->update(['status' => 'archived']);
 
             $this->update([
                 'status' => 'active',

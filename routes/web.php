@@ -42,6 +42,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\TalentController;
 use App\Http\Controllers\TimetableSemesterController;
+use App\Http\Controllers\AcademicYearController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\Admin\ElectionController;
@@ -58,6 +59,11 @@ use App\Http\Controllers\Polling\PublicPollingCentreController;
 use App\Http\Controllers\Student\ElectionVotingController;
 use App\Http\Controllers\StudentWeb\Auth\StudentLoginController;
 use App\Http\Controllers\Admin\SystemSettingController;
+use App\Http\Controllers\AlmanacController;
+use App\Http\Controllers\AlmanacEventController;
+use App\Http\Controllers\AlmanacProgramGroupController;
+use App\Http\Controllers\AlmanacSetupController;
+use App\Http\Controllers\AlmanacWeekBlockController;
 
 /*
 |--------------------------------------------------------------------------
@@ -123,6 +129,24 @@ Route::get('/', function () {
         ->first();
     return view('welcome', compact('latestApk'));
 });
+
+
+
+Route::middleware(['auth'])->group(function () {
+    Route::resource('academic-years', AcademicYearController::class)
+        ->except(['show']);
+
+    Route::post(
+        'academic-years/{academicYear}/activate',
+        [AcademicYearController::class, 'activate']
+    )->name('academic-years.activate');
+
+    Route::post(
+        'academic-years/{academicYear}/archive',
+        [AcademicYearController::class, 'archive']
+    )->name('academic-years.archive');
+});
+
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('auth');
 
@@ -665,5 +689,30 @@ Route::prefix('student')->name('student.')->middleware(['auth:stuofficer'])->gro
     Route::get('/vote', [ElectionVotingController::class, 'index'])->name('vote.index');
     Route::post('/vote', [ElectionVotingController::class, 'store'])->name('vote.store');
 });
+
+Route::middleware(['auth'])->prefix('almanac')->name('almanac.')->group(function () {
+    Route::get('/', [AlmanacController::class, 'index'])->name('index');
+    Route::get('/{setup}/pdf', [AlmanacController::class, 'exportPdf'])->name('pdf');
+
+    Route::post('/setups', [AlmanacSetupController::class, 'store'])->name('setups.store');
+    Route::put('/setups/{setup}', [AlmanacSetupController::class, 'update'])->name('setups.update');
+    Route::post('/setups/{setup}/activate', [AlmanacSetupController::class, 'activate'])->name('setups.activate');
+    Route::post('/setups/{setup}/archive', [AlmanacSetupController::class, 'archive'])->name('setups.archive');
+    Route::delete('/setups/{setup}', [AlmanacSetupController::class, 'destroy'])->name('setups.destroy');
+
+    Route::post('/setups/{setup}/groups', [AlmanacProgramGroupController::class, 'store'])->name('groups.store');
+    Route::put('/setups/{setup}/groups/{group}', [AlmanacProgramGroupController::class, 'update'])->name('groups.update');
+    Route::delete('/setups/{setup}/groups/{group}', [AlmanacProgramGroupController::class, 'destroy'])->name('groups.destroy');
+
+    Route::post('/setups/{setup}/week-blocks', [AlmanacWeekBlockController::class, 'store'])->name('week-blocks.store');
+    Route::post('/setups/{setup}/week-blocks/generate', [AlmanacWeekBlockController::class, 'generate'])->name('week-blocks.generate');
+    Route::put('/setups/{setup}/week-blocks/{weekBlock}', [AlmanacWeekBlockController::class, 'update'])->name('week-blocks.update');
+    Route::delete('/setups/{setup}/week-blocks/{weekBlock}', [AlmanacWeekBlockController::class, 'destroy'])->name('week-blocks.destroy');
+
+    Route::post('/setups/{setup}/events', [AlmanacEventController::class, 'store'])->name('events.store');
+    Route::put('/setups/{setup}/events/{event}', [AlmanacEventController::class, 'update'])->name('events.update');
+    Route::delete('/setups/{setup}/events/{event}', [AlmanacEventController::class, 'destroy'])->name('events.destroy');
+});
+
 
 require __DIR__ . '/auth.php';
