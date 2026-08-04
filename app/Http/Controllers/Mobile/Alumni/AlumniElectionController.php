@@ -10,6 +10,7 @@ use App\Models\AlumniElectionVote;
 use App\Services\ImageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class AlumniElectionController extends Controller
@@ -31,6 +32,15 @@ class AlumniElectionController extends Controller
         $alumniElection->load(['positions' => function ($q) {
             $q->where('is_enabled', true)->with(['candidates' => fn ($c) => $c->where('application_status', 'approved')->with('alumni')]);
         }]);
+
+        Log::info('alumni_election.show candidate photos', $alumniElection->positions->flatMap->candidates->map(fn ($c) => [
+            'candidate_id' => $c->id,
+            'candidate_name' => trim(($c->first_name ?? $c->alumni?->f_name ?? '') . ' ' . ($c->surname ?? $c->alumni?->l_name ?? '')),
+            'candidate_photo_column' => $c->photo,
+            'alumni_id' => $c->alumni_id,
+            'alumni_profile_photo_column' => $c->alumni?->profile_photo,
+            'resolved_photo_url' => $c->photo_url,
+        ])->all());
 
         return response()->json(['status' => 'success', 'data' => ['election' => $alumniElection]]);
     }
@@ -160,6 +170,15 @@ class AlumniElectionController extends Controller
             ->whereNotIn('id', $votedPositionIds)
             ->with(['candidates' => fn ($q) => $q->where('application_status', 'approved')->with('alumni')])
             ->get();
+
+        Log::info('alumni_election.voting candidate photos', $positions->flatMap->candidates->map(fn ($c) => [
+            'candidate_id' => $c->id,
+            'candidate_name' => trim(($c->first_name ?? $c->alumni?->f_name ?? '') . ' ' . ($c->surname ?? $c->alumni?->l_name ?? '')),
+            'candidate_photo_column' => $c->photo,
+            'alumni_id' => $c->alumni_id,
+            'alumni_profile_photo_column' => $c->alumni?->profile_photo,
+            'resolved_photo_url' => $c->photo_url,
+        ])->all());
 
         return response()->json(['status' => 'success', 'data' => ['election' => $alumniElection, 'positions' => $positions]]);
     }
