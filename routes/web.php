@@ -42,6 +42,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\TalentController;
 use App\Http\Controllers\TimetableSemesterController;
+use App\Http\Controllers\AcademicYearController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use App\Http\Controllers\Admin\ElectionController;
@@ -128,6 +129,24 @@ Route::get('/', function () {
         ->first();
     return view('welcome', compact('latestApk'));
 });
+
+
+
+Route::middleware(['auth'])->group(function () {
+    Route::resource('academic-years', AcademicYearController::class)
+        ->except(['show']);
+
+    Route::post(
+        'academic-years/{academicYear}/activate',
+        [AcademicYearController::class, 'activate']
+    )->name('academic-years.activate');
+
+    Route::post(
+        'academic-years/{academicYear}/archive',
+        [AcademicYearController::class, 'archive']
+    )->name('academic-years.archive');
+});
+
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard')->middleware('auth');
 
