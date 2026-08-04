@@ -119,12 +119,27 @@ class AlumniController extends Controller
         )
     );
 }
-    public function show(Alumni $alumnus)
-    {
-        $alumnus->load(['country', 'educations.faculty', 'educations.program', 'educations.graduationYear', 'employments.employmentState', 'employments.employmentSector', 'employments.employmentYear', 'socialPlatforms']);
+   public function show(Alumni $alumnus)
+{
+    $alumnus->load([
+        'country',
+        'educations.faculty',
+        'educations.program',
+        'educations.graduationYear',
+        'employments.employmentState',
+        'employments.employmentSector',
+        'employments.employmentYear',
+        'socialPlatforms',
+    ]);
 
-        return view('alumni.show', compact('alumnus'));
-    }
+    return view(
+        'alumni.show',
+        array_merge(
+            $this->formData(),
+            compact('alumnus')
+        )
+    );
+}
 
     public function store(Request $request)
     {
