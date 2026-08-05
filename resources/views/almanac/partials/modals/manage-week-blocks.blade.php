@@ -31,7 +31,11 @@
 
                 <div class="tab-content pt-3">
                     <div class="tab-pane fade show active" id="generateWeeksPane">
-                        <form method="POST" action="{{ route('almanac.week-blocks.generate', $setup) }}">
+                        <form
+                                id="generateWeeksForm"
+                                method="POST"
+                                action="{{ route('almanac.week-blocks.generate', $setup) }}"
+                            >
                             @csrf
                             <div class="row g-3">
                                 <div class="col-md-6">
@@ -80,8 +84,9 @@
                             </div>
 
                             <div class="alert alert-light border mt-3 mb-0">
-                                Example: Label <strong>Week</strong>, starting number <strong>1</strong>, and 15 weeks generates
-                                <strong>Week 1</strong> through <strong>Week 15</strong>.
+                                The numbering is automatic. For example, Label Name
+                                <strong>Week</strong> generates
+                                <strong>Week 1, Week 2, Week 3</strong> up to the selected end date.
                             </div>
 
                             <div class="d-flex justify-content-end mt-3">
@@ -120,7 +125,11 @@
                     </div>
 
                     <div class="tab-pane fade" id="manualWeekBlockPane">
-                        <form method="POST" action="{{ route('almanac.week-blocks.store', $setup) }}">
+                        <form
+                                id="manualWeekBlockForm"
+                                method="POST"
+                                action="{{ route('almanac.week-blocks.store', $setup) }}"
+                            >
                             @csrf
                             @include('almanac.partials.week-block-fields')
                             <div class="d-flex justify-content-end mt-3">
