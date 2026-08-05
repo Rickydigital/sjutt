@@ -1,6 +1,9 @@
 @if($setup)
+<style>
+#editWeekBlockModal .modal-body { max-height: calc(100vh - 210px); overflow-y: auto; }
+</style>
 <div class="modal fade" id="editWeekBlockModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <form id="editWeekBlockForm" method="POST">
                 @csrf

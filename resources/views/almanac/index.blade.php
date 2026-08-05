@@ -12,7 +12,10 @@
     .almanac-table .week-end td { border-bottom-width: 2px !important; }
     .cell-add-btn { border: 0; background: transparent; color: #198754; font-weight: 800; font-size: 1rem; line-height: 1; padding: 1px 5px; }
     .event-item { display:flex; gap:5px; align-items:flex-start; justify-content:space-between; padding:2px 0; }
-    .event-edit-btn { border:0; background:transparent; color:#4B2E83; padding:0 2px; }
+    .event-edit-btn, .event-delete-btn { border:0; background:transparent; padding:0 2px; }
+    .event-edit-btn { color:#4B2E83; }
+    .event-delete-btn { color:#dc3545; }
+    .event-actions { display:flex; gap:3px; flex-shrink:0; }
     .group-card { border-left: 5px solid var(--group-color); }
 </style>
 @endsection
@@ -99,7 +102,16 @@
                                             @foreach($day[$key] as $event)
                                                 <div class="event-item" style="color:{{ $event['text_color'] ?: ($event['is_no_classes'] ? '#dc3545' : '#000') }}">
                                                     <span>{{ $event['text'] }}</span>
-                                                    <button type="button" class="event-edit-btn js-edit-event" data-id="{{ $event['id'] }}" title="Edit event"><i class="fas fa-edit"></i></button>
+                                                    <span class="event-actions">
+                                                        <button type="button" class="event-edit-btn js-edit-event" data-id="{{ $event['id'] }}" title="Edit event"><i class="fas fa-edit"></i></button>
+                                                        @if($setup->status === 'draft')
+                                                            <form method="POST" action="{{ route('almanac.events.destroy', [$setup, $event['id']]) }}" class="d-inline js-delete-event-form">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button type="submit" class="event-delete-btn" title="Delete event"><i class="fas fa-trash-alt"></i></button>
+                                                            </form>
+                                                        @endif
+                                                    </span>
                                                 </div>
                                             @endforeach
                                         </td>

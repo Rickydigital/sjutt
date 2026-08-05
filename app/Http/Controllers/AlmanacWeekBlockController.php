@@ -92,8 +92,7 @@ class AlmanacWeekBlockController extends Controller
         $data = $request->validate([
             'almanac_program_group_id' => ['required', 'integer', 'exists:almanac_program_groups,id'],
             'start_date' => ['required', 'date'],
-            'number_of_weeks' => ['required', 'integer', 'min:1', 'max:60'],
-            'starting_number' => ['required', 'integer', 'min:1', 'max:999'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'label_name' => ['required', 'string', 'max:50'],
             'block_type' => [
                 'required',
@@ -105,41 +104,47 @@ class AlmanacWeekBlockController extends Controller
         ]);
 
         $this->ensureGroupBelongsToSetup($setup, (int) $data['almanac_program_group_id']);
+        $this->ensureDatesInsideSetup($setup, $data['start_date'], $data['end_date']);
 
-        $cursor = Carbon::parse($data['start_date'])->startOfDay();
+        $startDate = Carbon::parse($data['start_date'])->startOfDay();
+        $finalDate = Carbon::parse($data['end_date'])->startOfDay();
         $labelName = trim($data['label_name']);
+        $created = 0;
 
-        DB::transaction(function () use ($data, $setup, $cursor, $labelName): void {
-            for ($index = 0; $index < (int) $data['number_of_weeks']; $index++) {
-                $start = $cursor->copy();
-                $end = $start->copy()->addDays(6);
-                $number = (int) $data['starting_number'] + $index;
+        DB::transaction(function () use ($data, $setup, $startDate, $finalDate, $labelName, &$created): void {
+            $weekNumber = 1;
+            $currentStart = $startDate->copy();
+
+            while ($currentStart->lte($finalDate)) {
+                $currentEnd = $currentStart->copy()->addDays(6);
+                if ($currentEnd->gt($finalDate)) {
+                    $currentEnd = $finalDate->copy();
+                }
 
                 $payload = [
                     'almanac_program_group_id' => (int) $data['almanac_program_group_id'],
-                    'start_date' => $start->toDateString(),
-                    'end_date' => $end->toDateString(),
+                    'start_date' => $currentStart->toDateString(),
+                    'end_date' => $currentEnd->toDateString(),
                     'label_name' => $labelName,
-                    'display_value' => (string) $number,
+                    'display_value' => (string) $weekNumber,
                     'block_type' => $data['block_type'],
                     'background_color' => $data['background_color'] ?? null,
                     'text_color' => $data['text_color'] ?? null,
                     'notes' => $data['notes'] ?? null,
                 ];
 
-                $this->ensureDatesInsideSetup($setup, $payload['start_date'], $payload['end_date']);
                 $this->ensureNoOverlap($setup, $payload);
-
                 $setup->weekBlocks()->create($payload);
-                $cursor->addWeek();
+
+                $created++;
+                $weekNumber++;
+                $currentStart = $currentEnd->copy()->addDay();
             }
         });
 
-        $lastNumber = (int) $data['starting_number'] + (int) $data['number_of_weeks'] - 1;
-
         return back()->with(
             'success',
-            "Generated {$labelName} {$data['starting_number']} up to {$labelName} {$lastNumber}."
+            "Generated {$created} blocks: {$labelName} 1 up to {$labelName} {$created}."
         );
     }
 

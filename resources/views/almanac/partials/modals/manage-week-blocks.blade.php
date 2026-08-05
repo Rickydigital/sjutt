@@ -44,8 +44,12 @@
                                     </select>
                                 </div>
                                 <div class="col-md-3">
-                                    <label class="form-label">First Week Start Date</label>
+                                    <label class="form-label">Start Date</label>
                                     <input type="date" name="start_date" class="form-control" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">End Date</label>
+                                    <input type="date" name="end_date" class="form-control" required>
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label">Block Type</label>
@@ -59,14 +63,6 @@
                                 <div class="col-md-4">
                                     <label class="form-label">Label Name</label>
                                     <input name="label_name" class="form-control" value="Week" placeholder="Week, Exam, Rotation" required>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Starting Number</label>
-                                    <input type="number" name="starting_number" class="form-control" min="1" value="1" required>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Number of Weeks</label>
-                                    <input type="number" name="number_of_weeks" class="form-control" min="1" max="60" value="15" required>
                                 </div>
 
                                 <div class="col-md-3">

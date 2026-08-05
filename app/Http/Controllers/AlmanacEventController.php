@@ -82,7 +82,14 @@ class AlmanacEventController extends Controller
     public function destroy(AlmanacSetup $setup, AlmanacEvent $event): RedirectResponse
     {
         abort_unless((int) $event->almanac_setup_id === (int) $setup->id, 404);
+
+        if ($setup->status !== 'draft') {
+            abort(403, 'Events can only be deleted while the Almanac setup is in draft status.');
+        }
+
+        $event->programGroups()->detach();
         $event->delete();
+
         return back()->with('success', 'Almanac event deleted successfully.');
     }
 

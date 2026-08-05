@@ -288,5 +288,13 @@
     function capitalize(value) {
         return value ? value.charAt(0).toUpperCase() + value.slice(1) : '';
     }
+
+    document.querySelectorAll('.js-delete-event-form').forEach(form => {
+        form.addEventListener('submit', event => {
+            if (!window.confirm('Delete this event? This is allowed only while the Almanac is in draft status.')) {
+                event.preventDefault();
+            }
+        });
+    });
 })();
 </script>
