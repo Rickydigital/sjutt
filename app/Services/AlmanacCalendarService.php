@@ -31,14 +31,21 @@ class AlmanacCalendarService
                     );
 
                     $dayBlocks[$group->id] = $block ? [
-                        'id' => $block->id,
-                        'label_name' => $block->label_name,
-                        'display_value' => $block->display_value,
-                        'full_label' => trim(implode(' ', array_filter([$block->label_name, $block->display_value]))),
-                        'block_type' => $block->block_type,
-                        'background_color' => $block->background_color ?: $group->background_color,
-                        'text_color' => $block->text_color ?: $group->text_color,
-                    ] : null;
+                    'id' => $block->id,
+                    'start_date' => $block->start_date?->format('Y-m-d'),
+                    'end_date' => $block->end_date?->format('Y-m-d'),
+                    'label_name' => $block->label_name,
+                    'display_value' => $block->display_value,
+                    'full_label' => trim(
+                        implode(' ', array_filter([
+                            $block->label_name,
+                            $block->display_value,
+                        ]))
+                    ),
+                    'block_type' => $block->block_type,
+                    'background_color' => $block->background_color ?: $group->background_color,
+                    'text_color' => $block->text_color ?: $group->text_color,
+                ] : null;
                 }
 
                 $dayEvents = $events->filter(function ($event) use ($date): bool {
