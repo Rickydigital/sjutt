@@ -21,7 +21,17 @@ class AlumniElectionCandidate extends Model
 
     public function getPhotoUrlAttribute(): ?string
     {
-        return $this->photo ? asset('storage/' . $this->photo) : null;
+        if ($this->photo) {
+            return asset('storage/' . $this->photo);
+        }
+
+        // The candidate application form doesn't collect a dedicated photo —
+        // fall back to the linked alumni account's own profile photo.
+        if ($this->alumni?->profile_photo) {
+            return asset('storage/' . $this->alumni->profile_photo);
+        }
+
+        return null;
     }
 
     public function election(): BelongsTo { return $this->belongsTo(AlumniElection::class, 'alumni_election_id'); }
