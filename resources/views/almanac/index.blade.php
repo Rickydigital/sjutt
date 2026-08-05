@@ -90,11 +90,28 @@
                                 <tr class="{{ $day['is_week_end'] ? 'week-end' : '' }}">
                                     @if($dayIndex === 0)<td rowspan="{{ count($month['days']) }}" class="month-cell">{{ $month['label'] }}</td>@endif
                                     @foreach($calendar['groups'] as $group)
-                                        @php($block = $day['week_values'][$group->id] ?? null)
-                                        <td class="text-center fw-bold week-cell {{ $block ? 'js-edit-week-block' : '' }}" data-id="{{ $block['id'] ?? '' }}" style="background:{{ $block['background_color'] ?? '#fff' }};color:{{ $block['text_color'] ?? '#000' }}" title="{{ $block ? 'Click to edit week block' : '' }}">
-                                            {{ $block['full_label'] ?? '' }}
-                                        </td>
-                                    @endforeach
+    @php
+        $block = $day['week_values'][$group->id] ?? null;
+
+        $isBlockStart = $block
+            && isset($block['start_date'])
+            && $day['date_value'] === $block['start_date'];
+    @endphp
+
+    <td
+        class="text-center fw-bold week-cell {{ $block ? 'js-edit-week-block' : '' }}"
+        data-id="{{ $block['id'] ?? '' }}"
+        style="
+            background: {{ $block['background_color'] ?? '#fff' }};
+            color: {{ $block['text_color'] ?? '#000' }};
+        "
+        title="{{ $block ? 'Click to edit week block' : '' }}"
+    >
+        @if($isBlockStart)
+            {{ $block['full_label'] }}
+        @endif
+    </td>
+@endforeach
                                     <td class="day-cell">{{ $day['day_label'] }}</td>
                                     @foreach(['academic' => 'academic_events', 'meeting' => 'meeting_events'] as $column => $key)
                                         <td class="event-cell">
