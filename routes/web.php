@@ -691,32 +691,43 @@ Route::prefix('student')->name('student.')->middleware(['auth:stuofficer'])->gro
     Route::post('/vote', [ElectionVotingController::class, 'store'])->name('vote.store');
 });
 
-Route::middleware(['auth'])->prefix('almanac')->name('almanac.')->group(function () {
-    Route::get('/', [AlmanacController::class, 'index'])->name('index');
-    Route::get('/{setup}/pdf', [AlmanacController::class, 'exportPdf'])->name('pdf');
+Route::middleware(['auth'])
+    ->prefix('almanac')
+    ->name('almanac.')
+    ->group(function () {
+        Route::get('/', [AlmanacController::class, 'index'])->name('index');
+        Route::get('/{setup}/pdf', [AlmanacController::class, 'exportPdf'])->name('pdf');
 
-    Route::post('/setups', [AlmanacSetupController::class, 'store'])->name('setups.store');
-    Route::put('/setups/{setup}', [AlmanacSetupController::class, 'update'])->name('setups.update');
-    Route::post('/setups/{setup}/activate', [AlmanacSetupController::class, 'activate'])->name('setups.activate');
-    Route::post('/setups/{setup}/archive', [AlmanacSetupController::class, 'archive'])->name('setups.archive');
-    Route::delete('/setups/{setup}', [AlmanacSetupController::class, 'destroy'])->name('setups.destroy');
+        Route::post('/setups', [AlmanacSetupController::class, 'store'])->name('setups.store');
+        Route::put('/setups/{setup}', [AlmanacSetupController::class, 'update'])->name('setups.update');
+        Route::post('/setups/{setup}/activate', [AlmanacSetupController::class, 'activate'])->name('setups.activate');
+        Route::post('/setups/{setup}/archive', [AlmanacSetupController::class, 'archive'])->name('setups.archive');
+        Route::delete('/setups/{setup}', [AlmanacSetupController::class, 'destroy'])->name('setups.destroy');
 
-    Route::post('/setups/{setup}/groups', [AlmanacProgramGroupController::class, 'store'])->name('groups.store');
-    Route::get('/setups/{setup}/groups/{group}', [AlmanacProgramGroupController::class, 'show'])->name('groups.show');
-    Route::put('/setups/{setup}/groups/{group}', [AlmanacProgramGroupController::class, 'update'])->name('groups.update');
-    Route::delete('/setups/{setup}/groups/{group}', [AlmanacProgramGroupController::class, 'destroy'])->name('groups.destroy');
+        Route::post('/setups/{setup}/groups', [AlmanacProgramGroupController::class, 'store'])->name('groups.store');
+        Route::get('/setups/{setup}/groups/{group}', [AlmanacProgramGroupController::class, 'show'])->name('groups.show');
+        Route::put('/setups/{setup}/groups/{group}', [AlmanacProgramGroupController::class, 'update'])->name('groups.update');
+        Route::delete('/setups/{setup}/groups/{group}', [AlmanacProgramGroupController::class, 'destroy'])->name('groups.destroy');
 
-    Route::post('/setups/{setup}/week-blocks', [AlmanacWeekBlockController::class, 'store'])->name('week-blocks.store');
-    Route::post('/setups/{setup}/week-blocks/generate', [AlmanacWeekBlockController::class, 'generate'])->name('week-blocks.generate');
-    Route::get('/setups/{setup}/week-blocks/{weekBlock}', [AlmanacWeekBlockController::class, 'show'])->name('week-blocks.show');
-    Route::put('/setups/{setup}/week-blocks/{weekBlock}', [AlmanacWeekBlockController::class, 'update'])->name('week-blocks.update');
-    Route::delete('/setups/{setup}/week-blocks/{weekBlock}', [AlmanacWeekBlockController::class, 'destroy'])->name('week-blocks.destroy');
+        // Week block manager modal endpoints.
+        Route::get('/setups/{setup}/week-blocks', [AlmanacWeekBlockController::class, 'index'])
+            ->name('week-blocks.index');
+        Route::post('/setups/{setup}/week-blocks', [AlmanacWeekBlockController::class, 'store'])
+            ->name('week-blocks.store');
+        Route::post('/setups/{setup}/week-blocks/generate', [AlmanacWeekBlockController::class, 'generate'])
+            ->name('week-blocks.generate');
+        Route::get('/setups/{setup}/week-blocks/{weekBlock}', [AlmanacWeekBlockController::class, 'show'])
+            ->name('week-blocks.show');
+        Route::put('/setups/{setup}/week-blocks/{weekBlock}', [AlmanacWeekBlockController::class, 'update'])
+            ->name('week-blocks.update');
+        Route::delete('/setups/{setup}/week-blocks/{weekBlock}', [AlmanacWeekBlockController::class, 'destroy'])
+            ->name('week-blocks.destroy');
 
-    Route::post('/setups/{setup}/events', [AlmanacEventController::class, 'store'])->name('events.store');
-    Route::get('/setups/{setup}/events/{event}', [AlmanacEventController::class, 'show'])->name('events.show');
-    Route::put('/setups/{setup}/events/{event}', [AlmanacEventController::class, 'update'])->name('events.update');
-    Route::delete('/setups/{setup}/events/{event}', [AlmanacEventController::class, 'destroy'])->name('events.destroy');
-});
+        Route::post('/setups/{setup}/events', [AlmanacEventController::class, 'store'])->name('events.store');
+        Route::get('/setups/{setup}/events/{event}', [AlmanacEventController::class, 'show'])->name('events.show');
+        Route::put('/setups/{setup}/events/{event}', [AlmanacEventController::class, 'update'])->name('events.update');
+        Route::delete('/setups/{setup}/events/{event}', [AlmanacEventController::class, 'destroy'])->name('events.destroy');
+    });
 
 
 

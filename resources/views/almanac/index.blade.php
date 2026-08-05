@@ -28,8 +28,9 @@
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#setupModal">New Setup</button>
             @if($setup)
                 <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#groupModal">Add Programme Group</button>
-                <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#weekBlockModal">Add Week Block</button>
-                <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#generateWeeksModal">Generate Weeks</button>
+                <button type="button" class="btn btn-outline-warning" id="openWeekBlockManagerBtn">
+                    <i class="bi bi-calendar-week"></i> Manage Week Blocks
+                </button>
                 <button class="btn btn-outline-dark js-add-event" data-date="{{ $setup->start_date->format('Y-m-d') }}" data-column="academic">Add Event</button>
                 <a href="{{ route('almanac.pdf', $setup) }}" class="btn btn-success">Export PDF</a>
             @endif
@@ -117,75 +118,12 @@
 </div>
 
 @include('almanac.partials.modals')
+@include('almanac.partials.modals.manage-week-blocks')
+@include('almanac.partials.modals.edit-week-block')
 @endsection
 
 @section('scripts')
 @if($setup)
-<script>
-(() => {
-    const setupId = {{ $setup->id }};
-    const base = @json(url('/almanac/setups/'.$setup->id));
-    const token = document.querySelector('meta[name="csrf-token"]')?.content;
-    const modal = id => bootstrap.Modal.getOrCreateInstance(document.getElementById(id));
-
-    document.querySelectorAll('.js-add-event').forEach(btn => btn.addEventListener('click', () => {
-        const form = document.getElementById('eventForm');
-        form.reset();
-        form.action = `${base}/events`;
-        form.querySelector('input[name="_method"]')?.remove();
-        document.getElementById('eventModalTitle').textContent = 'Add Almanac Event';
-        form.start_date.value = btn.dataset.date;
-        form.end_date.value = '';
-        form.event_column.value = btn.dataset.column || 'academic';
-        form.applies_to_all.checked = true;
-        modal('eventModal').show();
-    }));
-
-    document.querySelectorAll('.js-edit-event').forEach(btn => btn.addEventListener('click', async () => {
-        const data = await fetch(`${base}/events/${btn.dataset.id}`, {headers:{Accept:'application/json'}}).then(r => r.json());
-        const form = document.getElementById('eventForm');
-        form.action = `${base}/events/${data.id}`;
-        ensureMethod(form, 'PUT');
-        document.getElementById('eventModalTitle').textContent = 'Edit Almanac Event';
-        fill(form, data);
-        setMulti(form.querySelector('[name="program_group_ids[]"]'), data.program_group_ids || []);
-        modal('eventModal').show();
-    }));
-
-    document.querySelectorAll('.js-edit-group').forEach(btn => btn.addEventListener('click', async () => {
-        const data = await fetch(`${base}/groups/${btn.dataset.id}`, {headers:{Accept:'application/json'}}).then(r => r.json());
-        const form = document.getElementById('editGroupForm');
-        form.action = `${base}/groups/${data.id}`;
-        fill(form, data);
-        setMulti(form.querySelector('[name="program_ids[]"]'), data.program_ids || []);
-        modal('editGroupModal').show();
-    }));
-
-    document.querySelectorAll('.js-edit-week-block').forEach(cell => cell.addEventListener('click', async () => {
-        if (!cell.dataset.id) return;
-        const data = await fetch(`${base}/week-blocks/${cell.dataset.id}`, {headers:{Accept:'application/json'}}).then(r => r.json());
-        const form = document.getElementById('editWeekBlockForm');
-        form.action = `${base}/week-blocks/${data.id}`;
-        fill(form, data);
-        modal('editWeekBlockModal').show();
-    }));
-
-    function ensureMethod(form, method) {
-        let input = form.querySelector('input[name="_method"]');
-        if (!input) { input = document.createElement('input'); input.type='hidden'; input.name='_method'; form.appendChild(input); }
-        input.value = method;
-    }
-    function fill(form, data) {
-        Object.entries(data).forEach(([key, value]) => {
-            const el = form.elements[key]; if (!el || key.endsWith('_ids')) return;
-            if (el.type === 'checkbox') el.checked = Boolean(value); else el.value = value ?? '';
-        });
-    }
-    function setMulti(select, values) {
-        if (!select) return; const wanted = values.map(String);
-        [...select.options].forEach(o => o.selected = wanted.includes(String(o.value)));
-    }
-})();
-</script>
+    @include('almanac.partials.scripts')
 @endif
 @endsection
