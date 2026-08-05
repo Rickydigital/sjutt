@@ -12,6 +12,7 @@ class AlmanacWeekBlock extends Model
         'almanac_program_group_id',
         'start_date',
         'end_date',
+        'label_name',
         'display_value',
         'block_type',
         'background_color',

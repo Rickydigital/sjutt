@@ -18,6 +18,7 @@ class StoreAlmanacWeekBlockRequest extends FormRequest
             'almanac_program_group_id' => ['required', 'exists:almanac_program_groups,id'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'label_name' => ['nullable', 'string', 'max:50'],
             'display_value' => ['nullable', 'string', 'max:30'],
             'block_type' => [
                 'required',

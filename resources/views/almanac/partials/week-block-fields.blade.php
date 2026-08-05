@@ -1,0 +1,7 @@
+<label>Programme Group</label><select name="almanac_program_group_id" class="form-select mb-2" required>@foreach($setup->programGroups as $group)<option value="{{ $group->id }}">{{ $group->name }}</option>@endforeach</select>
+<div class="row"><div class="col"><label>Start</label><input type="date" name="start_date" class="form-control" required></div><div class="col"><label>End</label><input type="date" name="end_date" class="form-control" required></div></div>
+<div class="row mt-2"><div class="col"><label>Label Name</label><input name="label_name" class="form-control" placeholder="Week, Exam, Rotation"></div><div class="col"><label>Label Value</label><input name="display_value" class="form-control" placeholder="1, 2, I, II"></div></div>
+<div class="small text-muted">Example: Label Name = Week and Label Value = 1 displays “Week 1”.</div>
+<label class="mt-2">Type</label><select name="block_type" class="form-select mb-2">@foreach(['teaching','examination','registration','orientation','fieldwork','clinical','holiday','break','other'] as $type)<option value="{{ $type }}">{{ ucfirst($type) }}</option>@endforeach</select>
+<div class="row"><div class="col"><label>Background</label><input type="color" name="background_color" class="form-control form-control-color" value="#fde68a"></div><div class="col"><label>Text</label><input type="color" name="text_color" class="form-control form-control-color" value="#000000"></div></div>
+<label class="mt-2">Notes</label><textarea name="notes" class="form-control"></textarea>

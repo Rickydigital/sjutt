@@ -31,7 +31,10 @@ class AlmanacCalendarService
                     );
 
                     $dayBlocks[$group->id] = $block ? [
+                        'id' => $block->id,
+                        'label_name' => $block->label_name,
                         'display_value' => $block->display_value,
+                        'full_label' => trim(implode(' ', array_filter([$block->label_name, $block->display_value]))),
                         'block_type' => $block->block_type,
                         'background_color' => $block->background_color ?: $group->background_color,
                         'text_color' => $block->text_color ?: $group->text_color,
@@ -45,6 +48,7 @@ class AlmanacCalendarService
 
                 return [
                     'date' => $date->copy(),
+                    'date_value' => $date->format('Y-m-d'),
                     'month_key' => $date->format('Y-m'),
                     'month_label' => $date->format('F-y'),
                     'day_label' => $date->format('D - d'),
@@ -69,26 +73,32 @@ class AlmanacCalendarService
 
     private function formatEvents(Collection $events, Carbon $date): Collection
     {
-        return $events->map(function ($event) use ($date): array {
-            $text = $event->title;
-            if ($event->description) {
-                $text .= ' — ' . $event->description;
+        return $events->map(function ($event) use ($date): ?array {
+            $isStart = $date->isSameDay($event->start_date);
+            $hasDistinctEnd = $event->end_date && !$event->end_date->isSameDay($event->start_date);
+            $isEnd = $hasDistinctEnd && $date->isSameDay($event->end_date);
+
+            if (!$isStart && !$isEnd) {
+                return null;
             }
 
-            // To match the manual, long-range events are printed on the start date only.
-            if (!$date->isSameDay($event->start_date)) {
-                $text = '';
+            $text = $isEnd ? 'End of ' . $event->title : $event->title;
+            if ($isStart && $event->description) {
+                $text .= ' — ' . $event->description;
             }
 
             return [
                 'id' => $event->id,
                 'text' => $text,
+                'is_start' => $isStart,
+                'is_end' => $isEnd,
                 'category' => $event->category,
+                'event_column' => $event->event_column,
                 'is_no_classes' => $event->is_no_classes,
                 'is_tentative' => $event->is_tentative,
                 'background_color' => $event->background_color,
                 'text_color' => $event->text_color,
             ];
-        })->filter(fn ($item) => $item['text'] !== '')->values();
+        })->filter()->values();
     }
 }

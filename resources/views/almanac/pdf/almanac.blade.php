@@ -26,7 +26,7 @@ th { background:#d9d9d9; text-align:center; font-weight:bold; }
                     @if($dayIndex === 0)<td rowspan="{{ count($month['days']) }}" class="month">{{ $month['label'] }}</td>@endif
                     @foreach($calendar['groups'] as $group)
                         @php($block = $day['week_values'][$group->id] ?? null)
-                        <td class="week" style="background:{{ $block['background_color'] ?? '#fff' }};color:{{ $block['text_color'] ?? '#000' }}">{{ $block['display_value'] ?? '' }}</td>
+                        <td class="week" style="background:{{ $block['background_color'] ?? '#fff' }};color:{{ $block['text_color'] ?? '#000' }}">{{ $block['full_label'] ?? '' }}</td>
                     @endforeach
                     <td class="date">{{ $day['day_label'] }}</td>
                     <td>@foreach($day['academic_events'] as $event)<div style="color:{{ $event['text_color'] ?: ($event['is_no_classes'] ? '#c00' : '#000') }}">{{ $event['text'] }}</div>@endforeach</td>
