@@ -149,7 +149,9 @@
                         <td class="month">{{ $dayIndex === 0 ? $month['label'] : '' }}</td>
 
                         @foreach ($calendar['groups'] as $index => $group)
-                            @php($block = $day['week_values'][$group->id] ?? null)
+                            @php
+                                $block = $day['week_values'][$group->id] ?? null;
+                            @endphp
                             @if (!$block)
                                 <td class="week {{ $index > 0 ? 'week-group-start' : '' }}"></td>
                             @elseif ($block['is_block_start'])
