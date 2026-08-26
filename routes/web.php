@@ -296,6 +296,12 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/timetables/setup/{setup}/venue-usage', [ExaminationTimetableController::class, 'venueUsage'])
         ->name('timetables.venueUsage')
         ->middleware(['permission:view examination timetables']);
+    Route::get('/timetables/setup/{setup}/available-venues', [ExaminationTimetableController::class, 'availableVenues'])
+        ->name('timetables.availableVenues')
+        ->middleware(['permission:view examination timetables']);
+    Route::get('/timetables/setup/{setup}/venue-usage/pdf', [ExaminationTimetableController::class, 'venueUsagePdf'])
+        ->name('timetables.venueUsagePdf')
+        ->middleware(['permission:export examination timetables']);
     Route::get('/timetables', [ExaminationTimetableController::class, 'index'])->name('timetables.index')->middleware(['permission:view examination timetables']);
     Route::get('/timetables/create', [ExaminationTimetableController::class, 'create'])->name('timetables.create')->middleware(['permission:view examination timetables']);
     Route::post('/timetables', [ExaminationTimetableController::class, 'store'])->name('timetables.store')->middleware(['permission:create examination timetables']);

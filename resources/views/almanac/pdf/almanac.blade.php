@@ -40,11 +40,6 @@
         color: #333;
         margin: 2px 0;
     }
-    .print-header .draft {
-        font-weight: bold;
-        color: #4B2E83;
-        font-size: 8.5pt;
-    }
     .print-header .logo {
         height: 26px;
         margin-top: 3px;
@@ -128,8 +123,7 @@
 
     <div class="print-header">
         <div class="main-title">ST JOHN'S UNIVERSITY OF TANZANIA</div>
-        <div class="subtitle">{{ $setup->title }} &bull; {{ $setup->academicYear->year ?? $setup->academicYear->name ?? '' }}</div>
-        <div class="draft">{{ $setup->status === 'active' ? 'Official' : 'Draft' }}</div>
+        <div class="subtitle">{{ $setup->title }}</div>
         <img src="{{ public_path('images/logo.png') }}" alt="SJUT" class="logo">
     </div>
 

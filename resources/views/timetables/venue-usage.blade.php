@@ -43,6 +43,10 @@
                     <span>— {{ $selectedVenue->longform }}</span>
                 @endif
                 <span class="badge bg-light text-dark ms-2">Capacity: {{ $selectedVenue->capacity }}</span>
+                <a href="{{ route('timetables.venueUsagePdf', ['setup' => $setup, 'venue_id' => $selectedVenue->id]) }}"
+                   class="btn btn-sm btn-danger float-end">
+                    <i class="fas fa-file-pdf me-1"></i> Export PDF
+                </a>
             </div>
 
             @foreach($dateChunks as $chunkDays)

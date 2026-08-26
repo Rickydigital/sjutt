@@ -197,6 +197,31 @@ class ExaminationTimetableController extends Controller
         return back()->with('success', 'All timetables cleared for this setup.');
     }
 
+    public function availableVenues(Request $request, ExamSetup $setup)
+    {
+        $validated = $request->validate([
+            'exam_date' => ['required', 'date'],
+            'start_time' => ['required', 'date_format:H:i'],
+            'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
+            'timetable_id' => ['nullable', 'integer', 'exists:examination_timetables,id'],
+        ]);
+
+        $busyVenueIds = $this->busyVenueIds(
+            $setup->id,
+            $validated['exam_date'],
+            $validated['start_time'],
+            $validated['end_time'],
+            isset($validated['timetable_id']) ? (int) $validated['timetable_id'] : null
+        );
+
+        $venues = Venue::query()
+            ->whereNotIn('id', $busyVenueIds)
+            ->orderBy('name')
+            ->get(['id', 'name', 'longform', 'capacity']);
+
+        return response()->json(['venues' => $venues]);
+    }
+
     /**
      * Show venue bookings for one examination setup.
      */
@@ -263,6 +288,61 @@ class ExaminationTimetableController extends Controller
         return view('timetables.venue-usage', compact(
             'setup', 'dateChunks', 'timeSlots', 'venues', 'selectedVenue', 'grid'
         ));
+    }
+
+    public function venueUsagePdf(Request $request, ExamSetup $setup)
+    {
+        $validated = $request->validate([
+            'venue_id' => ['required', 'integer', 'exists:venues,id'],
+        ]);
+
+        $setup->load('semester');
+        $venue = Venue::findOrFail((int) $validated['venue_id']);
+        $days = $this->getValidDates($setup);
+        $dateChunks = array_chunk($days, 5);
+        $timeSlots = collect($setup->time_slots ?? [])->map(fn (array $slot) => [
+            'name' => $slot['name'] ?? 'Session',
+            'start_time' => Carbon::parse($slot['start_time'])->format('H:i'),
+            'end_time' => Carbon::parse($slot['end_time'])->format('H:i'),
+        ])->values();
+
+        $exams = ExaminationTimetable::with([
+                'venues' => fn ($query) => $query->where('venues.id', $venue->id),
+                'faculty',
+                'program',
+            ])
+            ->where('exam_setup_id', $setup->id)
+            ->whereIn('exam_date', $days)
+            ->whereHas('venues', fn ($query) => $query->where('venues.id', $venue->id))
+            ->orderBy('exam_date')
+            ->orderBy('start_time')
+            ->get();
+
+        $grid = [];
+        $totalStudents = 0;
+
+        foreach ($exams as $exam) {
+            $date = Carbon::parse($exam->exam_date)->format('Y-m-d');
+            $start = Carbon::parse($exam->start_time)->format('H:i');
+            $assignedVenue = $exam->venues->first();
+            $allocated = (int) ($assignedVenue?->pivot?->allocated_capacity ?? 0);
+            $totalStudents += $allocated;
+
+            $grid[$date][$start][] = [
+                'course_code' => $exam->course_code,
+                'faculty' => $exam->faculty?->name,
+                'program' => $exam->program?->short_name ?? $exam->program?->name,
+                'allocated_capacity' => $allocated,
+            ];
+        }
+
+        $filename = 'exam-venue-usage-'
+            . preg_replace('/[^A-Za-z0-9_-]+/', '-', $venue->name)
+            . '-' . now()->format('Y-m-d') . '.pdf';
+
+        return Pdf::loadView('timetables.pdf.venue-usage', compact(
+            'setup', 'venue', 'dateChunks', 'timeSlots', 'grid', 'totalStudents'
+        ))->setPaper('a4', 'portrait')->download($filename);
     }
 
 public function exportPdf(Request $request, ExamSetup $setup)
@@ -394,6 +474,14 @@ $uploadingDate = isset($validated['uploading_date'])
     $startTime  = $validated['start_time'];
     $endTime    = $validated['end_time'];
     $venueIds   = array_map('intval', $validated['selected_venues']);
+
+    $this->ensureSelectedVenuesAreFree(
+        (int) $setup->id,
+        $examDate,
+        $startTime,
+        $endTime,
+        $venueIds
+    );
 
     $isCross = $this->isCrossCateringCourse($courseCode);
 
@@ -546,6 +634,15 @@ $uploadingDate = isset($validated['uploading_date'])
     $startTime  = $validated['start_time'];
     $endTime    = $validated['end_time'];
     $venueIds   = array_map('intval', $validated['selected_venues']);
+
+    $this->ensureSelectedVenuesAreFree(
+        (int) $setup->id,
+        $examDate,
+        $startTime,
+        $endTime,
+        $venueIds,
+        (int) $timetable->id
+    );
     $isCross    = $this->isCrossCateringCourse($courseCode);
 
     DB::beginTransaction();
@@ -1463,6 +1560,79 @@ private function checkConflicts(Request $request, array $validated, ?int $exclud
     }
 
     return $conflicts;
+}
+
+private function busyVenueIds(
+    int $setupId,
+    string $examDate,
+    string $startTime,
+    string $endTime,
+    ?int $excludeTimetableId = null
+): array {
+    $excludedIds = [];
+
+    if ($excludeTimetableId) {
+        $editing = ExaminationTimetable::find($excludeTimetableId);
+
+        if ($editing && (int) $editing->exam_setup_id === $setupId) {
+            // Cross-catering examinations are stored as one row per faculty.
+            // Treat all rows belonging to that same examination as the record
+            // being edited so its existing venues remain selectable.
+            $excludedIds = ExaminationTimetable::query()
+                ->where('exam_setup_id', $setupId)
+                ->where('course_code', $editing->course_code)
+                ->whereDate('exam_date', $editing->exam_date)
+                ->where('start_time', $editing->start_time)
+                ->where('end_time', $editing->end_time)
+                ->pluck('id')
+                ->all();
+        }
+    }
+
+    return DB::table('examination_timetable_venue')
+        ->join(
+            'examination_timetables',
+            'examination_timetables.id',
+            '=',
+            'examination_timetable_venue.examination_timetable_id'
+        )
+        ->where('examination_timetables.exam_setup_id', $setupId)
+        ->whereDate('examination_timetables.exam_date', Carbon::parse($examDate)->format('Y-m-d'))
+        ->where('examination_timetables.start_time', '<', Carbon::parse($endTime)->format('H:i:s'))
+        ->where('examination_timetables.end_time', '>', Carbon::parse($startTime)->format('H:i:s'))
+        ->when($excludedIds, fn ($query) => $query->whereNotIn('examination_timetables.id', $excludedIds))
+        ->distinct()
+        ->pluck('examination_timetable_venue.venue_id')
+        ->map(fn ($id) => (int) $id)
+        ->all();
+}
+
+private function ensureSelectedVenuesAreFree(
+    int $setupId,
+    string $examDate,
+    string $startTime,
+    string $endTime,
+    array $selectedVenueIds,
+    ?int $excludeTimetableId = null
+): void {
+    $busyVenueIds = $this->busyVenueIds(
+        $setupId,
+        $examDate,
+        $startTime,
+        $endTime,
+        $excludeTimetableId
+    );
+    $conflictingIds = array_values(array_intersect($selectedVenueIds, $busyVenueIds));
+
+    if (!$conflictingIds) {
+        return;
+    }
+
+    $names = Venue::whereIn('id', $conflictingIds)->orderBy('name')->pluck('name')->implode(', ');
+
+    throw \Illuminate\Validation\ValidationException::withMessages([
+        'selected_venues' => "These venues are already used in the selected examination slot: {$names}.",
+    ]);
 }
 
     

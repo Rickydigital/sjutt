@@ -725,11 +725,8 @@ use Carbon\Carbon;
                             <div class="col-md-12">
                                 <label class="form-label">Venues</label>
                                 <select class="form-control select2" name="selected_venues[]" id="exam_venues" multiple
-                                    required data-placeholder="Select venues">
-                                    @foreach($venues as $v)
-                                    <option value="{{ $v->id }}">{{ $v->name }} ({{ $v->capacity }})</option>
-                                    @endforeach
-                                </select>
+                                    required data-placeholder="Select free venues"></select>
+                                <small class="text-muted">Only venues free in this setup, date and session are shown.</small>
                             </div>
 
                         </div>
@@ -1285,6 +1282,38 @@ function loadCoursesForFaculty(facultyId, selectedCourseCode = null) {
     });
 }
 
+function loadAvailableExamVenues(selectedVenueIds = [], timetableId = null) {
+  const setupId = $('#exam_setup_id').val();
+  const params = {
+    exam_date: $('#exam_date').val(),
+    start_time: $('#start_time').val(),
+    end_time: $('#end_time').val()
+  };
+
+  if (timetableId) params.timetable_id = timetableId;
+
+  const venueSelect = $('#exam_venues');
+  venueSelect.prop('disabled', true).html('<option value="">Loading free venues...</option>');
+
+  $.get(`{{ url('/timetables/setup') }}/${setupId}/available-venues`, params)
+    .done(function(resp) {
+      let options = '';
+      (resp.venues || []).forEach(v => {
+        options += `<option value="${v.id}">${v.name} (${v.capacity})</option>`;
+      });
+      venueSelect.html(options).prop('disabled', false);
+      venueSelect.val((selectedVenueIds || []).map(String)).trigger('change');
+
+      if (!(resp.venues || []).length) {
+        venueSelect.html('').prop('disabled', true);
+      }
+    })
+    .fail(function(xhr) {
+      venueSelect.html('').prop('disabled', true);
+      Swal.fire('Error', extractAjaxMessage(xhr, 'Failed to load free venues.'), 'error');
+    });
+}
+
 /* ---- OPEN CREATE modal from "+" ---- */
 $(document).on('click', '.add-exam', function(e){
   e.preventDefault();
@@ -1309,10 +1338,10 @@ $(document).on('click', '.add-exam', function(e){
   $('#nature').val('Theory');
 
   initExamModalSelect2();
-  $('#exam_venues').val(null).trigger('change');
   $('#course_code').val(null).trigger('change');
 
   loadCoursesForFaculty(facultyId);
+  loadAvailableExamVenues();
 
   showBsModal('examFormModal'); // ✅ BOOTSTRAP 5
 });
@@ -1347,7 +1376,7 @@ $(document).on('click', '.edit-exam', function(e){
       $('#nature').val(data.nature || 'Theory');
 
       const venueIds = (data.venues || []).map(v => String(v.id));
-      $('#exam_venues').val(venueIds).trigger('change');
+      loadAvailableExamVenues(venueIds, examId);
 
       loadCoursesForFaculty(facultyId, data.course_code);
 
