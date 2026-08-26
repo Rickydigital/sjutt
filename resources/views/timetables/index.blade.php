@@ -216,6 +216,10 @@ use Carbon\Carbon;
                                 <i class="fas fa-magic me-1"></i> Auto-Generate
                             </button>
                             @if($setup)
+                            <a class="btn btn-info btn-sm me-2 text-white"
+                                href="{{ route('timetables.venueUsage', $setup) }}">
+                                <i class="fas fa-building me-1"></i> Venue Usage
+                            </a>
                             <button class="btn btn-success btn-sm me-2" data-bs-toggle="modal"
                                 data-bs-target="#exportPdfModal">
                                 <i class="fas fa-file-pdf me-1"></i> Export PDF

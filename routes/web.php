@@ -293,6 +293,9 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::put('/timetables/setup/{setup}', [ExaminationTimetableController::class, 'updateSetup'])->name('timetables.updateSetup')->middleware(['permission:edit examination timetables']);
     Route::get('/timetables/create', [ExaminationTimetableController::class, 'export'])->name('timetables.export')->middleware(['permission:export examination timetables']);
     Route::post('/timetables/student-count', [TimetableController::class, 'getStudentCount'])->name('timetables.getStudentCount')->middleware(['permission:view examination timetables']);
+    Route::get('/timetables/setup/{setup}/venue-usage', [ExaminationTimetableController::class, 'venueUsage'])
+        ->name('timetables.venueUsage')
+        ->middleware(['permission:view examination timetables']);
     Route::get('/timetables', [ExaminationTimetableController::class, 'index'])->name('timetables.index')->middleware(['permission:view examination timetables']);
     Route::get('/timetables/create', [ExaminationTimetableController::class, 'create'])->name('timetables.create')->middleware(['permission:view examination timetables']);
     Route::post('/timetables', [ExaminationTimetableController::class, 'store'])->name('timetables.store')->middleware(['permission:create examination timetables']);

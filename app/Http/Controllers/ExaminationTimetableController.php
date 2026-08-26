@@ -197,6 +197,53 @@ class ExaminationTimetableController extends Controller
         return back()->with('success', 'All timetables cleared for this setup.');
     }
 
+    /**
+     * Show venue bookings for one examination setup.
+     */
+    public function venueUsage(ExamSetup $setup)
+    {
+        $setup->load('semester');
+
+        $days = $this->getValidDates($setup);
+        $dateChunks = array_chunk($days, 5);
+        $timeSlots = collect($setup->time_slots ?? [])->map(function (array $slot): array {
+            return [
+                'name' => $slot['name'] ?? 'Session',
+                'start_time' => Carbon::parse($slot['start_time'])->format('H:i'),
+                'end_time' => Carbon::parse($slot['end_time'])->format('H:i'),
+            ];
+        })->values();
+
+        $exams = ExaminationTimetable::with(['venues', 'faculty', 'program'])
+            ->where('exam_setup_id', $setup->id)
+            ->whereIn('exam_date', $days)
+            ->orderBy('exam_date')
+            ->orderBy('start_time')
+            ->get();
+
+        $venueIds = $exams->flatMap(fn ($exam) => $exam->venues->pluck('id'))->unique()->values();
+        $venues = Venue::with('building')->whereIn('id', $venueIds)->orderBy('name')->get();
+        $grid = [];
+
+        foreach ($exams as $exam) {
+            $date = Carbon::parse($exam->exam_date)->format('Y-m-d');
+            $start = Carbon::parse($exam->start_time)->format('H:i');
+
+            foreach ($exam->venues as $venue) {
+                $grid[$date][$start][$venue->id][] = [
+                    'course_code' => $exam->course_code,
+                    'faculty' => $exam->faculty?->name,
+                    'program' => $exam->program?->short_name ?? $exam->program?->name,
+                    'allocated_capacity' => (int) ($venue->pivot->allocated_capacity ?? 0),
+                ];
+            }
+        }
+
+        return view('timetables.venue-usage', compact(
+            'setup', 'dateChunks', 'timeSlots', 'venues', 'grid'
+        ));
+    }
+
 public function exportPdf(Request $request, ExamSetup $setup)
 {
     $validated = $request->validate([
