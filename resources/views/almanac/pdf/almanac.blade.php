@@ -104,6 +104,12 @@
         padding: 3px 1px;
         line-height: 1.15;
     }
+    .week-block-continue {
+        border-top-color: transparent !important;
+    }
+    .week-block:not(.week-block-end) {
+        border-bottom-color: transparent !important;
+    }
     .week-block-label {
         display: block;
         font-size: 6.5pt;
@@ -154,16 +160,18 @@
                             @endphp
                             @if (!$block)
                                 <td class="week {{ $index > 0 ? 'week-group-start' : '' }}"></td>
-                            @elseif ($block['is_block_start'])
-                                @php
-                                    $weekRowspan = \Carbon\Carbon::parse($block['start_date'])
-                                        ->diffInDays(\Carbon\Carbon::parse($block['end_date'])) + 1;
-                                @endphp
+                            @else
                                 <td
-                                    rowspan="{{ $weekRowspan }}"
-                                    class="week week-block {{ $index > 0 ? 'week-group-start' : '' }}"
+                                    class="week week-block
+                                        {{ !$block['is_block_start'] ? 'week-block-continue' : '' }}
+                                        {{ $block['is_block_end'] ? 'week-block-end' : '' }}
+                                        {{ $index > 0 ? 'week-group-start' : '' }}"
                                     style="background:{{ $block['background_color'] }};color:{{ $block['text_color'] }}"
-                                ><span class="week-block-label">{{ $block['full_label'] }}</span></td>
+                                >
+                                    @if ($block['is_block_start'])
+                                        <span class="week-block-label">{{ $block['full_label'] }}</span>
+                                    @endif
+                                </td>
                             @endif
                         @endforeach
 

@@ -200,8 +200,12 @@ class ExaminationTimetableController extends Controller
     /**
      * Show venue bookings for one examination setup.
      */
-    public function venueUsage(ExamSetup $setup)
+    public function venueUsage(Request $request, ExamSetup $setup)
     {
+        $validated = $request->validate([
+            'venue_id' => ['nullable', 'integer', 'exists:venues,id'],
+        ]);
+
         $setup->load('semester');
 
         $days = $this->getValidDates($setup);
@@ -214,15 +218,32 @@ class ExaminationTimetableController extends Controller
             ];
         })->values();
 
-        $exams = ExaminationTimetable::with(['venues', 'faculty', 'program'])
+        // Include every venue in the selector, including venues that are
+        // completely free for this examination setup.
+        $venues = Venue::with('building')->orderBy('name')->get();
+        $selectedVenueId = !empty($validated['venue_id'])
+            ? (int) $validated['venue_id']
+            : (int) ($venues->first()?->id ?? 0);
+        $selectedVenue = $venues->firstWhere('id', $selectedVenueId);
+
+        if ($selectedVenueId && !$selectedVenue) {
+            abort(404, 'Selected venue was not found.');
+        }
+
+        $exams = ExaminationTimetable::with([
+                'venues' => fn ($query) => $query->where('venues.id', $selectedVenueId),
+                'faculty',
+                'program',
+            ])
             ->where('exam_setup_id', $setup->id)
             ->whereIn('exam_date', $days)
+            ->when($selectedVenueId, function ($query) use ($selectedVenueId) {
+                $query->whereHas('venues', fn ($venueQuery) => $venueQuery->where('venues.id', $selectedVenueId));
+            })
             ->orderBy('exam_date')
             ->orderBy('start_time')
             ->get();
 
-        $venueIds = $exams->flatMap(fn ($exam) => $exam->venues->pluck('id'))->unique()->values();
-        $venues = Venue::with('building')->whereIn('id', $venueIds)->orderBy('name')->get();
         $grid = [];
 
         foreach ($exams as $exam) {
@@ -240,7 +261,7 @@ class ExaminationTimetableController extends Controller
         }
 
         return view('timetables.venue-usage', compact(
-            'setup', 'dateChunks', 'timeSlots', 'venues', 'grid'
+            'setup', 'dateChunks', 'timeSlots', 'venues', 'selectedVenue', 'grid'
         ));
     }
 
