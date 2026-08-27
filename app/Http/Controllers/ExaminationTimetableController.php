@@ -597,6 +597,14 @@ $uploadingDate = isset($validated['uploading_date'])
 
 public function update(Request $request, ExaminationTimetable $timetable)
 {
+    // Keep the persisted slot before applying the submitted move. Cross-catering
+    // examinations have one row per faculty, and those linked rows must be
+    // removed from the OLD slot rather than from the newly selected slot.
+    $originalCourseCode = $timetable->course_code;
+    $originalExamDate = Carbon::parse($timetable->exam_date)->format('Y-m-d');
+    $originalStartTime = Carbon::parse($timetable->start_time)->format('H:i');
+    $originalEndTime = Carbon::parse($timetable->end_time)->format('H:i');
+
     $validated = $request->validate([
         'faculty_id' => 'required|exists:faculties,id',
         'course_code' => 'required|exists:courses,course_code',
@@ -651,9 +659,16 @@ $uploadingDate = isset($validated['uploading_date'])
             $faculties  = $this->getFacultiesForCourse($courseCode);
             $facultyIds = $faculties->pluck('id')->map(fn($x)=>(int)$x)->all();
 
-            // Delete ALL old cross-catering rows in that slot (including current)
+            // Delete all linked rows from the persisted/original slot. Using the
+            // submitted slot here leaves the old examination behind when its
+            // date or time is changed, producing entries on both days.
             $this->deleteExistingSlotExams(
-                (int)$setup->id, $courseCode, $examDate, $startTime, $endTime, $facultyIds
+                (int) $setup->id,
+                $originalCourseCode,
+                $originalExamDate,
+                $originalStartTime,
+                $originalEndTime,
+                $facultyIds
             );
 
             $facultyStudentMap = [];
