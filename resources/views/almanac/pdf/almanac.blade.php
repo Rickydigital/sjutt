@@ -72,15 +72,11 @@
     tr { page-break-inside: avoid !important; }
 
     .month {
-        width: 34px;
+        width: 22px;
         text-align: center;
-        vertical-align: middle;
         font-weight: normal;
         font-size: 6pt;
         color: #444;
-        word-wrap: break-word;
-        line-height: 1.3;
-        writing-mode: horizontal-tb; /* force normal left-to-right text, never rotated */
     }
     /* bold purple rule on the first day of a new month = strong, unmistakable separator */
     .month-start td, .month-start th {
@@ -150,9 +146,7 @@
             @foreach ($calendar['months'] as $month)
                 @foreach ($month['days'] as $dayIndex => $day)
                     <tr class="{{ $dayIndex === 0 ? 'month-start' : '' }}">
-                        @if ($dayIndex === 0)
-                            <td class="month" rowspan="{{ count($month['days']) }}">{{ $month['label'] }}</td>
-                        @endif
+                        <td class="month">{{ $dayIndex === 0 ? $month['label'] : '' }}</td>
 
                         @foreach ($calendar['groups'] as $index => $group)
                             @php
