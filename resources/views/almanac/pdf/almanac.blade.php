@@ -106,7 +106,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | TABLE HEADER REPEATS
+        | REPEATING TABLE HEADER
         |--------------------------------------------------------------------------
         */
 
@@ -133,7 +133,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | ROWS
+        | ROW
         |--------------------------------------------------------------------------
         */
 
@@ -147,13 +147,14 @@
         | MONTH COLUMN
         |--------------------------------------------------------------------------
         |
-        | NO REAL ROWSPAN
+        | IMPORTANT:
         |
-        | Every date has its own month cell.
-        | Internal horizontal borders are removed so visually it behaves
-        | exactly like one merged rowspan cell.
+        | Month DOES NOT use rowspan.
         |
-        | This remains safe when DomPDF creates another page.
+        | A month can contain 28 - 31 rows and can cross a physical PDF page.
+        |
+        | Therefore every day keeps its month cell, but internal borders are
+        | removed so visually it looks like one large merged cell.
         |--------------------------------------------------------------------------
         */
 
@@ -176,7 +177,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | MONTH FIRST CELL
+        | MONTH FIRST
         |--------------------------------------------------------------------------
         */
 
@@ -189,7 +190,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | MONTH MIDDLE CELL
+        | MONTH MIDDLE
         |--------------------------------------------------------------------------
         */
 
@@ -202,7 +203,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | MONTH LAST CELL
+        | MONTH LAST
         |--------------------------------------------------------------------------
         */
 
@@ -215,7 +216,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | MONTH SINGLE CELL
+        | MONTH ONLY
         |--------------------------------------------------------------------------
         */
 
@@ -228,7 +229,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | MONTH VERTICAL LABEL
+        | MONTH VERTICAL TEXT
         |--------------------------------------------------------------------------
         */
 
@@ -253,7 +254,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | MONTH START LINE ACROSS TABLE
+        | MONTH SEPARATOR
         |--------------------------------------------------------------------------
         */
 
@@ -268,16 +269,15 @@
         | WEEK COLUMN
         |--------------------------------------------------------------------------
         |
-        | Same principle as MONTH:
+        | Week DOES use rowspan.
         |
-        | Week cells remain separate.
-        | Internal borders disappear.
-        | Visually the week looks like one vertical rowspan block.
+        | Week blocks are short, generally around 7 days, therefore this gives
+        | a much cleaner appearance than placing vertical text inside one day.
         |--------------------------------------------------------------------------
         */
 
         .week {
-            width: 42px;
+            width: 36px;
 
             padding: 0 !important;
 
@@ -286,56 +286,29 @@
             vertical-align: middle !important;
 
             font-weight: bold;
-
-            position: relative;
         }
 
 
         /*
         |--------------------------------------------------------------------------
-        | WEEK FIRST CELL
+        | MERGED WEEK CELL
         |--------------------------------------------------------------------------
         */
 
-        .week-first {
-            border-bottom-color: transparent !important;
-        }
+        .week-merged {
+            padding: 0 !important;
 
+            text-align: center !important;
 
-        /*
-        |--------------------------------------------------------------------------
-        | WEEK MIDDLE CELL
-        |--------------------------------------------------------------------------
-        */
+            vertical-align: middle !important;
 
-        .week-middle {
-            border-top-color: transparent !important;
+            overflow: hidden;
 
-            border-bottom-color: transparent !important;
-        }
+            line-height: 1;
 
+            -webkit-print-color-adjust: exact;
 
-        /*
-        |--------------------------------------------------------------------------
-        | WEEK LAST CELL
-        |--------------------------------------------------------------------------
-        */
-
-        .week-last {
-            border-top-color: transparent !important;
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | WEEK SINGLE CELL
-        |--------------------------------------------------------------------------
-        */
-
-        .week-only {
-            border-top: 0.5px solid #4B2E83 !important;
-
-            border-bottom: 0.5px solid #4B2E83 !important;
+            print-color-adjust: exact;
         }
 
 
@@ -343,12 +316,9 @@
         |--------------------------------------------------------------------------
         | WEEK VERTICAL TEXT
         |--------------------------------------------------------------------------
-        |
-        | Same appearance as month text.
-        |--------------------------------------------------------------------------
         */
 
-        .week-block-label {
+        .week-label {
             display: inline-block;
 
             white-space: nowrap;
@@ -369,23 +339,6 @@
 
         /*
         |--------------------------------------------------------------------------
-        | WEEK BLOCK
-        |--------------------------------------------------------------------------
-        */
-
-        .week-block {
-            padding: 0 !important;
-
-            text-align: center;
-
-            vertical-align: middle !important;
-
-            line-height: 1;
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
         | PROGRAMME GROUP SEPARATOR
         |--------------------------------------------------------------------------
         */
@@ -397,16 +350,15 @@
 
         /*
         |--------------------------------------------------------------------------
-        | PROGRAMME GROUP HEADERS
+        | PROGRAMME GROUP
         |--------------------------------------------------------------------------
         |
-        | IMPORTANT:
-        | Long names wrap instead of entering another programme column.
+        | Long names wrap rather than entering another programme column.
         |--------------------------------------------------------------------------
         */
 
         .programme-group {
-            width: 42px;
+            width: 36px;
 
             text-align: center;
 
@@ -430,14 +382,14 @@
 
         /*
         |--------------------------------------------------------------------------
-        | GIVE SECOND HEADER ROW ENOUGH SPACE
+        | PROGRAMME HEADER HEIGHT
         |--------------------------------------------------------------------------
         */
 
         thead tr:nth-child(2) th {
             height: auto;
 
-            min-height: 30px;
+            min-height: 32px;
 
             white-space: normal !important;
 
@@ -508,18 +460,12 @@
     <div class="print-header">
 
         <div class="main-title">
-
             ST JOHN'S UNIVERSITY OF TANZANIA
-
         </div>
-
 
         <div class="subtitle">
-
             {{ $setup->title }}
-
         </div>
-
 
         <img
             src="{{ public_path('images/logo.png') }}"
@@ -539,23 +485,19 @@
 
 
         {{-- ============================================================
-            HEADER
+            TABLE HEADER
         ============================================================= --}}
 
         <thead>
 
-
             <tr>
-
 
                 {{-- MONTH --}}
                 <th
                     rowspan="2"
                     class="month"
                 >
-
                     Months
-
                 </th>
 
 
@@ -563,9 +505,7 @@
                 <th
                     colspan="{{ $calendar['groups']->count() }}"
                 >
-
                     Week Number
-
                 </th>
 
 
@@ -574,9 +514,7 @@
                     rowspan="2"
                     class="date"
                 >
-
                     Dates
-
                 </th>
 
 
@@ -585,9 +523,7 @@
                     rowspan="2"
                     class="event"
                 >
-
                     Academic Calendar
-
                 </th>
 
 
@@ -596,18 +532,14 @@
                     rowspan="2"
                     class="event"
                 >
-
                     Meeting/Activities Calendar
-
                 </th>
-
 
             </tr>
 
 
-
             {{-- ========================================================
-                PROGRAMME GROUP NAMES
+                PROGRAMME GROUPS
             ========================================================= --}}
 
             <tr>
@@ -634,7 +566,6 @@
 
             </tr>
 
-
         </thead>
 
 
@@ -657,14 +588,20 @@
                     |--------------------------------------------------------------------------
                     */
 
-                    $monthDays = $month['days'];
+                    $monthDays =
+                        $month['days'];
 
-                    $monthRowCount = count($monthDays);
+
+                    $monthRowCount =
+                        count($monthDays);
 
 
                     /*
                     |--------------------------------------------------------------------------
-                    | Place month text approximately in middle
+                    | MONTH LABEL POSITION
+                    |--------------------------------------------------------------------------
+                    |
+                    | Put month text approximately in the middle.
                     |--------------------------------------------------------------------------
                     */
 
@@ -674,28 +611,35 @@
                         );
 
 
+
                     /*
                     |--------------------------------------------------------------------------
-                    | PRE-CALCULATE WEEK BLOCK MIDDLES
+                    | WEEK ROWSPAN MAP
                     |--------------------------------------------------------------------------
                     |
-                    | This allows the week label to behave like the month.
+                    | Example:
                     |
-                    | Instead of writing Week 1 on the first row,
-                    | we locate all rows belonging to that week's block and
-                    | place the text approximately in the middle.
+                    | Mon   ┌───────────┐
+                    | Tue   │           │
+                    | Wed   │  Week 1   │
+                    | Thu   │ vertical  │
+                    | Fri   │           │
+                    | Sat   │           │
+                    | Sun   └───────────┘
+                    |
+                    | We detect start + end and generate one rowspan cell.
                     |--------------------------------------------------------------------------
                     */
 
-                    $weekMeta = [];
+                    $weekSpans = [];
 
 
                     foreach ($calendar['groups'] as $group) {
 
 
-                        $currentBlockStart = null;
+                        $blockStart = null;
 
-                        $currentBlockKey = null;
+                        $blockData = null;
 
 
                         foreach ($monthDays as $rowIndex => $monthDay) {
@@ -706,6 +650,12 @@
                                 ?? null;
 
 
+                            /*
+                            |--------------------------------------------------------------------------
+                            | NO WEEK VALUE
+                            |--------------------------------------------------------------------------
+                            */
+
                             if (!$currentBlock) {
 
                                 continue;
@@ -715,101 +665,168 @@
 
                             /*
                             |--------------------------------------------------------------------------
-                            | Build a unique key for the block
-                            |--------------------------------------------------------------------------
-                            */
-
-                            $blockKey =
-                                $currentBlock['full_label']
-                                . '-'
-                                . $rowIndex;
-
-
-                            /*
-                            |--------------------------------------------------------------------------
-                            | Start of block
+                            | START OF WEEK BLOCK
                             |--------------------------------------------------------------------------
                             */
 
                             if ($currentBlock['is_block_start']) {
 
-                                $currentBlockStart = $rowIndex;
+                                $blockStart =
+                                    $rowIndex;
 
 
-                                /*
-                                |--------------------------------------------------------------------------
-                                | Temporary key
-                                |--------------------------------------------------------------------------
-                                */
-
-                                $currentBlockKey =
-                                    $group->id
-                                    . '-'
-                                    . $rowIndex;
+                                $blockData =
+                                    $currentBlock;
 
                             }
 
 
                             /*
                             |--------------------------------------------------------------------------
-                            | End of block
+                            | END OF WEEK BLOCK
                             |--------------------------------------------------------------------------
                             */
 
                             if (
                                 $currentBlock['is_block_end']
                                 &&
-                                $currentBlockStart !== null
+                                $blockStart !== null
                             ) {
+
 
                                 $blockEnd =
                                     $rowIndex;
 
 
-                                $blockMiddle =
-                                    (int) floor(
-                                        (
-                                            $currentBlockStart
-                                            +
-                                            $blockEnd
-                                        ) / 2
-                                    );
+                                $rowspan =
+                                    ($blockEnd - $blockStart) + 1;
 
 
                                 /*
                                 |--------------------------------------------------------------------------
-                                | Store information for every row in this block
+                                | FIRST ROW
+                                |--------------------------------------------------------------------------
+                                */
+
+                                $weekSpans[$group->id][$blockStart] = [
+
+                                    'rowspan' =>
+                                        $rowspan,
+
+                                    'label' =>
+                                        $blockData['full_label'],
+
+                                    'background_color' =>
+                                        $blockData['background_color'],
+
+                                    'text_color' =>
+                                        $blockData['text_color'],
+
+                                    'skip' =>
+                                        false,
+
+                                ];
+
+
+                                /*
+                                |--------------------------------------------------------------------------
+                                | COVERED ROWS
+                                |--------------------------------------------------------------------------
+                                |
+                                | These rows must NOT output their own <td>
+                                | because the rowspan above already covers them.
                                 |--------------------------------------------------------------------------
                                 */
 
                                 for (
-                                    $i = $currentBlockStart;
-                                    $i <= $blockEnd;
-                                    $i++
+                                    $coveredRow = $blockStart + 1;
+                                    $coveredRow <= $blockEnd;
+                                    $coveredRow++
                                 ) {
 
-                                    $weekMeta[$group->id][$i] = [
+                                    $weekSpans[$group->id][$coveredRow] = [
 
-                                        'start' =>
-                                            $currentBlockStart,
-
-                                        'end' =>
-                                            $blockEnd,
-
-                                        'middle' =>
-                                            $blockMiddle,
-
-                                        'label' =>
-                                            $currentBlock['full_label'],
+                                        'skip' => true,
 
                                     ];
 
                                 }
 
 
-                                $currentBlockStart = null;
+                                /*
+                                |--------------------------------------------------------------------------
+                                | RESET
+                                |--------------------------------------------------------------------------
+                                */
 
-                                $currentBlockKey = null;
+                                $blockStart = null;
+
+                                $blockData = null;
+
+                            }
+
+                        }
+
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | SAFETY FOR A BLOCK THAT REACHES THE END OF THIS MONTH
+                        |--------------------------------------------------------------------------
+                        |
+                        | Sometimes a week may begin but its "block end" can occur
+                        | outside the current month.
+                        |
+                        | In that case create a rowspan only until the last day
+                        | available in this month.
+                        |--------------------------------------------------------------------------
+                        */
+
+                        if (
+                            $blockStart !== null
+                            &&
+                            $blockData !== null
+                        ) {
+
+
+                            $blockEnd =
+                                $monthRowCount - 1;
+
+
+                            $rowspan =
+                                ($blockEnd - $blockStart) + 1;
+
+
+                            $weekSpans[$group->id][$blockStart] = [
+
+                                'rowspan' =>
+                                    $rowspan,
+
+                                'label' =>
+                                    $blockData['full_label'],
+
+                                'background_color' =>
+                                    $blockData['background_color'],
+
+                                'text_color' =>
+                                    $blockData['text_color'],
+
+                                'skip' =>
+                                    false,
+
+                            ];
+
+
+                            for (
+                                $coveredRow = $blockStart + 1;
+                                $coveredRow <= $blockEnd;
+                                $coveredRow++
+                            ) {
+
+                                $weekSpans[$group->id][$coveredRow] = [
+
+                                    'skip' => true,
+
+                                ];
 
                             }
 
@@ -821,6 +838,10 @@
 
 
 
+                {{-- ========================================================
+                    DAYS
+                ========================================================= --}}
+
                 @foreach ($monthDays as $dayIndex => $day)
 
 
@@ -828,7 +849,7 @@
 
                         /*
                         |--------------------------------------------------------------------------
-                        | MONTH CELL POSITION
+                        | MONTH POSITION
                         |--------------------------------------------------------------------------
                         */
 
@@ -934,7 +955,24 @@
 
                             @php
 
-                                $block =
+                                /*
+                                |--------------------------------------------------------------------------
+                                | WEEK SPAN FOR THIS POSITION
+                                |--------------------------------------------------------------------------
+                                */
+
+                                $span =
+                                    $weekSpans[$group->id][$dayIndex]
+                                    ?? null;
+
+
+                                /*
+                                |--------------------------------------------------------------------------
+                                | ORIGINAL BLOCK
+                                |--------------------------------------------------------------------------
+                                */
+
+                                $originalBlock =
                                     $day['week_values'][$group->id]
                                     ?? null;
 
@@ -943,121 +981,43 @@
 
 
                             {{-- ================================================
-                                EMPTY WEEK CELL
+                                ROW ALREADY COVERED BY ROWSPAN
                             ================================================= --}}
 
-                            @if (!$block)
+                            @if (
+                                $span
+                                &&
+                                ($span['skip'] ?? false)
+                            )
+
+                                {{--
+                                    IMPORTANT:
+
+                                    Do NOT output a TD here.
+
+                                    The TD created on the first row already
+                                    covers this position using rowspan.
+                                --}}
+
+
+
+                            {{-- ================================================
+                                START OF WEEK ROWSPAN
+                            ================================================= --}}
+
+                            @elseif (
+                                $span
+                                &&
+                                isset($span['rowspan'])
+                            )
 
 
                                 <td
+                                    rowspan="{{ $span['rowspan'] }}"
+
                                     class="
                                         week
-
-                                        {{ $index > 0
-                                            ? 'week-group-start'
-                                            : ''
-                                        }}
-                                    "
-                                >
-                                </td>
-
-
-
-                            @else
-
-
-                                @php
-
-                                    /*
-                                    |--------------------------------------------------------------------------
-                                    | GET WEEK POSITION INFORMATION
-                                    |--------------------------------------------------------------------------
-                                    */
-
-                                    $meta =
-                                        $weekMeta[$group->id][$dayIndex]
-                                        ?? null;
-
-
-
-                                    /*
-                                    |--------------------------------------------------------------------------
-                                    | DEFAULT FROM ORIGINAL DATA
-                                    |--------------------------------------------------------------------------
-                                    */
-
-                                    $weekIsFirst =
-                                        $block['is_block_start'];
-
-
-                                    $weekIsLast =
-                                        $block['is_block_end'];
-
-
-                                    /*
-                                    |--------------------------------------------------------------------------
-                                    | DETERMINE VISUAL WEEK CLASS
-                                    |--------------------------------------------------------------------------
-                                    */
-
-                                    if (
-                                        $weekIsFirst
-                                        &&
-                                        $weekIsLast
-                                    ) {
-
-                                        $weekClass =
-                                            'week-only';
-
-                                    }
-
-                                    elseif ($weekIsFirst) {
-
-                                        $weekClass =
-                                            'week-first';
-
-                                    }
-
-                                    elseif ($weekIsLast) {
-
-                                        $weekClass =
-                                            'week-last';
-
-                                    }
-
-                                    else {
-
-                                        $weekClass =
-                                            'week-middle';
-
-                                    }
-
-
-                                    /*
-                                    |--------------------------------------------------------------------------
-                                    | WHERE SHOULD WEEK LABEL APPEAR?
-                                    |--------------------------------------------------------------------------
-                                    */
-
-                                    $showWeekLabel =
-                                        $meta
-                                        &&
-                                        (
-                                            $dayIndex ===
-                                            $meta['middle']
-                                        );
-
-                                @endphp
-
-
-
-                                <td
-                                    class="
-                                        week
-
-                                        week-block
-
-                                        {{ $weekClass }}
+                                        week-merged
 
                                         {{ $index > 0
                                             ? 'week-group-start'
@@ -1067,29 +1027,82 @@
 
                                     style="
                                         background:
-                                            {{ $block['background_color'] }};
+                                            {{ $span['background_color'] }};
 
                                         color:
-                                            {{ $block['text_color'] }};
+                                            {{ $span['text_color'] }};
                                     "
                                 >
 
 
-                                    {{-- ============================================
-                                        VERTICAL WEEK LABEL
-                                    ============================================= --}}
+                                    <span class="week-label">
 
-                                    @if ($showWeekLabel)
+                                        {{ $span['label'] }}
 
-                                        <span class="week-block-label">
+                                    </span>
 
-                                            {{ $meta['label'] }}
+
+                                </td>
+
+
+
+                            {{-- ================================================
+                                WEEK VALUE EXISTS BUT NOT MAPPED
+                            ================================================= --}}
+
+                            @elseif ($originalBlock)
+
+
+                                <td
+                                    class="
+                                        week
+
+                                        {{ $index > 0
+                                            ? 'week-group-start'
+                                            : ''
+                                        }}
+                                    "
+
+                                    style="
+                                        background:
+                                            {{ $originalBlock['background_color'] }};
+
+                                        color:
+                                            {{ $originalBlock['text_color'] }};
+                                    "
+                                >
+
+                                    @if ($originalBlock['is_block_start'])
+
+                                        <span class="week-label">
+
+                                            {{ $originalBlock['full_label'] }}
 
                                         </span>
 
                                     @endif
 
+                                </td>
 
+
+
+                            {{-- ================================================
+                                EMPTY WEEK
+                            ================================================= --}}
+
+                            @else
+
+
+                                <td
+                                    class="
+                                        week
+
+                                        {{ $index > 0
+                                            ? 'week-group-start'
+                                            : ''
+                                        }}
+                                    "
+                                >
                                 </td>
 
 
