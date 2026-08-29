@@ -6,13 +6,6 @@
     <title>{{ $setup->title }}</title>
 
     <style>
-
-        /*
-        |--------------------------------------------------------------------------
-        | PAGE SETUP
-        |--------------------------------------------------------------------------
-        */
-
         @page {
             margin: 30mm 6mm 10mm 6mm;
             size: A4 landscape;
@@ -23,64 +16,48 @@
             font-size: 6.5pt;
             color: #000;
             margin: 0;
-            padding: 0;
         }
-
 
         /*
         |--------------------------------------------------------------------------
-        | REPEATING PDF HEADER
+        | REPEATING HEADER
         |--------------------------------------------------------------------------
         */
 
         .print-header {
             position: fixed;
-
             top: -26mm;
             left: 0;
             right: 0;
-
             height: 22mm;
-
-            background: #ffffff;
-
+            background: #fff;
             text-align: center;
-
             padding: 5px 0;
-
             border-bottom: 2px solid #4B2E83;
-
             line-height: 1.25;
         }
 
         .print-header .main-title {
             color: #4B2E83;
-
             font-weight: bold;
-
             font-size: 13pt;
-
             margin: 0;
         }
 
         .print-header .subtitle {
             font-size: 9pt;
-
             color: #333;
-
             margin: 2px 0;
         }
 
         .print-header .logo {
             height: 26px;
-
             margin-top: 3px;
         }
 
         h1 {
             display: none;
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -90,160 +67,158 @@
 
         table {
             width: 100%;
-
             border-collapse: collapse;
-
             table-layout: fixed;
         }
 
         th,
         td {
             border: 0.5px solid #4B2E83;
-
             padding: 2px;
-
             vertical-align: middle;
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | TABLE HEADER
-        |--------------------------------------------------------------------------
-        */
+        thead {
+            display: table-header-group;
+        }
 
         thead th {
             background: #4B2E83 !important;
-
-            color: #ffffff !important;
-
+            color: #fff !important;
             text-align: center;
-
+            vertical-align: middle;
             font-weight: bold;
 
-            vertical-align: middle;
-
             -webkit-print-color-adjust: exact;
-
             print-color-adjust: exact;
         }
 
-
         /*
         |--------------------------------------------------------------------------
-        | PREVENT ROW SPLITTING
+        | ROW PAGE BREAK
         |--------------------------------------------------------------------------
         */
 
         tr {
-            page-break-inside: avoid !important;
+            page-break-inside: avoid;
         }
-
 
         /*
         |--------------------------------------------------------------------------
         | MONTH COLUMN
         |--------------------------------------------------------------------------
         |
-        | Each month is rendered only once and rowspan is used to merge all
-        | days belonging to that month.
+        | IMPORTANT:
+        | No rowspan is used.
         |
+        | Each day still receives a month cell but internal borders are hidden,
+        | making the cells visually appear as one large merged month.
+        |
+        | This is safe when Dompdf moves rows to another page.
+        |--------------------------------------------------------------------------
         */
 
         .month {
             width: 24px;
-
             padding: 0 !important;
-
             text-align: center;
-
             vertical-align: middle !important;
 
-            font-weight: bold;
+            border-left: 0.5px solid #4B2E83 !important;
+            border-right: 0.5px solid #4B2E83 !important;
 
-            font-size: 7.5pt;
-
-            color: #222;
+            position: relative;
         }
-
 
         /*
         |--------------------------------------------------------------------------
-        | MERGED MONTH CELL
+        | NORMAL MONTH ROW
+        |--------------------------------------------------------------------------
+        |
+        | Remove horizontal lines between days in the month column.
         |--------------------------------------------------------------------------
         */
 
-        .month-merged {
-            padding: 0 !important;
-
-            text-align: center !important;
-
-            vertical-align: middle !important;
-
-            overflow: visible;
+        .month-middle {
+            border-top-color: transparent !important;
+            border-bottom-color: transparent !important;
         }
-
 
         /*
         |--------------------------------------------------------------------------
-        | VERTICAL MONTH NAME
+        | FIRST DAY OF MONTH
         |--------------------------------------------------------------------------
-        |
-        | Example:
-        |
-        | October-26
-        |
-        | displayed vertically like the sample image.
-        |
-        | transform is generally safer for DOMPDF than writing-mode.
-        |
         */
 
-        .month-vertical {
+        .month-first {
+            border-top: 1.6px solid #4B2E83 !important;
+            border-bottom-color: transparent !important;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | LAST DAY OF MONTH
+        |--------------------------------------------------------------------------
+        */
+
+        .month-last {
+            border-top-color: transparent !important;
+            border-bottom: 0.5px solid #4B2E83 !important;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | MONTH WITH ONLY ONE ROW
+        |--------------------------------------------------------------------------
+        */
+
+        .month-only {
+            border-top: 1.6px solid #4B2E83 !important;
+            border-bottom: 0.5px solid #4B2E83 !important;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | MONTH LABEL
+        |--------------------------------------------------------------------------
+        */
+
+        .month-label {
             display: inline-block;
-
             white-space: nowrap;
 
             font-size: 8pt;
-
             font-weight: bold;
-
             color: #222;
 
-            line-height: 1;
-
             transform: rotate(-90deg);
-
             transform-origin: center center;
-        }
 
+            line-height: 1;
+        }
 
         /*
         |--------------------------------------------------------------------------
-        | MONTH SEPARATOR
+        | MONTH START SEPARATOR
         |--------------------------------------------------------------------------
         */
 
-        .month-start > td,
+        .month-start > td:not(.month),
         .month-start > th {
             border-top: 1.6px solid #4B2E83 !important;
         }
 
-
         /*
         |--------------------------------------------------------------------------
-        | DATE COLUMN
+        | DATE
         |--------------------------------------------------------------------------
         */
 
         .date {
             width: 45px;
-
             white-space: nowrap;
-
             text-align: center;
         }
-
 
         /*
         |--------------------------------------------------------------------------
@@ -255,81 +230,44 @@
             width: 29%;
         }
 
-
         /*
         |--------------------------------------------------------------------------
-        | WEEK COLUMN
+        | WEEK COLUMNS
         |--------------------------------------------------------------------------
         */
 
         .week {
             width: 42px;
-
             text-align: center;
-
-            vertical-align: middle;
-
             font-weight: bold;
+            vertical-align: middle;
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | WEEK BLOCK
-        |--------------------------------------------------------------------------
-        */
 
         .week-block {
             padding: 3px 1px;
-
             line-height: 1.15;
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | CONTINUING WEEK BLOCK
-        |--------------------------------------------------------------------------
-        */
 
         .week-block-continue {
             border-top-color: transparent !important;
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | WEEK BLOCK BOTTOM
-        |--------------------------------------------------------------------------
-        */
-
         .week-block:not(.week-block-end) {
             border-bottom-color: transparent !important;
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | WEEK LABEL
-        |--------------------------------------------------------------------------
-        */
-
         .week-block-label {
             display: block;
-
             font-size: 6.5pt;
-
             font-weight: bold;
 
             overflow-wrap: break-word;
-
             word-wrap: break-word;
         }
 
-
         /*
         |--------------------------------------------------------------------------
-        | PROGRAMME GROUP SEPARATOR
+        | GROUP SEPARATOR
         |--------------------------------------------------------------------------
         */
 
@@ -337,22 +275,13 @@
             border-left: 1.8px solid #4B2E83 !important;
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | MANUAL PAGE BREAK
-        |--------------------------------------------------------------------------
-        */
-
         .page-break {
             page-break-before: always;
         }
-
     </style>
 </head>
 
 <body>
-
 
     {{-- ================================================================
         REPEATING HEADER
@@ -377,68 +306,38 @@
     </div>
 
 
-
     {{-- ================================================================
         CALENDAR TABLE
     ================================================================= --}}
 
     <table>
 
-        {{-- ============================================================
-            HEADER
-        ============================================================= --}}
-
         <thead>
 
             <tr>
 
-                {{-- MONTH --}}
-                <th
-                    rowspan="2"
-                    class="month"
-                >
+                <th rowspan="2" class="month">
                     Months
                 </th>
 
-
-                {{-- WEEK NUMBER --}}
-                <th
-                    colspan="{{ $calendar['groups']->count() }}"
-                >
+                <th colspan="{{ $calendar['groups']->count() }}">
                     Week Number
                 </th>
 
-
-                {{-- DATE --}}
-                <th
-                    rowspan="2"
-                    class="date"
-                >
+                <th rowspan="2" class="date">
                     Dates
                 </th>
 
-
-                {{-- ACADEMIC CALENDAR --}}
-                <th
-                    rowspan="2"
-                    class="event"
-                >
+                <th rowspan="2" class="event">
                     Academic Calendar
                 </th>
 
-
-                {{-- MEETING CALENDAR --}}
-                <th
-                    rowspan="2"
-                    class="event"
-                >
+                <th rowspan="2" class="event">
                     Meeting/Activities Calendar
                 </th>
 
             </tr>
 
-
-            {{-- PROGRAMME GROUPS --}}
             <tr>
 
                 @foreach ($calendar['groups'] as $index => $group)
@@ -459,66 +358,105 @@
         </thead>
 
 
-
-        {{-- ============================================================
-            BODY
-        ============================================================= --}}
-
         <tbody>
 
             @foreach ($calendar['months'] as $month)
 
                 @php
+                    $monthDays = $month['days'];
+
+                    $monthRowCount = count($monthDays);
+
                     /*
                     |--------------------------------------------------------------------------
-                    | Count rows belonging to this month
+                    | Choose approximately the middle row
                     |--------------------------------------------------------------------------
                     |
-                    | This is what allows the month cell to span from the
-                    | first day until the last day of the month.
+                    | Instead of putting the month label on day 1, place it close
+                    | to the center of the month.
                     |
+                    | Example:
+                    | October with 31 days:
+                    | middle = approximately day 16.
+                    |--------------------------------------------------------------------------
                     */
 
-                    $monthRowCount = count($month['days']);
+                    $monthLabelRow = (int) floor(($monthRowCount - 1) / 2);
                 @endphp
 
 
-                @foreach ($month['days'] as $dayIndex => $day)
+                @foreach ($monthDays as $dayIndex => $day)
+
+                    @php
+
+                        $isFirstDay =
+                            $dayIndex === 0;
+
+                        $isLastDay =
+                            $dayIndex === ($monthRowCount - 1);
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Determine month-cell border class
+                        |--------------------------------------------------------------------------
+                        */
+
+                        if ($isFirstDay && $isLastDay) {
+
+                            $monthCellClass = 'month-only';
+
+                        } elseif ($isFirstDay) {
+
+                            $monthCellClass = 'month-first';
+
+                        } elseif ($isLastDay) {
+
+                            $monthCellClass = 'month-last';
+
+                        } else {
+
+                            $monthCellClass = 'month-middle';
+
+                        }
+
+                    @endphp
+
 
                     <tr
-                        class="
-                            {{ $dayIndex === 0 ? 'month-start' : '' }}
-                        "
+                        class="{{ $isFirstDay ? 'month-start' : '' }}"
                     >
 
 
                         {{-- ====================================================
-                            MONTH
+                            MONTH COLUMN
 
-                            Only create this TD on the FIRST day.
+                            DO NOT USE ROWSPAN HERE.
 
-                            rowspan merges the month cell vertically.
+                            Every row gets its own cell so Dompdf can safely
+                            move that row onto the next PDF page.
                         ===================================================== --}}
 
-                        @if ($dayIndex === 0)
+                        <td
+                            class="
+                                month
+                                {{ $monthCellClass }}
+                            "
+                        >
 
-                            <td
-                                rowspan="{{ $monthRowCount }}"
-                                class="month month-merged"
-                            >
+                            {{-- Show label near middle of month --}}
+                            @if ($dayIndex === $monthLabelRow)
 
-                                <div class="month-vertical">
+                                <span class="month-label">
                                     {{ $month['label'] }}
-                                </div>
+                                </span>
 
-                            </td>
+                            @endif
 
-                        @endif
-
+                        </td>
 
 
                         {{-- ====================================================
-                            WEEK NUMBERS
+                            WEEK COLUMNS
                         ===================================================== --}}
 
                         @foreach ($calendar['groups'] as $index => $group)
@@ -532,25 +470,24 @@
                             @endphp
 
 
-                            {{-- EMPTY WEEK VALUE --}}
                             @if (!$block)
 
                                 <td
                                     class="
                                         week
-                                        {{ $index > 0 ? 'week-group-start' : '' }}
+                                        {{ $index > 0
+                                            ? 'week-group-start'
+                                            : ''
+                                        }}
                                     "
                                 >
                                 </td>
 
-
-                            {{-- WEEK VALUE EXISTS --}}
                             @else
 
                                 <td
                                     class="
                                         week
-
                                         week-block
 
                                         {{ !$block['is_block_start']
@@ -578,8 +515,6 @@
                                     "
                                 >
 
-
-                                    {{-- Display label only once --}}
                                     @if ($block['is_block_start'])
 
                                         <span class="week-block-label">
@@ -590,13 +525,11 @@
 
                                     @endif
 
-
                                 </td>
 
                             @endif
 
                         @endforeach
-
 
 
                         {{-- ====================================================
@@ -608,7 +541,6 @@
                             {{ $day['day_label'] }}
 
                         </td>
-
 
 
                         {{-- ====================================================
@@ -642,9 +574,8 @@
                         </td>
 
 
-
                         {{-- ====================================================
-                            MEETING / ACTIVITIES CALENDAR
+                            MEETING / ACTIVITIES
                         ===================================================== --}}
 
                         <td>
@@ -652,9 +583,7 @@
                             @foreach ($day['meeting_events'] as $event)
 
                                 <div>
-
                                     {{ $event['text'] }}
-
                                 </div>
 
                             @endforeach
@@ -671,7 +600,6 @@
         </tbody>
 
     </table>
-
 
 </body>
 </html>
