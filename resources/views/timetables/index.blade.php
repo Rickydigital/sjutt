@@ -51,6 +51,36 @@ use Carbon\Carbon;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     }
 
+    .exam-entry {
+        background: #fff;
+        border: 1px solid #d8cfee;
+        border-left: 4px solid #6f42c1;
+        border-radius: 8px;
+        padding: 8px;
+        margin-bottom: 8px;
+        box-shadow: 0 2px 5px rgba(75, 46, 131, 0.08);
+    }
+
+    .add-exam-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        margin-top: 4px;
+        padding: 5px 9px;
+        border: 1px dashed #6f42c1;
+        border-radius: 16px;
+        color: #6f42c1;
+        background: #fff;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .add-exam-button:hover {
+        color: #fff;
+        background: #6f42c1;
+    }
+
     .action-icon {
         margin: 0 5px;
         font-size: 1.2rem;
@@ -320,7 +350,7 @@ use Carbon\Carbon;
                                 <td class="course-cell">
                                     @if(!empty($items))
                                     @foreach($items as $tt)
-                                    <div class="mb-2">
+                                    <div class="exam-entry">
                                         <div class="fw-bold">{{ $tt->course_code }}</div>
 
                                         {{-- venues --}}
@@ -358,18 +388,19 @@ use Carbon\Carbon;
                                         </div>
                                     </div>
                                     @endforeach
-                                    @else
-                                    {{-- plus icon like screenshot --}}
-                                    <div class="text-center">
-                                        <a href="#" class="text-decoration-none add-exam"
-                                            data-faculty-id="{{ $class->id }}" data-exam-date="{{ $dateKey }}"
-                                            data-start-time="{{ $slotStart }}" data-end-time="{{ $slotEnd }}"
-                                            title="Add exam">
-                                            <i class="bi bi-plus-circle" style="font-size:1.4rem;color:#6f42c1;"></i>
-                                        </a>
-                                    </div>
 
                                     @endif
+
+                                    {{-- Always allow another exam in this faculty/date/session cell. --}}
+                                    <div class="text-center">
+                                        <a href="#" class="text-decoration-none add-exam add-exam-button"
+                                            data-faculty-id="{{ $class->id }}" data-exam-date="{{ $dateKey }}"
+                                            data-start-time="{{ $slotStart }}" data-end-time="{{ $slotEnd }}"
+                                            title="Add another exam in this time slot">
+                                            <i class="bi bi-plus-circle"></i>
+                                            <span>{{ !empty($items) ? 'Add another exam' : 'Add exam' }}</span>
+                                        </a>
+                                    </div>
                                 </td>
                                 @endforeach
                             </tr>

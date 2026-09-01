@@ -1284,7 +1284,7 @@ $skippedNormal = 0;
      * - NO capacity filtering (student_count ignored)
      * - Venue cannot be double-booked in same day+slot
      * - Lecturer cannot be double-booked in same day+slot
-     * - Max 2 exams per faculty per day
+     * - Max 2 exams per faculty per day (they may share a time slot)
      * - Slot balancing: shuffle days and slots per session to avoid always first day/slot
      * - Cross-catering: schedule once (same day+slot+venues) for all faculties in that session
      */
@@ -1297,8 +1297,6 @@ $skippedNormal = 0;
     $lecturerSlots = [];
     $courseSlots = [];
     $facultyDayCount = [];
-
-    $facultySlots = []; // ✅ NEW: prevents 2 courses for same faculty in same slot
 
     $MAX_EXAMS_PER_FACULTY_PER_DAY = 2;
 
@@ -1328,18 +1326,7 @@ $skippedNormal = 0;
                     continue;
                 }
 
-                // ✅ NEW: faculty slot conflict (THIS is your issue)
-                $slotBlocked = false;
-                foreach ($facRows as $r) {
-                    $fid = (int)$r['faculty_id'];
-                    if (isset($facultySlots[$fid][$day][$startTime])) {
-                        $sessionConflicts[] = "Faculty {$fid} already has an exam on {$day} at {$startTime}.";
-                        $slotBlocked = true;
-                        break;
-                    }
-                }
-                if ($slotBlocked) continue;
-
+                // A faculty may have two different exams in this slot.
                 // max/day check
                 $blocked = false;
                 foreach ($facRows as $r) {
@@ -1425,9 +1412,6 @@ $skippedNormal = 0;
                 foreach ($facRows as $r) {
                     $fid = (int)$r['faculty_id'];
 
-                    // ✅ NEW: lock faculty slot
-                    $facultySlots[$fid][$day][$startTime] = true;
-
                     foreach (($r['lecturer_ids'] ?? []) as $lid) {
                         $lecturerSlots[$lid][$day][$startTime] = true;
                     }
@@ -1510,20 +1494,7 @@ private function checkConflicts(Request $request, array $validated, ?int $exclud
     $validated['end_time']   = Carbon::parse($validated['end_time'])->format('H:i:s');
     $validated['exam_date']  = Carbon::parse($validated['exam_date'])->format('Y-m-d');
 
-    // ✅ 1) Faculty Conflict
-    $facultyConflict = ExaminationTimetable::whereDate('exam_date', $validated['exam_date'])
-        ->where('faculty_id', (int)$validated['faculty_id'])
-        ->where(function ($q) use ($validated) {
-            $q->where('start_time', '<', $validated['end_time'])
-              ->where('end_time',   '>', $validated['start_time']);
-        })
-        ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
-        ->first();
-
-    if ($facultyConflict) {
-        $conflicts[] = "Faculty already has another exam at the same time.";
-    }
-
+    // A faculty may intentionally have two different exams at the same time.
     // ✅ 2) Lecturer Conflict
     if (!empty($validated['lecturer_ids'])) {
         $lecturerConflict = ExaminationTimetable::whereDate('exam_date', $validated['exam_date'])
