@@ -1288,7 +1288,10 @@ function initExamModalSelect2() {
 function loadCoursesForFaculty(facultyId, selectedCourseCode = null) {
   $('#course_code').html('<option value=""></option>');
 
-  $.get('{{ route("examination.getFacultyCourses") }}', { faculty_id: facultyId })
+  $.get('{{ route("examination.getFacultyCourses") }}', {
+    faculty_id: facultyId,
+    exam_setup_id: $('#exam_setup_id').val()
+  })
     .done(function(resp){
       let options = '<option value=""></option>';
       (resp.course_codes || []).forEach(c => {

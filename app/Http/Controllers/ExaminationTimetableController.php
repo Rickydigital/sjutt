@@ -453,6 +453,14 @@ public function store(Request $request)
 
     $setup = ExamSetup::findOrFail((int)$validated['exam_setup_id']);
 
+    if (!Course::where('course_code', $validated['course_code'])
+        ->where('semester_id', (int) $setup->semester_id)
+        ->exists()) {
+        return response()->json([
+            'errors' => ['course_code' => 'The selected course does not belong to this examination semester.'],
+        ], 422);
+    }
+
     // ensure date is in setup range (and weekends rule)
     $validDates = $this->getValidDates($setup);
     $examDate = Carbon::parse($validated['exam_date'])->format('Y-m-d');
@@ -621,6 +629,14 @@ public function update(Request $request, ExaminationTimetable $timetable)
     ]);
 
     $setup = ExamSetup::findOrFail((int)$timetable->exam_setup_id);
+
+    if (!Course::where('course_code', $validated['course_code'])
+        ->where('semester_id', (int) $setup->semester_id)
+        ->exists()) {
+        return response()->json([
+            'errors' => ['course_code' => 'The selected course does not belong to this examination semester.'],
+        ], 422);
+    }
 
     $examDate = Carbon::parse($validated['exam_date'])->format('Y-m-d');
     $validDates = $this->getValidDates($setup);
@@ -892,9 +908,15 @@ $uploadingDate = isset($validated['uploading_date'])
 
     public function getFacultyCourses(Request $request)
     {
-        $facultyId = $request->query('faculty_id');
+        $validated = $request->validate([
+            'faculty_id' => ['required', 'integer', 'exists:faculties,id'],
+            'exam_setup_id' => ['required', 'integer', 'exists:exam_setups,id'],
+        ]);
 
-        $courses = Course::whereHas('faculties', fn ($q) => $q->where('faculties.id', $facultyId))
+        $setup = ExamSetup::findOrFail((int) $validated['exam_setup_id']);
+
+        $courses = Course::where('semester_id', (int) $setup->semester_id)
+            ->whereHas('faculties', fn ($q) => $q->where('faculties.id', (int) $validated['faculty_id']))
             ->select('course_code', 'name', 'cross_catering')
             ->orderBy('course_code')
             ->get()
@@ -1095,9 +1117,10 @@ $skippedNormal = 0;
         $courseGroups = [];
 
         foreach ($faculties as $faculty) {
-            $courses = Course::whereHas('faculties', function ($q) use ($faculty) {
-                $q->where('faculties.id', $faculty->id);
-            })->get();
+            $courses = Course::where('semester_id', (int) $setup->semester_id)
+                ->whereHas('faculties', function ($q) use ($faculty) {
+                    $q->where('faculties.id', $faculty->id);
+                })->get();
 
                 foreach ($courses as $course) {
     $lecturerIds = $course->lecturers()->pluck('id')->toArray();
