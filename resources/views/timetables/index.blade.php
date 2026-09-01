@@ -65,20 +65,14 @@ use Carbon\Carbon;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 5px;
         margin-top: 4px;
-        padding: 5px 9px;
-        border: 1px dashed #6f42c1;
-        border-radius: 16px;
+        padding: 4px;
         color: #6f42c1;
-        background: #fff;
-        font-size: 0.8rem;
-        font-weight: 600;
+        font-size: 1.4rem;
     }
 
     .add-exam-button:hover {
-        color: #fff;
-        background: #6f42c1;
+        color: #4B2E83;
     }
 
     .action-icon {
@@ -398,7 +392,6 @@ use Carbon\Carbon;
                                             data-start-time="{{ $slotStart }}" data-end-time="{{ $slotEnd }}"
                                             title="Add another exam in this time slot">
                                             <i class="bi bi-plus-circle"></i>
-                                            <span>{{ !empty($items) ? 'Add another exam' : 'Add exam' }}</span>
                                         </a>
                                     </div>
                                 </td>

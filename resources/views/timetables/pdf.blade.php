@@ -67,17 +67,15 @@
     }
 
     .session{
-      background:#faf8ff;
-      border: 0.7px solid #b9a8dc;
-      border-left: 2px solid #4B2E83;
+      background:#fff;
+      border: 0.7px solid #fff;
       border-radius: 2px;
       padding: 2px 3px;
-      margin: 2px 0;
+      margin: 1px 0;
       font-size: 6.5pt;
       line-height: 1.15;
     }
     .session strong{ font-size: 6.8pt; display:block; }
-    .exam-number{ color:#4B2E83; font-weight:bold; font-size:5.8pt; }
 
     @page { margin: 1.1cm 0.7cm 1.1cm 0.7cm; size: A4 portrait; }
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -182,12 +180,9 @@
 
                     <td>
                       @if(!empty($items))
-                        @foreach($items as $examIndex => $tt)
+                        @foreach($items as $tt)
                           @php $vList = $venueNames($tt); @endphp
                           <div class="session">
-                            @if(count($items) > 1)
-                              <div class="exam-number">EXAM {{ $examIndex + 1 }}</div>
-                            @endif
                             <strong>{{ $tt->course_code }}</strong>
                             {{-- ✅ venues only, comma separated, no capacity --}}
                             <div>{{ $vList ?: '' }}</div>
