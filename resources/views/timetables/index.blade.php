@@ -1286,11 +1286,16 @@ function initExamModalSelect2() {
 }
 
 function loadCoursesForFaculty(facultyId, selectedCourseCode = null) {
-  $('#course_code').html('<option value=""></option>');
+  const examSetupId = @json($setup?->id);
+  const courseSelect = $('#course_code');
+
+  courseSelect
+    .prop('disabled', true)
+    .html('<option value="">Loading semester courses...</option>');
 
   $.get('{{ route("examination.getFacultyCourses") }}', {
     faculty_id: facultyId,
-    exam_setup_id: $('#exam_setup_id').val()
+    exam_setup_id: examSetupId
   })
     .done(function(resp){
       let options = '<option value=""></option>';
@@ -1299,13 +1304,20 @@ function loadCoursesForFaculty(facultyId, selectedCourseCode = null) {
         options += `<option value="${c.course_code}">${c.course_code} - ${c.name}${tag}</option>`;
       });
 
-      $('#course_code').html(options);
+      if (!(resp.course_codes || []).length) {
+        options = '<option value="">No courses assigned for this faculty and semester</option>';
+      }
 
-      if (selectedCourseCode) $('#course_code').val(selectedCourseCode).trigger('change');
-      else $('#course_code').val(null).trigger('change');
+      courseSelect.html(options).prop('disabled', false);
+
+      if (selectedCourseCode) courseSelect.val(selectedCourseCode).trigger('change');
+      else courseSelect.val(null).trigger('change');
     })
-    .fail(function(){
-      $('#course_code').html('<option value="">Failed to load courses</option>');
+    .fail(function(xhr){
+      courseSelect
+        .html('<option value="">Failed to load semester courses</option>')
+        .prop('disabled', false);
+      Swal.fire('Error', extractAjaxMessage(xhr, 'Failed to load semester courses.'), 'error');
     });
 }
 
