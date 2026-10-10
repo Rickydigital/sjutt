@@ -155,7 +155,7 @@ class TimetableSemesterController extends Controller
 
     public function destroy(TimetableSemester $timetableSemester)
     {
-        $hasTimetables = Timetable::where('semester_id', $timetableSemester->semester_id)->exists();
+        $hasTimetables = Timetable::where('semester_id', $timetableSemester->id)->exists();
 
         if ($hasTimetables) {
             return response()->json([
