@@ -108,7 +108,9 @@ class AlmanacCalendarService
                 return null;
             }
 
-            $text = $isEnd ? 'End of ' . $event->title : $event->title;
+            $text = $isEnd
+                ? 'End of ' . $event->title
+                : ($hasDistinctEnd ? 'Beginning of ' . $event->title : $event->title);
             if ($isStart && $event->description) {
                 $text .= ' — ' . $event->description;
             }
