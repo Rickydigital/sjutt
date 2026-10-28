@@ -1091,18 +1091,19 @@ class TimetableController extends Controller
 
             $oldIsCross = (bool) $oldCourse->cross_catering;
             $oldIsWorkshop = (bool) $oldCourse->is_workshop;
-            $oldIsSharedCross = $this->isSharedCrossNonWorkshopCourse($timetable->course_code);
-
+            $oldActivityIsWorkshop = strtolower(trim((string) $timetable->activity)) === 'workshop';
+            $oldIsSharedCross = $oldIsCross && !$oldIsWorkshop && !$oldActivityIsWorkshop;
             $newIsCross = (bool) $newCourse->cross_catering;
             $newIsWorkshop = (bool) $newCourse->is_workshop;
-            $newIsSharedCross = $this->isSharedCrossNonWorkshopCourse($payload['course_code']);
+            $newActivityIsWorkshop = strtolower(trim((string) $payload['activity'])) === 'workshop';
+            $newIsSharedCross = $newIsCross && !$newIsWorkshop && !$newActivityIsWorkshop;
 
             DB::beginTransaction();
 
             /*
         |--------------------------------------------------------------------------
-        | Shared cross non-workshop update:
-        | update all linked rows together
+        | Shared cross-catering non-workshop update:
+        | update all linked faculty rows together (the previous behaviour).
         |--------------------------------------------------------------------------
         */
             if ($oldIsSharedCross || $newIsSharedCross) {
@@ -1110,12 +1111,12 @@ class TimetableController extends Controller
                     throw new \Exception('Changing course code on a shared cross-catering non-workshop session is not allowed. Delete and recreate it instead.');
                 }
 
-                if ($newIsWorkshop) {
+                if ($newIsWorkshop || $newActivityIsWorkshop) {
                     throw new \Exception('A shared cross-catering non-workshop session cannot be converted into workshop through edit. Delete and recreate it instead.');
                 }
 
                 $relatedRows = $this->getCrossSessionRows($timetable);
-                $excludeIds = $relatedRows->pluck('id')->map(fn($id) => (int) $id)->all();
+                $excludeIds = $relatedRows->pluck('id')->map(fn ($id) => (int) $id)->all();
 
                 $this->assertVenueAvailability(
                     setupId: (int) $setup->id,
@@ -1159,7 +1160,7 @@ class TimetableController extends Controller
             /*
         |--------------------------------------------------------------------------
         | Normal single-row update:
-        | - non cross-catering
+        | - non-cross-catering
         | - cross-catering workshop
         |--------------------------------------------------------------------------
         */
@@ -1181,7 +1182,7 @@ class TimetableController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => ($newIsCross && $newIsWorkshop)
+                'message' => ($newIsCross && ($newIsWorkshop || $newActivityIsWorkshop))
                     ? 'Cross-catering workshop updated as a single timetable row.'
                     : 'Timetable updated successfully.',
                 'id' => $timetable->id,

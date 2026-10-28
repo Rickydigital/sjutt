@@ -106,14 +106,37 @@
                     <label>Lecturers <span class="text-danger">*</span></label>
                     <select name="lecturer_ids[]" id="lecturer_ids" class="form-control select2" multiple required>
                         @foreach ($lecturers as $lecturer)
+                            @php $isActiveLecturer = $course->lecturers->contains($lecturer->id); @endphp
                             <option value="{{ $lecturer->id }}"
-                                {{ $course->lecturers->contains($lecturer->id) || in_array($lecturer->id, old('lecturer_ids', [])) ? 'selected' : '' }}>
-                                {{ $lecturer->name }}
+                                {{ $isActiveLecturer || in_array($lecturer->id, old('lecturer_ids', [])) ? 'selected' : '' }}>
+                                {{ $lecturer->name }}{{ $isActiveLecturer ? ' (Active)' : '' }}
                             </option>
                         @endforeach
                     </select>
                     @error('lecturer_ids') <small class="text-danger">{{ $message }}</small> @enderror
                 </div>
+
+                @php
+                    $previousLecturers = $course->lecturerHistory
+                        ->filter(fn ($lecturer) => !(bool) $lecturer->pivot->is_active);
+                @endphp
+                @if($previousLecturers->isNotEmpty())
+                    <div class="form-group">
+                        <label>Previous Lecturer History</label>
+                        <div class="border rounded p-2 bg-light">
+                            @foreach($previousLecturers as $lecturer)
+                                <div class="d-flex justify-content-between align-items-center py-1">
+                                    <span>{{ $lecturer->name }}</span>
+                                    <small class="text-muted">
+                                        Removed {{ $lecturer->pivot->removed_at
+                                            ? \Carbon\Carbon::parse($lecturer->pivot->removed_at)->format('d/m/Y H:i')
+                                            : 'date unavailable' }}
+                                    </small>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
 
                 <div class="form-group">
                     <label>Faculties <span class="text-danger">*</span></label>

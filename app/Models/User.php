@@ -80,8 +80,11 @@ class User extends Authenticatable
         Course::class,
         'course_lecturer',
         'user_id',    
-        'course_id'   
-    );
+        'course_id'
+    )
+        ->wherePivot('is_active', true)
+        ->withPivot(['is_active', 'assigned_at', 'removed_at'])
+        ->withTimestamps();
 }
 
     public function program(): HasMany

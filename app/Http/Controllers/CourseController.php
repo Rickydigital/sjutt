@@ -174,9 +174,7 @@ class CourseController extends Controller
         $courseData['is_workshop'] = $request->has('is_workshop');
 
         $course = Course::create($courseData);
-        if ($request->lecturer_ids) {
-            $course->lecturers()->sync($request->lecturer_ids);
-        }
+        $course->syncLecturerAssignments($request->input('lecturer_ids', []));
         if ($request->faculty_ids) {
             $syncData = [];
 
@@ -238,6 +236,8 @@ class CourseController extends Controller
                 abort(403, 'You are not authorized to edit this course.');
             }
         }
+
+        $course->load(['lecturers', 'lecturerHistory']);
 
         $lecturers = User::whereHas('roles', function ($query) {
             $query->where('name', 'Lecturer');
@@ -328,7 +328,7 @@ class CourseController extends Controller
 
         // Update course
         $course->update($new);
-        $course->lecturers()->sync($request->lecturer_ids ?: []);
+        $course->syncLecturerAssignments($request->input('lecturer_ids', []));
         $syncData = [];
 
         foreach ($request->input('faculty_ids', []) as $facultyId) {

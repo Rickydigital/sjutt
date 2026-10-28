@@ -33,8 +33,32 @@ class AlmanacController extends Controller
     {
         $calendar = $calendarService->build($setup);
 
-        return Pdf::loadView('almanac.pdf.almanac', compact('setup', 'calendar'))
-            ->setPaper('a4', 'landscape')
-            ->download('academic-almanac-' . str_replace('/', '-', $setup->academicYear?->year ?? $setup->id) . '.pdf');
+        $pdf = Pdf::loadView('almanac.pdf.almanac', compact('setup', 'calendar'))
+            ->setPaper('a4', 'landscape');
+
+        $pdf->render();
+
+        $domPdf = $pdf->getDomPDF();
+        $canvas = $domPdf->getCanvas();
+        $fontMetrics = $domPdf->getFontMetrics();
+        $font = $fontMetrics->getFont('DejaVu Sans', 'normal');
+
+        $canvas->page_script(function (
+            int $pageNumber,
+            int $pageCount,
+            $pageCanvas
+        ) use ($font): void {
+            $text = "Page {$pageNumber} of {$pageCount}";
+            $fontSize = 8;
+            $textWidth = $pageCanvas->get_text_width($text, $font, $fontSize);
+            $x = ($pageCanvas->get_width() - $textWidth) / 2;
+            $y = $pageCanvas->get_height() - 18;
+
+            $pageCanvas->text($x, $y, $text, $font, $fontSize, [0.25, 0.25, 0.25]);
+        });
+
+        return $pdf->download(
+            'academic-almanac-' . str_replace('/', '-', $setup->academicYear?->year ?? $setup->id) . '.pdf'
+        );
     }
 }
