@@ -54,10 +54,7 @@ class PromoteStudents extends Command
                 return self::FAILURE;
             }
 
-            if (max($configuredYears) !== (int) $program->total_years) {
-                $this->error("{$program->name}: the last configured faculty year is " . max($configuredYears) . ", but the program total_years is {$program->total_years}. Correct the program or faculty setup before promotion.");
-                return self::FAILURE;
-            }
+            $finalFacultyYear = max($configuredYears);
 
             foreach ($facultiesByYear as $year => $faculty) {
                 $query = Student::query()
@@ -74,7 +71,9 @@ class PromoteStudents extends Command
                     'from' => $faculty,
                     'to' => $facultiesByYear->get($year + 1),
                     'count' => (clone $query)->count(),
-                    'final_year' => $year === (int) $program->total_years,
+                    // Faculty suffixes may be level codes rather than literal
+                    // years (for example levels 4, 5, 6 for a 3-year program).
+                    'final_year' => $year === $finalFacultyYear,
                 ]);
             }
         }
