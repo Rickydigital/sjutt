@@ -41,9 +41,21 @@ class PromoteStudents extends Command
                 return self::FAILURE;
             }
 
-            $expectedYears = range(1, (int) $program->total_years);
-            if ($facultiesByYear->keys()->values()->all() !== $expectedYears) {
-                $this->error("{$program->name}: expected faculty years " . implode(', ', $expectedYears) . ', but found ' . $facultiesByYear->keys()->implode(', ') . '.');
+            if ($facultiesByYear->isEmpty()) {
+                $this->error("{$program->name}: no faculties are configured.");
+                return self::FAILURE;
+            }
+
+            $configuredYears = $facultiesByYear->keys()->values()->all();
+            $expectedYears = range(min($configuredYears), max($configuredYears));
+
+            if ($configuredYears !== $expectedYears) {
+                $this->error("{$program->name}: faculty years must be continuous. Found " . implode(', ', $configuredYears) . '.');
+                return self::FAILURE;
+            }
+
+            if (max($configuredYears) !== (int) $program->total_years) {
+                $this->error("{$program->name}: the last configured faculty year is " . max($configuredYears) . ", but the program total_years is {$program->total_years}. Correct the program or faculty setup before promotion.");
                 return self::FAILURE;
             }
 
