@@ -16,7 +16,7 @@ use Kreait\Firebase\Messaging\Notification as FirebaseNotification;
 class SendAcademicYearAnnouncements extends Command
 {
     protected $signature = 'academic-year:announce
-                            {academic_year : Academic year, for example 2026/2027}
+                            {academic_year? : Academic year; defaults to the active timetable setup}
                             {--semester= : Semester label; defaults to the active timetable semester}
                             {--audience=all : all, students, alumni, or staff}
                             {--send : Deliver email and push notifications; otherwise preview only}';
@@ -25,8 +25,14 @@ class SendAcademicYearAnnouncements extends Command
 
     public function handle(): int
     {
-        $academicYear = trim((string) $this->argument('academic_year'));
         $audience = strtolower(trim((string) $this->option('audience')));
+        $activeSetup = TimetableSemester::getCurrent();
+        $academicYear = trim((string) ($this->argument('academic_year') ?: $activeSetup?->academic_year));
+
+        if ($academicYear === '') {
+            $this->error('No academic year was supplied and no active timetable setup was found.');
+            return self::FAILURE;
+        }
 
         if (!preg_match('/^\d{4}\/\d{4}$/', $academicYear)) {
             $this->error('Academic year must use the format 2026/2027.');
@@ -38,7 +44,6 @@ class SendAcademicYearAnnouncements extends Command
             return self::FAILURE;
         }
 
-        $activeSetup = TimetableSemester::getCurrent();
         $semester = trim((string) ($this->option('semester') ?: $activeSetup?->semester?->name ?: 'new semester'));
 
         if ($activeSetup && $activeSetup->academic_year !== $academicYear) {
