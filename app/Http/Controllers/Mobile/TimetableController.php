@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Mobile;
 use App\Http\Controllers\Controller;
 use App\Models\Course;
 use App\Models\ExaminationTimetable;
+use App\Models\ExamSetup;
 use App\Models\Student;
 use App\Models\Timetable;
 use App\Models\TimetableSemester;
@@ -18,13 +19,7 @@ class TimetableController extends Controller
      */
     private function getCurrentTimetableSemester()
     {
-        return TimetableSemester::with('semester')
-            ->active()
-            ->latest('activated_at')
-            ->latest('id')
-            ->first() ?? TimetableSemester::with('semester')
-            ->latest('id')
-            ->first();
+        return TimetableSemester::getCurrent();
     }
 
     /**
@@ -290,12 +285,40 @@ class TimetableController extends Controller
             return response()->json(['error' => 'Missing faculty_id or year_id'], 400);
         }
 
-        $timetables = ExaminationTimetable::where('faculty_id', $facultyId)
+        $timetableSemester = $this->getCurrentTimetableSemester();
+
+        if (!$timetableSemester) {
+            return response()->json([
+                'success' => false,
+                'error' => 'No active timetable semester configured.',
+            ], 422);
+        }
+
+        $examSetup = ExamSetup::query()
+            ->where('semester_id', $timetableSemester->semester_id)
+            ->where('academic_year', $timetableSemester->academic_year)
+            ->latest('id')
+            ->first();
+
+        if (!$examSetup) {
+            return response()->json([
+                'success' => false,
+                'error' => 'No examination setup exists for the active semester.',
+            ], 422);
+        }
+
+        $timetables = ExaminationTimetable::with(['course', 'venues', 'lecturers'])
+            ->where('exam_setup_id', $examSetup->id)
+            ->where('faculty_id', $facultyId)
             ->where('year_id', $yearId)
+            ->orderBy('exam_date')
+            ->orderBy('start_time')
             ->get();
 
         return response()->json([
             'success' => true,
+            'semester' => $timetableSemester->semester?->name ?? 'N/A',
+            'academic_year' => $timetableSemester->academic_year,
             'data'    => $timetables
         ], 200);
     }

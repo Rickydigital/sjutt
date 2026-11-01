@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Mobile;
 
 use App\Http\Controllers\Controller;
 use App\Models\Event;
+use App\Models\AlmanacSetup;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -67,40 +68,47 @@ class EventController extends Controller
 
     public function getEvents(): JsonResponse
     {
-        $now = Carbon::now();
+        $setup = AlmanacSetup::getCurrent();
 
-        $events = Event::with('user')
-            ->where('end_time', '>', $now)
-            ->select('id', 'title', 'description', 'location', 'start_time', 'end_time', 'user_allowed', 'media', 'created_by', 'created_at', 'updated_at')
-            ->orderBy('start_time', 'asc')
+        if (!$setup) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+            ]);
+        }
+
+        $events = $setup->events()
+            ->with('creator')
+            ->whereDate('end_date', '>=', today())
+            ->orWhere(function ($query) use ($setup) {
+                $query->where('almanac_setup_id', $setup->id)
+                    ->whereNull('end_date')
+                    ->whereDate('start_date', '>=', today());
+            })
+            ->orderBy('start_date')
             ->get();
 
         $data = $events->map(function ($event) {
-            $mediaUrl = null;
-            $mediaType = null;
-            if ($event->media) {
-                $mediaType = $this->getMediaType($event->media);
-                if ($mediaType === 'video') {
-                    // Assumes event videos are in 'public/events_media'
-                    $mediaUrl = 'event_media/' . basename($event->media);
-                } else {
-                    $mediaUrl = $event->media; // Return relative path
-                }
-            }
+            $start = $event->start_date->copy()->startOfDay();
+            $end = ($event->end_date ?? $event->start_date)->copy()->endOfDay();
 
             return [
                 'id'            => $event->id,
                 'title'         => $event->title,
                 'description'   => $event->description,
-                'location'      => $event->location,
-                'start_time'    => $event->start_time->toISOString(),
-                'end_time'      => $event->end_time->toISOString(),
-                'user_allowed'  => $event->user_allowed,
-                'media'         => $mediaUrl,
-                'media_type'    => $mediaType,
+                'location'      => null,
+                'start_time'    => $start->toISOString(),
+                'end_time'      => $end->toISOString(),
+                'user_allowed'  => $event->applies_to_all ? 'All' : 'Selected Programs',
+                'media'         => null,
+                'media_type'    => null,
                 'created_at'    => $event->created_at->toISOString(),
                 'updated_at'    => $event->updated_at->toISOString(),
-                'creator'       => $event->user ? $event->user->only('id', 'name', 'email', 'phone', 'status') : null,
+                'creator'       => $event->creator ? $event->creator->only('id', 'name', 'email', 'phone', 'status') : null,
+                'category'      => $event->category,
+                'event_column'  => $event->event_column,
+                'is_no_classes' => $event->is_no_classes,
+                'is_tentative'  => $event->is_tentative,
             ];
         });
 
